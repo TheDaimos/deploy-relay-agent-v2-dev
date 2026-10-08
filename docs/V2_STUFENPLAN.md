@@ -15,7 +15,7 @@ Abnahmeregel: Zu jedem Punkt gehören (1) Entwurf, (2) automatisierte Prüfungen
 | V2-10 | Inventar WebSocket, Frontend, Speicher, Locks, Executor | STATIC REVIEW |
 | V2-20 | Serverseitiges Operationsmodell, Übergänge und Tests | DRAFT (isoliert) |
 | V2-30 | Auftragsmanager und Client-unabhängige Tasks | Isoliertes DEV-Testlabor real geprüft (Zweitsitzung, Browserneuladen, V1-Parallelbetrieb); produktive Schreibpfade weiterhin gesperrt |
-| V2-40 | Journale, Persistenz und Neustart-Recovery | V2-40-10/-20/-30 implementiert, 100/100 CI grün; V2-40-40/-50 HA-Neustart-Realabnahme und Abschluss OFFEN |
+| V2-40 | Journale, Persistenz und Neustart-Recovery | V2-40-10/-20/-30 statisch geprüft (101/101 CI in Testlabor 0.1.2); V2-40-40: beide HA-Neustart-Pflichttests erfolgreich; V2-40-50 Abschluss-/Ressourcengate OFFEN |
 | V2-50 | Echter Fortschritt aus dem Backend | NOT STARTED |
 | V2-60 | Vorschau als Auftrag; Reconnect und Pagination | NOT STARTED |
 | V2-70 | Installation als Auftrag; unveränderte Sicherheitsgrenzen | NOT STARTED |
@@ -56,4 +56,4 @@ Installationsfortschritt soll **im Installationsbereich** erscheinen und reale P
 
 ## Nachtrag V2-30/V2-40 (08.10.2026)
 
-Die früheren Gate-Statuswerte waren vor dem mittlerweile bestandenen Realtest des getrennten V2-DEV-Testlabors erstellt. Zweitsitzung, Notebook-Browserneuladen, V1-Gewitterradar-Update und anschließender HA-Neustart sind bestätigt. Ein bei HA-Neustart *aktiver* Auftrag war dabei noch nicht im Test: Das ist **V2-40-40** und ausdrücklich offen. Das Journal der V2-40-Implementierung ist zunächst auf synthetische Leseaufträge begrenzt; spätere schreibende Transaktionen bleiben untersagt. Statische Abnahme und CI: `docs/V2_40_STATISCHE_ABNAHME_2026-10-08.md`. V2-00/V2-05 und finale V2-PUB-Gates bleiben unverändert offen.
+Die früheren Gate-Statuswerte waren vor dem mittlerweile bestandenen Realtest des getrennten V2-DEV-Testlabors erstellt. Zweitsitzung, Notebook-Browserneuladen, V1-Gewitterradar-Update und anschließender HA-Neustart sind bestätigt. **Aktueller Stand vom 08.10.2026:** Beide V2-40-40-Realtests sind nun bestanden: Ein abgeschlossener Auftrag blieb nach vollem HA-Neustart mit identischer Kennung und Erfolg/100 % abrufbar. Ein späterer künstlicher 40-Sekunden-Leseauftrag wurde nach dem HA-Neustart mit identischer Kennung als `interrupted` bei 77 % angezeigt, ohne sichtbaren automatischen Neustart. Die V1-Funktions- und Ressourcenabschlussprüfung für V2-40-50 bleibt offen. Das Journal der V2-40-Implementierung ist zunächst auf synthetische Leseaufträge begrenzt; spätere schreibende Transaktionen bleiben untersagt. Statische Abnahme und CI: `docs/V2_40_STATISCHE_ABNAHME_2026-10-08.md`. V2-00/V2-05 und finale V2-PUB-Gates bleiben unverändert offen.
