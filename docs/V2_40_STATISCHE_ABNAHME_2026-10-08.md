@@ -107,3 +107,10 @@ Bezug: `docs/V2_40_PERSISTENZ_ENTWURF_2026-10-08.md`, `docs/V2_STUFENPLAN.md`, `
 - Die App meldete bei Arbeitsspeicher **„0 B“**, obwohl die Speicherverlaufsgrafik **„max 5,56 GiB“** auswies und einen nichtleeren Verlauf zeigte. Deshalb **keine valide aktuelle RAM-Belegung / RAM-Basis-Spitze** daraus ableiten. Die Anzeige muss über eine unabhängige Proxmox-Quelle plausibilisiert werden.
 - Datenträger-Ein-/Ausgabe und Home-Assistant-Reaktionszeit sind auf diesen Bildern nicht ablesbar. CPU-Spitzen aus einem zeitlich gemischten Verlauf (einschließlich Neustarts) erlauben **keinen Nachweis fehlender zusätzlicher Last durch V2**.
 - **Status V2-40-50: TEILMESSUNG / OFFEN.** Nächster gefahrloser Einzelschritt: Zuerst die VM-Zuordnung zu HA-DEV bestätigen; anschließend die Speicherbelegung über die Proxmox-Weboberfläche derselben VM prüfen. Keine Installation und kein Neustart notwendig; V2-Schreibfunktionen bleiben gesperrt.
+
+
+### HA-DEV – Plausibilisierte RAM-Momentaufnahme (08.10.2026, 20:26 Uhr)
+
+- Zweite Übersicht derselben, vom Nutzer als HA-DEV bestätigten VM 109: **CPU etwa 1 %**, **Arbeitsspeicher 3,2 GB von 7 GB**. CPU- und RAM-Kurven zeigen im sichtbaren kurzen Zeitraum ab ca. 20:25 Uhr geringe Schwankungen. Dies ersetzt die zuvor als unplausibel eingeordnete App-Anzeige „0 B“ **für die aktuelle RAM-Momentaufnahme**, nicht für den historischen Spitzenwert.
+- Diese Werte sind ausschließlich **VM-weit** und Momentaufnahmen. Daraus lässt sich weder CPU-/RAM-Bedarf der einzelnen V2-Integration noch eine belastbare Leistungsänderung gegenüber V1 allein ableiten. Für einen Vergleich fehlen einheitliche Zeitfenster vor/während/nach einer identischen Belastung sowie Messwerte für Datenträger-Ein-/Ausgabe und HA-Reaktionszeit.
+- **V2-40-50 bleibt TEILMESSUNG / OFFEN**. Keine erfundenen Messwerte, keine zusätzliche Installation oder Neustart aus der Messung abzuleiten; sicherheitsrelevante V2-Schreibfunktionen gesperrt. Nächste Messungen nur auf dieser bereits vorhandenen HA-DEV-Instanz.
