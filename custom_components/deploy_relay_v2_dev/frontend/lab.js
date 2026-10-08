@@ -94,7 +94,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     // Do not jump backwards on delayed progress messages.
     this._countdownShown = Number.isInteger(this._countdownShown) ?
       Math.min(this._countdownShown, predicted) : predicted;
-    return "Noch ca. " + this._countdownShown + " Sekunden";
+    return "Noch ca. " + this._countdownShown + (this._countdownShown === 1 ? " Sekunde" : " Sekunden");
   }
 
   _syncCountdownTimer() {
