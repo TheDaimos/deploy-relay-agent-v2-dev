@@ -134,3 +134,12 @@ Der Backendexport liegt **nur** in `deploy_relay_v2_dev`. Ein separater Git-Schr
 Automatische Tests behandeln Fakes für GitHub und den Secret-Store, Manipulationen, defekte Antworten, Authentisierungs-/Schreibfehler, URL- und Pfadgrenzen. Keine echten GitHub-Diagnosedateien wurden hochgeladen.
 
 **Gates:** V2-40-50 bleibt **OFFEN**; kein HA-DEV-Update auf Version 0.1.4 ohne V1-Vorschau und explizite Freigabe. Der Git-Export ist ein optionaler Diagnosepfad und keine Freigabe für Installationen, Projektbearbeitung oder V2-PUB. PR #2 bleibt Entwurf.
+
+
+### HA-DEV – erster realer Git-Messexport verifiziert (08.10.2026)
+
+- Im **öffentlichen Repository** `TheDaimos/deploy-relay-agent-v2-dev`, Branch `main`, wurde tatsächlich eine neue JSON-Datei unter `.deploy-relay/diagnostics/v2-dev/2026-10-08/20261008T205842Z-5ec6823c.json` gefunden. Git-Commit: `d8131253eee23c850387045491b5c4e329f47ade`, Nachricht `chore(diagnostics): export sanitized V2 DEV measurement [skip ci]`.
+- Der Inhalt ist formal plausibel: `dra-v2-dev-git-measurement.v1`, isolierte Domäne `deploy_relay_v2_dev`, Version `0.1.4`, vollständig synthetischer Test mit `elapsed_ms=40056`. CPU-Prozesszeit: Basis 478 ms (10 s), Arbeitsphase 1291 ms (20 s), Nachlauf 598 ms (10 s). Zeitsteuerungsverzögerung maximal 2 ms; 640 synthetische Hash-Durchläufe.
+- Öffentlichen **Dateiinhalt** geprüft: keine Auftragskennung, keine Git-Tokens, keine Rohprotokolle, Projektpfade oder private Konfigurationsdaten; nur vorgegebene Metadaten und Messzähler. Das ist ein **erfolgreicher realer Exportnachweis**, kein Beleg für alle Fehler- und Grenzfälle in der HA-Laufzeit.
+- Die CPU-Zeit ist **prozessweit**, nicht DRA-spezifisch. Auch `max_wakeup_delay_ms=2` gilt ausschließlich für diesen Messlauf und schließt sonstige Performanceprobleme nicht aus. Ressourcenprüfung V2-40-50 bleibt für belastbare V1-Vergleiche, RAM/I/O und HA-Reaktionszeiten offen.
+- Die Existenz des Exports belegt die Ausführung des V2-0.1.4-Exportpfads auf einem verbundenen System, ersetzt aber keine separat dokumentierte Installationsvorschau, Installer-Transaktion oder V1-Funktionsprüfung nach diesem Versionswechsel.

@@ -46,3 +46,7 @@ Nach Freigabe den Messlauf explizit starten, abschließen, Token für **das öff
 ### Sicherheits-/Review-Hinweis
 
 Das V2-DEV-Repository ist **öffentlich**. Der Export erfolgt nur auf ausdrückliches Drücken der Schaltfläche und ist eine eng begrenzte Diagnose-Gitschreibaktion, keine Deploymentmutation. Ein eigenes Fine-grained GitHub-Zugangstoken darf nur serverseitig im Home-Assistant-Konfigurationsspeicher konfiguriert werden (nicht im Chat oder im Quellcode). Für das produktive V2 ist diese Funktion ohne erneute Freigabe nicht automatisch übertragen.
+
+### Erster Git-Realexport (08.10.2026)
+
+Ein reales anonymes JSON ist im öffentlichen Repository im vorgesehenen Diagnoseverzeichnis angekommen (Commit `d8131253eee23c850387045491b5c4e329f47ade`). Der Inhalt entspricht dem fest begrenzten Messschema. Sicherheitsgrenzen und ausstehende V2-40-50-Ressourcenabnahme bleiben unverändert. Siehe `docs/V2_40_STATISCHE_ABNAHME_2026-10-08.md`.
