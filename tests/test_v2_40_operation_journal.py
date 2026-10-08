@@ -117,6 +117,12 @@ class JournalTests(unittest.IsolatedAsyncioTestCase):
         bad = copy.deepcopy(valid); bad["events"].append({"operation_id": "f"*32, "status": "success", "at": TIME}); variants.append(bad)
         bad = copy.deepcopy(valid); bad["records"][0]["current_index"] = True; variants.append(bad)
         bad = copy.deepcopy(valid); bad["records"][0]["restart_required"] = True; variants.append(bad)
+        bad = copy.deepcopy(valid); bad["records"][0]["progress_exact"] = True; variants.append(bad)
+        bad = copy.deepcopy(valid); bad["records"][0]["phase_percent"] = 77; variants.append(bad)
+        bad = copy.deepcopy(valid); bad["records"][0]["phase"] = "inventory"; variants.append(bad)
+        bad = copy.deepcopy(valid); bad["records"][0]["status"] = []; variants.append(bad)
+        bad = copy.deepcopy(valid); bad["records"][0]["error_family"] = {}; variants.append(bad)
+        bad = copy.deepcopy(valid); bad["events"].append({"operation_id": "f"*32, "status": {}, "at": TIME}); variants.append(bad)
         for item in variants:
             with self.subTest(item=str(item)[:70]):
                 store = FakeStore(item)
