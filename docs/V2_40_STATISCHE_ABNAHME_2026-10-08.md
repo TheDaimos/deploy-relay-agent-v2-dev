@@ -79,3 +79,12 @@ Bezug: `docs/V2_40_PERSISTENZ_ENTWURF_2026-10-08.md`, `docs/V2_STUFENPLAN.md`, `
 - Auf Wunsch des Nutzers wird die **rein künstliche** Versuchsdauer auf **40 Schritte × 1 Sekunde = rund 40 Sekunden** verlängert (V2-DEV-Version `0.1.2`); keine echte Installation, kein Git-Zugriff, keine Dateiveränderung, keine Änderung an V1, Journal oder Schreibberechtigungen. Der Fortschritt hat weiterhin echte 1-Sekunden-Schritte; keine zusätzliche Leerlaufabfrage.
 - Neue Regression prüft feste Testdauer, Fortschritts-Gesamtzahl, Oberflächentext und unveränderte drei Admin-WebSocket-Kommandos. Ein grüner CI-Lauf sowie eine neue V1-Vorschau und ausdrückliche Installationsfreigabe sind **vor** HA-DEV-Aktualisierung Pflicht.
 - Der erneute Neustarttest benötigt eine separate ausdrückliche Neustartfreigabe. **V2-40-40 bleibt offen**, bis dieselbe Auftragskennung nach dem HA-Neustart `interrupted` zeigt und keine neue Aufgabe gestartet wird.
+
+
+### HA-Pflichttest 2 – 40-Sekunden-Auftrag nach HA-Neustart unterbrochen
+
+- **08.10.2026, reales HA-DEV mit V2-DEV-Testlabor 0.1.2.** Nach grüner CI und geprüfter V1-Vorschau wurde das getrennte Testlabor aktualisiert. Der Nutzer legte in der Companion-App einen neuen künstlichen 40-Sekunden-Leseauftrag an; erster Screenshot um ca. 19:43 Uhr Ortszeit: Status `queued` („Wartet“), noch kein Fortschrittswert, neue 32-stellige Kennung.
+- Der Nutzer führte den vorgesehenen HA-Neustart während des synthetischen Auftrags durch. Zweiter Screenshot nach dem Wiederanlauf (ca. 19:47 Uhr Ortszeit): **dieselbe Auftragskennung**, Status **`interrupted`** („Durch Beenden oder Neustart unterbrochen“), **77 % der Testschritte**, keine Wiederaufnahme angezeigt, Startknopf wieder freigegeben. Ein Erfolg bei 100 % wurde nicht behauptet.
+- **Ergebnis: HA-Pflichttest 2 BESTANDEN**: ein vorher nicht terminaler, rein lesender Testauftrag bleibt wiedererkennbar, wird nicht als `success` ausgegeben und erscheint beim Wiederabruf als `interrupted`. Die Fortschrittsanzeige zeigt den zuletzt erfassten Stand; 77 % entsprechen bei 40 Schritten rechnerisch 31 abgeschlossenen Schritten, nicht einem nachträglichen Fortsetzen.
+- Die private Auftragskennung und Screenshots verbleiben in der Testkonversation; keine Rohdaten oder lokalen Pfade in öffentlicher Dokumentation.
+- **Noch offen vor V2-40-50:** V1-Funktionskontrolle nach diesem zweiten Neustart sowie Ressourcen- und Latenzbeobachtungen. Keine mutierenden V2-Operationen freigeben. PR #2 bleibt Entwurf, V2-PUB bleibt gesperrt.
