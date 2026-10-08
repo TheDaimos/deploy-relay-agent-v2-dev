@@ -1,0 +1,30 @@
+{
+  "schema": "deploy-relay.deployment.v1",
+  "project": {
+    "id": "deploy_relay_agent_v2_dev",
+    "name": "DRA V2 DEV – Nur Testlabor"
+  },
+  "source": {
+    "repository": "TheDaimos/deploy-relay-agent-v2-dev",
+    "mode": "repository_contents"
+  },
+  "deployment": {
+    "root": "/config",
+    "groups": [
+      {
+        "id": "isolated_v2_dev_lab",
+        "source": "custom_components/deploy_relay_v2_dev",
+        "target": "custom_components/deploy_relay_v2_dev",
+        "mode": "replace_directory"
+      }
+    ]
+  },
+  "lifecycle": {
+    "after_install": "home_assistant_restart"
+  },
+  "policy": {
+    "allow_symlinks": false,
+    "max_files": 24,
+    "max_uncompressed_bytes": 3145728
+  }
+}
