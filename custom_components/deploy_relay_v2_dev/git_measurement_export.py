@@ -159,6 +159,89 @@ def public_export_document(summary: object, *, version: str, now: datetime) -> d
     }
 
 
+
+SUITE_SCHEMA = "dra-v2-dev-suite.v1"
+MULTICORE_SCHEMA = "dra-v2-dev-multicore.v1"
+SUITE_EXPORT_SCHEMA = "dra-v2-dev-git-suite.v1"
+_WORKER_COUNTS = (1, 2, 4)
+
+
+def sanitized_multicore(data: object) -> dict[str, object]:
+    if type(data) is not dict or set(data) != {
+        "schema", "method", "logical_cpus_visible",
+        "affinity_cpus_visible", "levels",
+    }:
+        raise GitMeasurementError("invalid multicore report")
+    if data["schema"] != MULTICORE_SCHEMA or data["method"] != "BOUNDED_CHILD_PROCESSES":
+        raise GitMeasurementError("invalid multicore method")
+    cpu = {}
+    for key in ("logical_cpus_visible", "affinity_cpus_visible"):
+        value = data[key]
+        if value is not None and (type(value) is not int or not 1 <= value <= 1024):
+            raise GitMeasurementError("invalid multicore core count")
+        cpu[key] = value
+    stages = data["levels"]
+    if type(stages) is not list or len(stages) != 3:
+        raise GitMeasurementError("invalid multicore levels")
+    checked = []
+    for workers, row in zip(_WORKER_COUNTS, stages):
+        if type(row) is not dict or set(row) != {
+            "workers", "status", "wall_ms",
+            "aggregate_worker_cpu_ms", "iterations_total",
+        } or type(row["workers"]) is not int or row["workers"] != workers:
+            raise GitMeasurementError("invalid worker count")
+        if row["status"] not in ("ok", "unavailable") or type(row["status"]) is not str:
+            raise GitMeasurementError("invalid worker status")
+        wall, cpu_ms, iterations = (
+            row["wall_ms"], row["aggregate_worker_cpu_ms"], row["iterations_total"],
+        )
+        if row["status"] == "ok":
+            if (type(wall) is not int or not 0 <= wall <= 30000
+                or type(cpu_ms) is not int or not 0 <= cpu_ms <= 30000
+                or type(iterations) is not int or iterations != workers * 400000):
+                raise GitMeasurementError("invalid worker measurements")
+        elif any(x is not None for x in (wall, cpu_ms, iterations)):
+            raise GitMeasurementError("invalid unavailable measurements")
+        checked.append({
+            "workers": workers, "status": row["status"],
+            "wall_ms": wall, "aggregate_worker_cpu_ms": cpu_ms,
+            "iterations_total": iterations,
+        })
+    return {
+        "schema": MULTICORE_SCHEMA, "method": "BOUNDED_CHILD_PROCESSES",
+        **cpu, "levels": checked,
+    }
+
+
+def sanitized_suite(data: object) -> dict[str, object]:
+    if type(data) is not dict or set(data) != {
+        "schema", "operation_id", "mode", "readonly_steps",
+        "measurement", "multicore",
+    } or data["schema"] != SUITE_SCHEMA:
+        raise GitMeasurementError("invalid suite report")
+    if type(data["operation_id"]) is not str or not HEX_RE.fullmatch(data["operation_id"]):
+        raise GitMeasurementError("invalid suite identity")
+    mode = data["mode"]
+    if mode not in ("full", "multicore") or type(mode) is not str:
+        raise GitMeasurementError("invalid suite mode")
+    if type(data["readonly_steps"]) is not int or data["readonly_steps"] != (40 if mode == "full" else 0):
+        raise GitMeasurementError("invalid suite trial")
+    if mode == "full":
+        if type(data["measurement"]) is not dict or data["measurement"].get("operation_id") != data["operation_id"]:
+            raise GitMeasurementError("invalid suite measurement")
+        measurement = sanitized_measurement(data["measurement"])
+    else:
+        if data["measurement"] is not None:
+            raise GitMeasurementError("unexpected suite measurement")
+        measurement = None
+    return {
+        "schema": SUITE_SCHEMA, "mode": mode,
+        "readonly_steps": data["readonly_steps"],
+        "measurement": measurement,
+        "multicore": sanitized_multicore(data["multicore"]),
+    }
+
+
 class MeasurementGitExport:
     """One optional, narrowly scoped writer. No polling or background uploads."""
 
@@ -211,12 +294,27 @@ class MeasurementGitExport:
             if not self.configured:
                 raise GitMeasurementError("Git export not configured")
             now = datetime.now(timezone.utc)
-            document = public_export_document(summary, version=version, now=now)
+            if type(summary) is dict and summary.get("schema") == SUITE_SCHEMA:
+                if type(version) is not str or not re.fullmatch(r"0\\.1\\.[0-9]{1,3}", version):
+                    raise GitMeasurementError("invalid suite version")
+                document = {
+                    "schema": SUITE_EXPORT_SCHEMA,
+                    "created_at": now.isoformat(timespec="seconds").replace("+00:00", "Z"),
+                    "component": "deploy_relay_v2_dev",
+                    "version": version,
+                    "mode": "READ_ONLY_TEST",
+                    "suite": sanitized_suite(summary),
+                    "note": "Synthetic subprocess comparison, not individual DRA CPU attribution.",
+                }
+                output_schema = SUITE_EXPORT_SCHEMA
+            else:
+                document = public_export_document(summary, version=version, now=now)
+                output_schema = EXPORT_SCHEMA
             stamp = now.strftime("%Y%m%dT%H%M%SZ")
             day = now.strftime("%Y-%m-%d")
             path = f"{ROOT}/{day}/{stamp}-{secrets.token_hex(4)}.json"
             body = {
-                "schema": EXPORT_SCHEMA,
+                "schema": output_schema,
                 "repository": REPOSITORY,
                 "branch": BRANCH,
                 "path": path,
