@@ -78,7 +78,7 @@ class LabIsolationContracts(unittest.TestCase):
     def test_async_ws_handlers_are_scheduled_and_admin_guarded(self):
         sockets = (LAB_ROOT / "websocket_api.py").read_text(encoding="utf-8")
         self.assertEqual(sockets.count("@websocket_api.async_response"), 4)
-        self.assertEqual(sockets.count("@websocket_api.require_admin"), 3)
+        self.assertEqual(sockets.count("@websocket_api.require_admin"), 4)
         self.assertEqual(sockets.count("@websocket_api.websocket_command("), 4)
         self.assertIn("import probatio", sockets)
         self.assertNotIn("import voluptuous", sockets)
@@ -121,10 +121,10 @@ class LabIsolationContracts(unittest.TestCase):
         self.assertIn("await progress(OperationPhase.INVENTORY, index, READONLY_TEST_STEPS)", sockets)
         self.assertIn("40-Sekunden-Test", frontend)
         self.assertIn("Messlauf starten (40 s)", frontend)
-        self.assertIn("read-only", (LAB_ROOT / "readonly_benchmark.py").read_text(encoding="utf-8").lower() if False else "read-only")
+        self.assertIn("No project or file access", (LAB_ROOT / "readonly_benchmark.py").read_text(encoding="utf-8"))
         self.assertNotIn("20-Sekunden-Test", frontend)
         self.assertNotIn("for index in range(1, 21):", sockets)
-        self.assertEqual(sockets.count("@websocket_api.require_admin"), 3)
+        self.assertEqual(sockets.count("@websocket_api.require_admin"), 4)
 
 
 if __name__ == "__main__":
