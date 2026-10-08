@@ -15,7 +15,7 @@ Abnahmeregel: Zu jedem Punkt gehören (1) Entwurf, (2) automatisierte Prüfungen
 | V2-10 | Inventar WebSocket, Frontend, Speicher, Locks, Executor | STATIC REVIEW |
 | V2-20 | Serverseitiges Operationsmodell, Übergänge und Tests | DRAFT (isoliert) |
 | V2-30 | Auftragsmanager und Client-unabhängige Tasks | Isoliertes DEV-Testlabor real geprüft (Zweitsitzung, Browserneuladen, V1-Parallelbetrieb); produktive Schreibpfade weiterhin gesperrt |
-| V2-40 | Journale, Persistenz und Neustart-Recovery | V2-40-10/-20/-30 statisch geprüft (101/101 CI in Testlabor 0.1.2); V2-40-40: beide HA-Neustart-Pflichttests erfolgreich; V2-40-50 Abschluss-/Ressourcengate OFFEN |
+| V2-40 | Journale, Persistenz und Neustart-Recovery | V2-40-10/-20/-30 statisch geprüft (101/101 CI in Testlabor 0.1.2); V2-40-40: beide HA-Neustarttests und anschließende V1-Sammelprüfung erfolgreich; V2-40-50 quantitative Ressourcenabnahme OFFEN |
 | V2-50 | Echter Fortschritt aus dem Backend | NOT STARTED |
 | V2-60 | Vorschau als Auftrag; Reconnect und Pagination | NOT STARTED |
 | V2-70 | Installation als Auftrag; unveränderte Sicherheitsgrenzen | NOT STARTED |
