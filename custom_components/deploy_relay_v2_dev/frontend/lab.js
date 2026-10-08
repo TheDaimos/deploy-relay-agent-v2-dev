@@ -6,6 +6,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._hass = null;
     this._operation = null;
     this._measurement = null;
+    this._suite = null;
     this._gitConfigured = false;
     this._gitAvailable = false;
     this._gitSetup = false;
@@ -67,8 +68,8 @@ class DRAV2DevLabPanel extends HTMLElement {
     }
     if (op.status !== "running") return;
     const step = Number.isInteger(op.current_index) &&
-      op.current_index >= 0 && op.current_index <= 40 &&
-      op.total_count === 40 ? op.current_index : 0;
+      op.current_index >= 0 && op.current_index <= op.total_count &&
+      (op.total_count === 40 || op.total_count === 83) ? op.current_index : 0;
     if (step !== this._countdownStep) {
       this._countdownStep = step;
       this._countdownAt = Date.now();
@@ -83,14 +84,16 @@ class DRAV2DevLabPanel extends HTMLElement {
       return "Start wird vorbereitet";
     }
     if (op.status !== "running") return "Auftrag beendet";
-    if (op.total_count !== 40) return "Fortschritt wird abgerufen";
+    if (op.total_count === 3) return "Mehrkernprüfung läuft";
+    if (op.total_count !== 40 && op.total_count !== 83) return "Fortschritt wird abgerufen";
+    if (op.total_count === 83 && op.current_index >= 80) return "Mehrkernprüfung läuft";
     const step = Number.isInteger(op.current_index) &&
-      op.current_index >= 0 && op.current_index <= 40 ?
+      op.current_index >= 0 && op.current_index <= op.total_count ?
       op.current_index : 0;
-    if (this._countdownAt === null) return "Noch ca. 40 Sekunden";
+    if (this._countdownAt === null) return "Noch ca. " + (op.total_count === 83 ? 80 : 40) + " Sekunden";
     const elapsed = Math.floor(Math.max(0, Date.now() - this._countdownAt) / 1000);
     // Never claim 0 while the backend still reports "running".
-    const predicted = Math.max(1, 40 - step - elapsed);
+    const predicted = Math.max(1, (op.total_count === 83 ? 80 : 40) - step - elapsed);
     // Do not jump backwards on delayed progress messages.
     this._countdownShown = Number.isInteger(this._countdownShown) ?
       Math.min(this._countdownShown, predicted) : predicted;
@@ -129,6 +132,7 @@ class DRAV2DevLabPanel extends HTMLElement {
       this._operation = (data.operations || [])[0] || null;
       this._observeCountdown(this._operation);
       this._measurement = data.measurement || null;
+      this._suite = data.suite || null;
       this._gitConfigured = data.git_configured === true;
       this._gitAvailable = data.git_available === true;
       this._error = "";
@@ -174,6 +178,7 @@ class DRAV2DevLabPanel extends HTMLElement {
       });
       this._observeCountdown(this._operation);
       this._measurement = null;
+      this._suite = null;
       this._lastExport = null;
       this._error = "";
     } catch (_error) {
@@ -185,6 +190,30 @@ class DRAV2DevLabPanel extends HTMLElement {
     }
   }
 
+  async _runSequence(kind) {
+    if (!this._hass || this._busy || this._active() || this._gitBusy) return;
+    this._busy = true;
+    this._render();
+    try {
+      const requestId = "readtest-" + Date.now().toString(36) + "-" +
+        Math.random().toString(36).slice(2) + "-" + Math.random().toString(36).slice(2);
+      const route = kind === "full" ? "all" : "multicore";
+      this._operation = await this._hass.callWS({
+        type: "deploy_relay_v2_dev/test/" + route, request_id: requestId,
+      });
+      this._observeCountdown(this._operation);
+      this._suite = null;
+      this._measurement = null;
+      this._lastExport = null;
+      this._error = "";
+    } catch (_error) {
+      this._error = "Mehrkern- oder Gesamttest konnte nicht gestartet werden.";
+    } finally {
+      this._busy = false;
+      if (this.isConnected) this._render();
+      this._schedule();
+    }
+  }
   async _configureGit(clear = false) {
     if (!this._hass || this._gitBusy || !this._gitAvailable) return;
     const input = this.shadowRoot?.querySelector("#git-token");
@@ -237,12 +266,17 @@ class DRAV2DevLabPanel extends HTMLElement {
     const s = this.shadowRoot;
     const op = this._operation;
     const busy = this._busy || this._active() || this._gitBusy;
-    const data = this._measurement;
+    const suite = this._suite && op && this._suite.operation_id === op.operation_id ? this._suite : null;
+    const data = suite?.mode === "full" ? suite.measurement : this._measurement;
     const valid = data && op && data.operation_id === op.operation_id &&
       data.schema === "dra-v2-dev-measurement.v2" &&
       ["base_process_cpu_ms", "work_process_cpu_ms", "after_process_cpu_ms",
        "max_wakeup_delay_ms", "elapsed_ms", "synthetic_hashes"]
         .every(k => Number.isInteger(data[k]) && data[k] >= 0);
+    const validSuite = suite?.schema === "dra-v2-dev-suite.v1" &&
+      ["full", "multicore"].includes(suite.mode) &&
+      suite.multicore?.schema === "dra-v2-dev-multicore.v1" &&
+      Array.isArray(suite.multicore.levels) && suite.multicore.levels.length === 3;
     const processRate = (cpuMs, duration) =>
       (100 * cpuMs / (1000 * duration)).toFixed(2) + " % eines CPU-Kerns";
     const memory = valid ? data.memory : null;
@@ -259,6 +293,30 @@ class DRAV2DevLabPanel extends HTMLElement {
       </tbody></table></div>
       <p class="note">„Belegt“ = Gesamt minus verfügbar. „Frei“ ist ohne Zwischenspeicher. Die Werte stammen aus der Linux-Sicht von Home Assistant, nicht direkt aus Proxmox.</p>
       <p class="note"><strong>DRA V1: nicht einzeln messbar · DRA V2: nicht einzeln messbar.</strong> Beide Integrationen teilen sich denselben Home-Assistant-Prozess. Ein genauer Speicherverbrauch pro Integration lässt sich daraus nicht seriös bestimmen.</p>
+    ` : "";
+    const multiRows = validSuite ? suite.multicore.levels.map(level => {
+      const workers = [1, 2, 4].includes(level.workers) ? level.workers : "—";
+      const ok = level.status === "ok";
+      const millis = ok && Number.isInteger(level.wall_ms) ? level.wall_ms + " ms" : "Nicht verfügbar";
+      const cpuTime = ok && Number.isInteger(level.aggregate_worker_cpu_ms) ?
+        level.aggregate_worker_cpu_ms + " ms" : "—";
+      const hashes = ok && Number.isInteger(level.iterations_total) ? level.iterations_total : "—";
+      return `<tr><th>${workers} Prozess(e)</th><td>${ok ? "Gemessen" : "Nicht verfügbar"}</td><td>${millis}</td><td>${cpuTime}</td><td>${hashes}</td></tr>`;
+    }).join("") : "";
+    const multicoreReport = validSuite ? `
+      <p><strong>Mehrkern-Diagnose:</strong> ${suite.mode === "full" ? "Gesamttest" : "Einzeltest"}</p>
+      <p>Vom HA-Prozess sichtbare logische Kerne: ${
+        Number.isInteger(suite.multicore.logical_cpus_visible) ?
+        suite.multicore.logical_cpus_visible : "Nicht verfügbar"
+      }; laut CPU-Zuordnung: ${
+        Number.isInteger(suite.multicore.affinity_cpus_visible) ?
+        suite.multicore.affinity_cpus_visible : "Nicht verfügbar"
+      }</p>
+      <div class="table-wrap"><table><thead><tr><th>Arbeitsprozesse</th><th>Status</th><th>Gesamtdauer</th><th>CPU-Zeit</th><th>Rechenschritte</th></tr></thead>
+      <tbody>${multiRows}</tbody></table></div>
+      <p class="note">Die 1-, 2- und 4-Prozesse-Prüfungen laufen nacheinander.
+      Es laufen nie mehr als vier Arbeitsprozesse gleichzeitig. Die Werte enthalten
+      auch Start- und Verwaltungsaufwand; kein Beweis für die Leistung einzelner HA-Integrationen.</p>
     ` : "";
     const report = valid ? `
       <p><strong>Messlauf abgeschlossen (Prozesswerte):</strong></p>
@@ -319,9 +377,14 @@ class DRAV2DevLabPanel extends HTMLElement {
           ${this._error ? `<p class="error">${this._error}</p>` : ""}
           <button id="start" ${busy ? "disabled" : ""}>Testauftrag starten</button>
           <button id="measure" ${busy ? "disabled" : ""}>Messlauf starten (40 s)</button>
+          <button id="multicore" ${busy ? "disabled" : ""}>Mehrkern-Diagnose (1 / 2 / 4)</button>
+          <button id="all" ${busy ? "disabled" : ""}>Alle Tests nacheinander starten</button>
+          <p class="note">Gesamttest: erst 40 Sekunden Auftragsprüfung, dann 40 Sekunden CPU-/Speichermessung,
+          anschließend nacheinander 1, 2 und 4 getrennte Arbeitsprozesse. Ein Auftrag, ein Git-Export.</p>
           <p class="note">Messlauf: 10 Sekunden Basis, 20 Sekunden begrenzte Rechenarbeit
           außerhalb der HA-Ereignisschleife, 10 Sekunden Nachlauf. Maximal ein Auftrag gleichzeitig.</p>
           ${report}
+          ${multicoreReport}
           <button id="refresh" ${this._busy ? "disabled" : ""}>Status aktualisieren</button>
         </article>
         <article>
@@ -334,7 +397,7 @@ class DRAV2DevLabPanel extends HTMLElement {
           <button id="git-save" ${this._gitBusy ? "disabled" : ""}>Zugang speichern</button>
           <button id="git-cancel">Abbrechen</button>` : ""}
           <button id="git-setup" ${this._gitBusy || !this._gitAvailable ? "disabled" : ""}>Git-Export einrichten</button>
-          <button id="git-export" ${this._gitBusy || busy || !valid || op?.status !== "success" || !this._gitAvailable ? "disabled" : ""}>Messdaten nach Git exportieren</button>
+          <button id="git-export" ${this._gitBusy || busy || (!valid && !validSuite) || op?.status !== "success" || !this._gitAvailable ? "disabled" : ""}>Messdaten nach Git exportieren</button>
           ${this._gitConfigured ? `<button id="git-remove" ${this._gitBusy ? "disabled" : ""}>Git-Zugang entfernen</button>` : ""}
           <p class="note">${this._gitStatus}</p>
           ${this._lastExport ? `<a class="git-link" href="${this._lastExport.file_url}" target="_blank" rel="noopener noreferrer">Export in GitHub öffnen</a>` : ""}
@@ -344,6 +407,8 @@ class DRAV2DevLabPanel extends HTMLElement {
     `;
     s.querySelector("#start")?.addEventListener("click", () => this._start());
     s.querySelector("#measure")?.addEventListener("click", () => this._measure());
+    s.querySelector("#multicore")?.addEventListener("click", () => this._runSequence("multicore"));
+    s.querySelector("#all")?.addEventListener("click", () => this._runSequence("full"));
     s.querySelector("#refresh")?.addEventListener("click", () => this._refresh());
     s.querySelector("#git-setup")?.addEventListener("click", () => { this._gitSetup = true; this._render(); });
     s.querySelector("#git-save")?.addEventListener("click", () => this._configureGit(false));
