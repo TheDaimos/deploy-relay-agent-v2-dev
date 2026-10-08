@@ -205,7 +205,13 @@ async def async_git_export(hass, connection, msg):
     if runtime is None:
         connection.send_error(msg["id"], "not_ready", "Testlabor nicht gestartet")
         return
-    summary = runtime.measurement.summary()
+    current = await runtime.registry.list(limit=1)
+    latest_id = current[0]["operation_id"] if current else None
+    suite = runtime.suite.summary()
+    solo = runtime.measurement.summary()
+    summary = (suite if suite and suite.get("operation_id") == latest_id
+               else solo if solo and solo.get("operation_id") == latest_id
+               else None)
     if summary is None:
         connection.send_error(msg["id"], "no_measurement", "Kein abgeschlossener Messlauf vorhanden")
         return
