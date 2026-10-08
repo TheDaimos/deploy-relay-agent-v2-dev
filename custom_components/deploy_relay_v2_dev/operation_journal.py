@@ -85,8 +85,17 @@ def _snapshot(value: object) -> dict[str, object]:
         (s["current_index"] is None) != (s["total_count"] is None) or
         (s["current_index"] is not None and s["current_index"] > s["total_count"]) or
         not _number(s["phase_percent"], 0, 100, optional=True) or
+        (s["current_index"] is None) != (s["phase_percent"] is None) or
+        (s["current_index"] is not None and
+            s["phase_percent"] != (100 * s["current_index"]) // s["total_count"]) or
         not _number(s["progress_percent"], 0, 100, optional=True) or
         type(s["progress_exact"]) is not bool or
+        (s["status"] in TERMINAL and
+            s["status"] != "success" and s["progress_exact"]) or
+        (s["status"] == "queued" and (
+            s["started_at"] is not None or s["phase"] != "prepare" or
+            s["progress_percent"] is not None or
+            s["current_index"] is not None or s["phase_percent"] is not None)) or
         (s["error_family"] is not None and
             (not isinstance(s["error_family"], str) or
              s["error_family"] not in ERRORS)) or
