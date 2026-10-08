@@ -80,6 +80,8 @@ TERMINAL: Final[frozenset[OperationStatus]] = frozenset(
     }
 )
 
+MAX_WORK_ITEMS: Final[int] = 1_000_000_000
+
 ALLOWED_TRANSITIONS: Final[dict[OperationStatus, frozenset[OperationStatus]]] = {
     OperationStatus.QUEUED: frozenset({
         OperationStatus.WAITING_FOR_RESOURCE, OperationStatus.RUNNING,
@@ -144,23 +146,25 @@ class OperationRecord:
     project_key: str
     source_commit: str | None = None
     run_id: str | None = None
-    operation_id: str = field(default_factory=lambda: uuid4().hex)
-    status: OperationStatus = OperationStatus.QUEUED
-    phase: OperationPhase = OperationPhase.PREPARE
-    created_at: str = field(default_factory=_utc_timestamp)
-    started_at: str | None = None
-    finished_at: str | None = None
-    current_index: int | None = None
-    total_count: int | None = None
-    phase_percent: int | None = None
-    progress_percent: int | None = None
-    progress_exact: bool = False
-    error_family: ErrorFamily | None = None
-    restart_required: bool = False
-    frontend_reload_possible: bool = False
+    # Only identifying fields belong to the constructor. Generated state and
+    # progress cannot be forged by passing extra constructor arguments.
+    operation_id: str = field(default_factory=lambda: uuid4().hex, init=False)
+    status: OperationStatus = field(default=OperationStatus.QUEUED, init=False)
+    phase: OperationPhase = field(default=OperationPhase.PREPARE, init=False)
+    created_at: str = field(default_factory=_utc_timestamp, init=False)
+    started_at: str | None = field(default=None, init=False)
+    finished_at: str | None = field(default=None, init=False)
+    current_index: int | None = field(default=None, init=False)
+    total_count: int | None = field(default=None, init=False)
+    phase_percent: int | None = field(default=None, init=False)
+    progress_percent: int | None = field(default=None, init=False)
+    progress_exact: bool = field(default=False, init=False)
+    error_family: ErrorFamily | None = field(default=None, init=False)
+    restart_required: bool = field(default=False, init=False)
+    frontend_reload_possible: bool = field(default=False, init=False)
     # Fixed, bounded, non-sensitive counters only: never arbitrary dict payloads.
-    completed_items: int = 0
-    failed_items: int = 0
+    completed_items: int = field(default=0, init=False)
+    failed_items: int = field(default=0, init=False)
 
     def __post_init__(self) -> None:
         self.operation_type = OperationType(self.operation_type)
@@ -201,6 +205,10 @@ class OperationRecord:
             raise OperationContractError("error family belongs only to a failed operation")
         family = ErrorFamily(error_family) if error_family is not None else None
         next_phase = OperationPhase(phase) if phase is not None else self.phase
+        if target == OperationStatus.RUNNING and next_phase == OperationPhase.WAITING:
+            next_phase = OperationPhase.PREPARE
+        if target != OperationStatus.SUCCESS and next_phase == OperationPhase.COMPLETE:
+            raise OperationContractError("only success may enter the complete phase")
         if target == OperationStatus.RECOVERY_REQUIRED:
             next_phase = OperationPhase.RECOVERY
         elif target == OperationStatus.SUCCESS:
@@ -238,7 +246,7 @@ class OperationRecord:
         next_phase = OperationPhase(phase)
         if isinstance(current, bool) or isinstance(total, bool) or not isinstance(current, int) or not isinstance(total, int):
             raise OperationContractError("progress requires integer work counts")
-        if total < 1 or current < 0 or current > total:
+        if total < 1 or total > MAX_WORK_ITEMS or current < 0 or current > total:
             raise OperationContractError("invalid progress counters")
         if not isinstance(overall, bool):
             raise OperationContractError("overall must be a boolean")
@@ -264,7 +272,10 @@ class OperationRecord:
     def update_item_counts(self, *, completed: int, failed: int) -> None:
         if self.status is not OperationStatus.RUNNING:
             raise OperationContractError("work counters require running state")
-        if any(isinstance(v, bool) or not isinstance(v, int) or v < 0 for v in (completed, failed)):
+        if any(
+            isinstance(v, bool) or not isinstance(v, int)
+            or not 0 <= v <= MAX_WORK_ITEMS for v in (completed, failed)
+        ):
             raise OperationContractError("work counters must be nonnegative integers")
         if completed < self.completed_items or failed < self.failed_items:
             raise OperationContractError("work counters cannot regress")

@@ -57,7 +57,7 @@ class OperationRegistry:
         self._max_readonly = max_readonly
         self._lock = asyncio.Lock()
         self._records: OrderedDict[str, OperationRecord] = OrderedDict()
-        self._idempotency: dict[str, tuple[str, OperationType, str, str | None]] = {}
+        self._idempotency: dict[str, tuple[str, OperationType, str, str | None, str | None]] = {}
 
     @staticmethod
     def _hash_request(value: str | None) -> str | None:
@@ -67,6 +67,12 @@ class OperationRegistry:
         if not isinstance(value, str) or fullmatch(r"[A-Za-z0-9_.-]{16,128}", value) is None:
             raise OperationContractError("invalid idempotency request id")
         return hashlib.sha256(value.encode("ascii")).hexdigest()
+
+    @staticmethod
+    def _operation_id(value: str) -> str:
+        if not isinstance(value, str) or fullmatch(r"[0-9a-f]{32}", value) is None:
+            raise OperationContractError("invalid operation id")
+        return value
 
     def _prune_completed(self) -> None:
         terminal = [key for key, op in self._records.items() if op.terminal]
@@ -97,7 +103,7 @@ class OperationRegistry:
             run_id=run_id,
         )
         fingerprint = self._hash_request(request_id)
-        identity = (typ, candidate.project_key, candidate.source_commit)
+        identity = (typ, candidate.project_key, candidate.source_commit, candidate.run_id)
         async with self._lock:
             if fingerprint is not None and fingerprint in self._idempotency:
                 old_id, *stored_identity = self._idempotency[fingerprint]
@@ -117,11 +123,14 @@ class OperationRegistry:
             return candidate.snapshot()
 
     async def get(self, operation_id: str) -> dict[str, object] | None:
+        self._operation_id(operation_id)
         async with self._lock:
             op = self._records.get(operation_id)
             return op.snapshot() if op else None
 
     async def list(self, *, active_only: bool = False, limit: int = 100) -> list[dict[str, object]]:
+        if type(active_only) is not bool:
+            raise OperationContractError("active_only must be a boolean")
         if type(limit) is not int or not 1 <= limit <= 100:
             raise OperationContractError("limit must be 1 to 100")
         async with self._lock:
@@ -139,6 +148,7 @@ class OperationRegistry:
         phase: OperationPhase | None = None,
         error_family: ErrorFamily | None = None,
     ) -> dict[str, object]:
+        self._operation_id(operation_id)
         async with self._lock:
             op = self._records.get(operation_id)
             if op is None:
@@ -156,6 +166,7 @@ class OperationRegistry:
         total: int,
         overall: bool = False,
     ) -> dict[str, object]:
+        self._operation_id(operation_id)
         async with self._lock:
             op = self._records.get(operation_id)
             if op is None:
@@ -165,6 +176,7 @@ class OperationRegistry:
 
     async def request_cancel(self, operation_id: str) -> dict[str, object]:
         """Request cancellation; never cancels an unsafe running transaction."""
+        self._operation_id(operation_id)
         async with self._lock:
             op = self._records.get(operation_id)
             if op is None:
