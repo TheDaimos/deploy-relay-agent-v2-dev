@@ -23,7 +23,11 @@ async def async_state(hass, connection, msg):
     if runtime is None:
         connection.send_error(msg["id"], "not_ready", "Testlabor nicht gestartet")
         return
-    operations = await runtime.registry.list(limit=12)
+    current = await runtime.registry.list(limit=12)
+    retained = await runtime.journal.list(limit=12)
+    seen = {item["operation_id"] for item in current}
+    operations = (current + [item for item in retained
+                             if item["operation_id"] not in seen])[:12]
     connection.send_result(msg["id"], {
         "version": VERSION,
         "mode": "READ_ONLY_TEST",
@@ -77,6 +81,8 @@ async def async_get(hass, connection, msg):
     except OperationContractError:
         connection.send_error(msg["id"], "invalid_id", "Ungueltige Auftragskennung")
         return
+    if record is None:
+        record = await runtime.journal.get(msg["operation_id"])
     if record is None:
         connection.send_error(msg["id"], "not_found", "Auftrag nicht vorhanden")
         return
