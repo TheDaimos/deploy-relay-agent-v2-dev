@@ -1,5 +1,7 @@
 # V2-30 – isolierter Besitzer schreibgeschützter Vorschauaufträge
 
+> **Aktueller Nachtrag (08.10.2026):** Der nachstehende Abschnitt „nicht importiert“ ist historisch. Der Supervisor läuft inzwischen ausschließlich in der eigenständigen, read-only V2-DEV-HA-Integration; Zweitsitzung und Browserneuladen wurden real bestätigt. Für V2-40 wurden Annahme- und Abschlussjournal ergänzt (100/100 CI), aber die gezielte HA-Neustart-Abnahme eines aktiven Auftrags ist noch offen. Keine V1- oder Schreibfreigabe. Siehe `docs/V2_40_STATISCHE_ABNAHME_2026-10-08.md`.
+
 Stand: 08.10.2026. **Erprobungsbaustein, keine HA-Laufzeitintegration.**
 
 ## Ziel und aktueller Umfang
