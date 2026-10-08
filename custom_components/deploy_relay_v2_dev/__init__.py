@@ -11,10 +11,12 @@ from dataclasses import dataclass
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .const import DOMAIN
 from .operation_registry import OperationRegistry
 from .operation_journal import JournalError, OperationJournal
+from .git_measurement_export import GitMeasurementError, MeasurementGitExport
 from .readonly_task_supervisor import ReadOnlyTaskSupervisor
 from .readonly_benchmark import ReadOnlyMeasurement
 from .ha_preview_task_factory import PreviewTaskFactory
@@ -28,6 +30,7 @@ class LabRuntime:
     supervisor: ReadOnlyTaskSupervisor
     journal: OperationJournal
     measurement: ReadOnlyMeasurement
+    git_export: MeasurementGitExport
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -42,6 +45,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await journal.load()
     except JournalError:
         return False
+    git_export = MeasurementGitExport(
+        Store(hass, 1, "deploy_relay_v2_dev.git_auth"),
+        async_get_clientsession(hass),
+    )
+    try:
+        await git_export.load()
+    except GitMeasurementError:
+        # Git-only credentials must not block journal recovery or V1.
+        # A damaged configuration is never silently overwritten.
+        pass
     measurement = ReadOnlyMeasurement()
     registry = OperationRegistry(max_completed=12, max_readonly=1)
     supervisor = ReadOnlyTaskSupervisor(
@@ -51,7 +64,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         on_terminal=journal.capture,
     )
     runtime = LabRuntime(registry=registry, supervisor=supervisor, journal=journal,
-                         measurement=measurement)
+                         measurement=measurement, git_export=git_export)
     store["runtime"] = runtime
     try:
         async_register_commands(hass)

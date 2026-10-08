@@ -49,8 +49,8 @@ class JournalIsolationContracts(unittest.TestCase):
 
     def test_admin_only_history_without_mutating_routes(self):
         source = (LAB / "websocket_api.py").read_text(encoding="utf-8")
-        self.assertEqual(source.count("@websocket_api.require_admin"), 4)
-        self.assertEqual(source.count("@websocket_api.websocket_command("), 4)
+        self.assertEqual(source.count("@websocket_api.require_admin"), 6)
+        self.assertEqual(source.count("@websocket_api.websocket_command("), 6)
         self.assertIn("await runtime.journal.list(limit=12)", source)
         self.assertIn('project_key="lab_readonly_preview"', source)
         self.assertNotIn("async_add_executor_job", source)
