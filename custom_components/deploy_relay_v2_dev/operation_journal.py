@@ -94,6 +94,7 @@ def _snapshot(value: object) -> dict[str, object]:
             s["status"] != "success" and s["progress_exact"]) or
         (s["status"] == "queued" and (
             s["started_at"] is not None or s["phase"] != "prepare" or
+            s["progress_exact"] or
             s["progress_percent"] is not None or
             s["current_index"] is not None or s["phase_percent"] is not None)) or
         (s["error_family"] is not None and
