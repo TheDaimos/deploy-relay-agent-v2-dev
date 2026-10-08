@@ -294,6 +294,9 @@ class DRAV2DevLabPanel extends HTMLElement {
       <p class="note">„Belegt“ = Gesamt minus verfügbar. „Frei“ ist ohne Zwischenspeicher. Die Werte stammen aus der Linux-Sicht von Home Assistant, nicht direkt aus Proxmox.</p>
       <p class="note"><strong>DRA V1: nicht einzeln messbar · DRA V2: nicht einzeln messbar.</strong> Beide Integrationen teilen sich denselben Home-Assistant-Prozess. Ein genauer Speicherverbrauch pro Integration lässt sich daraus nicht seriös bestimmen.</p>
     ` : "";
+    const baseline = validSuite ? suite.multicore.levels[0] : null;
+    const baselineRate = baseline?.status === "ok" && Number.isInteger(baseline.wall_ms) && baseline.wall_ms > 0 &&
+      Number.isInteger(baseline.iterations_total) ? baseline.iterations_total / baseline.wall_ms : null;
     const multiRows = validSuite ? suite.multicore.levels.map(level => {
       const workers = [1, 2, 4].includes(level.workers) ? level.workers : "—";
       const ok = level.status === "ok";
@@ -301,7 +304,12 @@ class DRAV2DevLabPanel extends HTMLElement {
       const cpuTime = ok && Number.isInteger(level.aggregate_worker_cpu_ms) ?
         level.aggregate_worker_cpu_ms + " ms" : "—";
       const hashes = ok && Number.isInteger(level.iterations_total) ? level.iterations_total : "—";
-      return `<tr><th>${workers} Prozess(e)</th><td>${ok ? "Gemessen" : "Nicht verfügbar"}</td><td>${millis}</td><td>${cpuTime}</td><td>${hashes}</td></tr>`;
+      const rate = ok && Number.isInteger(level.wall_ms) && level.wall_ms > 0 &&
+        Number.isInteger(level.iterations_total) ? level.iterations_total / level.wall_ms : null;
+      const throughput = rate !== null ? Math.round(rate * 1000).toLocaleString("de-DE") + " Runden/s" : "—";
+      const factor = rate !== null && baselineRate !== null && baselineRate > 0 ?
+        (rate / baselineRate).toFixed(2).replace(".", ",") + "×" : "—";
+      return `<tr><th>${workers} Prozess(e)</th><td>${ok ? "Gemessen" : "Nicht verfügbar"}</td><td>${millis}</td><td>${cpuTime}</td><td>${hashes}</td><td>${throughput}</td><td>${factor}</td></tr>`;
     }).join("") : "";
     const multicoreReport = validSuite ? `
       <p><strong>Mehrkern-Diagnose:</strong> ${suite.mode === "full" ? "Gesamttest" : "Einzeltest"}</p>
@@ -312,11 +320,13 @@ class DRAV2DevLabPanel extends HTMLElement {
         Number.isInteger(suite.multicore.affinity_cpus_visible) ?
         suite.multicore.affinity_cpus_visible : "Nicht verfügbar"
       }</p>
-      <div class="table-wrap"><table><thead><tr><th>Arbeitsprozesse</th><th>Status</th><th>Gesamtdauer</th><th>CPU-Zeit</th><th>Rechenschritte</th></tr></thead>
+      <div class="table-wrap"><table><thead><tr><th>Arbeitsprozesse</th><th>Status</th><th>Gesamtdauer</th><th>CPU-Zeit</th><th>Rechenschritte</th><th>Durchsatz</th><th>Vergleich</th></tr></thead>
       <tbody>${multiRows}</tbody></table></div>
       <p class="note">Die 1-, 2- und 4-Prozesse-Prüfungen laufen nacheinander.
       Es laufen nie mehr als vier Arbeitsprozesse gleichzeitig. Die Werte enthalten
-      auch Start- und Verwaltungsaufwand; kein Beweis für die Leistung einzelner HA-Integrationen.</p>
+      auch Start- und Verwaltungsaufwand. Das Verhältnis bezieht sich auf den
+      Durchsatz des Ein-Prozess-Laufs, nicht auf die Kernzahl oder den isolierten
+      Verbrauch einzelner HA-Integrationen.</p>
     ` : "";
     const report = valid ? `
       <p><strong>Messlauf abgeschlossen (Prozesswerte):</strong></p>
