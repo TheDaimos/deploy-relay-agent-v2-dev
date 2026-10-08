@@ -6,7 +6,7 @@ import probatio
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
 
-from .const import DOMAIN, VERSION
+from .const import DOMAIN, VERSION, READONLY_TEST_STEPS
 from .operation_model import OperationContractError, OperationPhase
 
 
@@ -48,10 +48,10 @@ async def async_start(hass, connection, msg):
         return
 
     async def synthetic_preview(progress):
-        # Exactly 20 measured steps; no network, Git or filesystem access.
-        for index in range(1, 21):
+        # Exactly 40 measured 1-second steps; no network, Git or filesystem access.
+        for index in range(1, READONLY_TEST_STEPS + 1):
             await asyncio.sleep(1)
-            await progress(OperationPhase.INVENTORY, index, 20)
+            await progress(OperationPhase.INVENTORY, index, READONLY_TEST_STEPS)
 
     try:
         receipt = await runtime.supervisor.start_preview(

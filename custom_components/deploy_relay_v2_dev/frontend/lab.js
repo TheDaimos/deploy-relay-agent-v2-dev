@@ -114,8 +114,8 @@ class DRAV2DevLabPanel extends HTMLElement {
         <p class="safe">Getrennt von DRA V1 · Nur schreibgeschützter Testbetrieb</p>
         <p>Dieser Test liest keine Projektdateien und führt keine Installation, Wiederherstellung oder Neustarts aus.</p>
         <article>
-          <strong>Verbindungstest über zwei Geräte</strong>
-          <p>Starte einen 20-Sekunden-Test. Schließe dann diese Ansicht auf dem Smartphone. Öffne dieses Testlabor auf dem Notebook und prüfe, ob derselbe Auftrag noch läuft oder abgeschlossen ist.</p>
+          <strong>Schreibgeschützter 40-Sekunden-Test</strong>
+          <p>Starte einen 40-Sekunden-Test. Schließe dann diese Ansicht auf dem Smartphone. Öffne dieses Testlabor auf dem Notebook und prüfe, ob derselbe Auftrag noch läuft oder abgeschlossen ist.</p>
           <p><strong>Status:</strong> ${label}</p>
           <p><strong>Fortschritt:</strong> ${progress}</p>
           <p class="note"><strong>Auftragskennung:</strong> <code>${safeId}</code></p>

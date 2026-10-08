@@ -110,6 +110,20 @@ class LabIsolationContracts(unittest.TestCase):
         self.assertIn("self._abort_if_unique_id_configured()", source)
         self.assertNotIn("deploy_relay/panel", source)
 
+    def test_readonly_trial_duration_is_40_seconds(self):
+        """Longer synthetic-only HA restart window, no new write routes."""
+        const = (LAB_ROOT / "const.py").read_text(encoding="utf-8")
+        sockets = (LAB_ROOT / "websocket_api.py").read_text(encoding="utf-8")
+        frontend = (LAB_ROOT / "frontend/lab.js").read_text(encoding="utf-8")
+        self.assertIn("READONLY_TEST_STEPS: Final = 40", const)
+        self.assertIn("for index in range(1, READONLY_TEST_STEPS + 1):", sockets)
+        self.assertIn("await asyncio.sleep(1)", sockets)
+        self.assertIn("await progress(OperationPhase.INVENTORY, index, READONLY_TEST_STEPS)", sockets)
+        self.assertIn("40-Sekunden-Test", frontend)
+        self.assertNotIn("20-Sekunden-Test", frontend)
+        self.assertNotIn("for index in range(1, 21):", sockets)
+        self.assertEqual(sockets.count("@websocket_api.require_admin"), 3)
+
 
 if __name__ == "__main__":
     unittest.main()

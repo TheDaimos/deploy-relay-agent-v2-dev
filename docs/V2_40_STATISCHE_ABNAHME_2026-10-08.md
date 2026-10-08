@@ -72,3 +72,10 @@ Bezug: `docs/V2_40_PERSISTENZ_ENTWURF_2026-10-08.md`, `docs/V2_STUFENPLAN.md`, `
 - **Abnahme: PASS – abgeschlossener rein lesender V2-Testauftrag nach vollem HA-Core-Neustart weiterhin abrufbar.** Die Auftragskennung wird aus Datenschutzgründen nicht in diesem öffentlichen Abnahmeprotokoll wiedergegeben; Abgleich und Screenshots erfolgten in der privaten Testunterhaltung.
 - **Noch nicht geprüft:** Neustart bei einem `running`-Auftrag mit erzwungenem `interrupted` und garantiert ausbleibender Wiederaufnahme. Dies ist der nächste gesondert freizugebende HA-Pflichttest. V2-40 als Gesamtgate bleibt bis dahin **OFFEN**.
 - Unverändert: V2 keine Mutationen, V1 unverändert, nur ein HA-DEV, PR #2 Entwurf, kein V2-PUB.
+
+### HA-Pflichttest 2 – Testfenster verlängert, Realabnahme offen
+
+- Nutzer meldete am 08.10.2026, dass sich die Unterbrechung während des 20-Sekunden-Testauftrags nicht erfolgreich nachweisen ließ. **Keine Schlussfolgerung**, ob der Auftrag vor wirksamem HA-Abbruch bereits abgeschlossen war oder der Neustart andere Zeitabläufe hatte; dieser Versuch wird **nicht** als bestandene `interrupted`-Abnahme gewertet.
+- Auf Wunsch des Nutzers wird die **rein künstliche** Versuchsdauer auf **40 Schritte × 1 Sekunde = rund 40 Sekunden** verlängert (V2-DEV-Version `0.1.2`); keine echte Installation, kein Git-Zugriff, keine Dateiveränderung, keine Änderung an V1, Journal oder Schreibberechtigungen. Der Fortschritt hat weiterhin echte 1-Sekunden-Schritte; keine zusätzliche Leerlaufabfrage.
+- Neue Regression prüft feste Testdauer, Fortschritts-Gesamtzahl, Oberflächentext und unveränderte drei Admin-WebSocket-Kommandos. Ein grüner CI-Lauf sowie eine neue V1-Vorschau und ausdrückliche Installationsfreigabe sind **vor** HA-DEV-Aktualisierung Pflicht.
+- Der erneute Neustarttest benötigt eine separate ausdrückliche Neustartfreigabe. **V2-40-40 bleibt offen**, bis dieselbe Auftragskennung nach dem HA-Neustart `interrupted` zeigt und keine neue Aufgabe gestartet wird.
