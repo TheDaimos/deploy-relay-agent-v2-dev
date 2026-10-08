@@ -1,0 +1,98 @@
+/* Small, real JavaScript behavior check. No HA instance and no network. */
+"use strict";
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const vm = require("node:vm");
+
+let now = 100000;
+let nextId = 1;
+const callbacks = new Map();
+const cancelled = [];
+const shadow = () => {
+  const remaining = { textContent: "" };
+  return {
+    remaining,
+    innerHTML: "",
+    querySelector(selector) {
+      return selector === "#remaining" ? remaining : null;
+    },
+  };
+};
+class FakeElement {
+  constructor() { this.shadowRoot = shadow(); this.isConnected = true; }
+  attachShadow() { return this.shadowRoot; }
+}
+const elements = new Map();
+const ctx = {
+  HTMLElement: FakeElement,
+  customElements: { get: n => elements.get(n), define: (n, x) => elements.set(n, x) },
+  Date: class extends Date { static now() { return now; } },
+  setTimeout(cb, ms) {
+    assert(ms === 1000 || ms === 1500);
+    const id = nextId++;
+    callbacks.set(id, { cb, ms });
+    return id;
+  },
+  clearTimeout(id) { callbacks.delete(id); cancelled.push(id); },
+};
+vm.runInNewContext(
+  fs.readFileSync("custom_components/deploy_relay_v2_dev/frontend/lab.js", "utf8"),
+  ctx,
+);
+const Panel = elements.get("dra-v2-dev-lab-panel");
+const panel = new Panel();
+const opId = "a".repeat(32);
+const sample = (status, idx = null) => ({
+  operation_id: opId, status,
+  current_index: idx, total_count: 40, phase_percent: idx === null ? null : idx * 2,
+});
+
+const tick = () => {
+  const item = callbacks.get(panel._countdownTimer);
+  assert(item, "active countdown must schedule one timer");
+  callbacks.delete(panel._countdownTimer);
+  now += 1000;
+  item.cb();
+};
+panel._operation = sample("queued");
+panel._observeCountdown(panel._operation);
+panel._render();
+assert.equal(panel._remainingText(), "Start wird vorbereitet");
+assert.equal(panel._countdownTimer, null, "queued has no ticking timer");
+
+panel._operation = sample("running", 5);
+panel._observeCountdown(panel._operation);
+panel._render();
+assert.equal(panel._remainingText(), "Noch ca. 35 Sekunden");
+assert.notEqual(panel._countdownTimer, null);
+tick();
+assert.equal(panel.shadowRoot.remaining.textContent, "Noch ca. 34 Sekunden");
+const activeTimer = panel._countdownTimer;
+panel._operation = sample("running", 5);
+panel._observeCountdown(panel._operation); // identical backend snapshot must not reset clock
+assert.equal(panel._remainingText(), "Noch ca. 34 Sekunden");
+panel._render();
+assert.equal(panel._countdownTimer, activeTimer, "re-render must not spawn extra timer");
+now += 1000;
+panel._operation = sample("running", 7);
+panel._observeCountdown(panel._operation);
+assert.equal(panel._remainingText(), "Noch ca. 33 Sekunden");
+panel._operation = sample("running", 40);
+panel._observeCountdown(panel._operation);
+panel._render();
+now += 9000;
+assert.equal(panel._remainingText(), "Noch ca. 1 Sekunden");
+panel._operation = sample("success", 40);
+panel._observeCountdown(panel._operation);
+panel._render();
+assert.equal(panel._remainingText(), "0 Sekunden – abgeschlossen");
+assert.equal(panel._countdownTimer, null);
+
+panel._operation = { ...sample("running", 1), operation_id: "b".repeat(32) };
+panel._observeCountdown(panel._operation);
+panel._render();
+assert.equal(panel._remainingText(), "Noch ca. 39 Sekunden");
+panel.disconnectedCallback();
+assert.equal(panel._countdownTimer, null, "detach must cancel all live countdown work");
+assert.equal(panel._timer, null);
+console.log("V2 countdown behavior PASS: backend anchor, ticking, re-sync, completion, detach");

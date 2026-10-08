@@ -67,3 +67,7 @@ Statische Tests/CI und GitHub-Review ersetzen **nicht** die ausstehende HA-DEV-V
 ## V2-40-50 Speicher-Messvertrag (08.10.2026)
 
 Die vier Messpunkte und deren öffentliche Schema-/Attributionsregeln für **V2 DEV 0.1.5** sind in `docs/V2_40_MEMORY_MEASUREMENT_2026-10-08.md` verbindlich dokumentiert. Linux-Systemwerte und HA-Prozess-RSS sind getrennt zu kennzeichnen. RAM für V1 bzw. V2 einzeln kann im geteilten Python-Prozess **nicht seriös isoliert gemessen** werden; diese Werte bleiben `null`. V2-40-50 bleibt bis zum Realtest offen; V1 und V2-PUB dürfen nicht verändert werden.
+
+## V2-40-50 – Restzeit und reale Messserien (08.10.2026)
+
+Drei reale Speicher- und CPU-Messreihen mit V2 DEV 0.1.5 aus dem öffentlichen Git-Diagnoseverzeichnis wurden ausgewertet; die erste stammt nach Nutzerangabe aus dem HA-Startprozess und kann nicht als reiner DRA-Verbrauch gelten. Neu vorbereitet: V2 DEV 0.1.6 mit clientseitigem, backendverankertem Sekunden-Countdown, ohne zusätzliche Serveranfragen im Sekundentakt. Die vorhandene 40-Sekunden-Arbeit testet genau einen Hintergrundfaden und beweist keine Mehrkernleistung. CI und anschließende Installationsvorschau/Realabnahme bleiben verbindlich; V2-40-50 ist weiter OFFEN.

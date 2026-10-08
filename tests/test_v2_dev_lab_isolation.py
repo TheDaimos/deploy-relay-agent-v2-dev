@@ -103,6 +103,10 @@ class LabIsolationContracts(unittest.TestCase):
         frontend = (LAB_ROOT / "frontend/lab.js").read_text(encoding="utf-8")
         self.assertIn("if (this.isConnected && this._active())", frontend)
         self.assertNotIn("setInterval(", frontend)
+        self.assertIn("this._observeCountdown(this._operation)", frontend)
+        self.assertIn("this._syncCountdownTimer()", frontend)
+        self.assertIn("id=\"remaining\"", frontend)
+        self.assertIn("Math.max(1, 40 - step - elapsed)", frontend)
         self.assertIn("disconnectedCallback()", frontend)
 
     def test_config_flow_uses_test_domain_not_v1_domain(self):

@@ -59,6 +59,8 @@ jobs:
         run: |
           find custom_components -type f -name '*.js' -print0 \
             | xargs -0 -r -n1 node --check
+      - name: Sekunden-Countdown im isolierten V2-Testlabor
+        run: node tests/test_v2_countdown.js
       - name: Keine Artefakte oder V2-Installation veroeffentlichen
         run: |
           test ! -e hacs.json

@@ -14,6 +14,11 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._lastExport = null;
     this._busy = false;
     this._timer = null;
+    this._countdownTimer = null;
+    this._countdownId = null;
+    this._countdownStep = -1;
+    this._countdownAt = null;
+    this._countdownShown = null;
     this._error = "";
   }
 
@@ -36,11 +41,76 @@ class DRAV2DevLabPanel extends HTMLElement {
   disconnectedCallback() {
     if (this._timer !== null) clearTimeout(this._timer);
     this._timer = null;
+    if (this._countdownTimer !== null) clearTimeout(this._countdownTimer);
+    this._countdownTimer = null;
     this._loaded = false;
   }
 
   _active() {
     return this._operation && !["success", "failed", "interrupted", "cancelled", "recovery_required"].includes(this._operation.status);
+  }
+
+
+  _observeCountdown(op) {
+    if (!op || !/^[0-9a-f]{32}$/.test(op.operation_id)) {
+      this._countdownId = null;
+      this._countdownStep = -1;
+      this._countdownAt = null;
+      this._countdownShown = null;
+      return;
+    }
+    if (op.operation_id !== this._countdownId) {
+      this._countdownId = op.operation_id;
+      this._countdownStep = -1;
+      this._countdownAt = null;
+      this._countdownShown = null;
+    }
+    if (op.status !== "running") return;
+    const step = Number.isInteger(op.current_index) &&
+      op.current_index >= 0 && op.current_index <= 40 &&
+      op.total_count === 40 ? op.current_index : 0;
+    if (step !== this._countdownStep) {
+      this._countdownStep = step;
+      this._countdownAt = Date.now();
+    }
+  }
+
+  _remainingText() {
+    const op = this._operation;
+    if (!op) return "—";
+    if (op.status === "success") return "0 Sekunden – abgeschlossen";
+    if (op.status === "queued" || op.status === "waiting_for_resource") {
+      return "Start wird vorbereitet";
+    }
+    if (op.status !== "running") return "Auftrag beendet";
+    if (op.total_count !== 40) return "Fortschritt wird abgerufen";
+    const step = Number.isInteger(op.current_index) &&
+      op.current_index >= 0 && op.current_index <= 40 ?
+      op.current_index : 0;
+    if (this._countdownAt === null) return "Noch ca. 40 Sekunden";
+    const elapsed = Math.floor(Math.max(0, Date.now() - this._countdownAt) / 1000);
+    // Never claim 0 while the backend still reports "running".
+    const predicted = Math.max(1, 40 - step - elapsed);
+    // Do not jump backwards on delayed progress messages.
+    this._countdownShown = Number.isInteger(this._countdownShown) ?
+      Math.min(this._countdownShown, predicted) : predicted;
+    return "Noch ca. " + this._countdownShown + " Sekunden";
+  }
+
+  _syncCountdownTimer() {
+    if (!this.isConnected || this._operation?.status !== "running") {
+      if (this._countdownTimer !== null) clearTimeout(this._countdownTimer);
+      this._countdownTimer = null;
+      return;
+    }
+    if (this._countdownTimer === null) {
+      this._countdownTimer = setTimeout(() => {
+        this._countdownTimer = null;
+        const element = this.shadowRoot?.querySelector("#remaining");
+        if (element) element.textContent = this._remainingText();
+        this._syncCountdownTimer();
+      }, 1000);
+    }
   }
 
   _schedule() {
@@ -57,6 +127,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     try {
       const data = await this._hass.callWS({ type: "deploy_relay_v2_dev/test/state" });
       this._operation = (data.operations || [])[0] || null;
+      this._observeCountdown(this._operation);
       this._measurement = data.measurement || null;
       this._gitConfigured = data.git_configured === true;
       this._gitAvailable = data.git_available === true;
@@ -80,6 +151,7 @@ class DRAV2DevLabPanel extends HTMLElement {
         type: "deploy_relay_v2_dev/test/start",
         request_id: requestId,
       });
+      this._observeCountdown(this._operation);
       this._error = "";
     } catch (_error) {
       this._error = "Test konnte nicht gestartet werden.";
@@ -100,6 +172,7 @@ class DRAV2DevLabPanel extends HTMLElement {
         type: "deploy_relay_v2_dev/test/measure",
         request_id: requestId,
       });
+      this._observeCountdown(this._operation);
       this._measurement = null;
       this._lastExport = null;
       this._error = "";
@@ -230,6 +303,7 @@ class DRAV2DevLabPanel extends HTMLElement {
 
         input.git-token { box-sizing:border-box; width:100%; min-height:40px; background:var(--primary-background-color,#151515); color:inherit; border:1px solid var(--divider-color,#555); border-radius:8px; padding:8px; }
         .git-link { display:inline-block; padding:12px 0; color:var(--primary-color,#65b4d2); overflow-wrap:anywhere; }
+        .countdown { font-size:19px; font-weight:700; font-variant-numeric:tabular-nums; }
       </style>
       <main>
         <h1>DRA V2 DEV · Testlabor</h1>
@@ -240,6 +314,7 @@ class DRAV2DevLabPanel extends HTMLElement {
           <p>Starte einen 40-Sekunden-Test. Schließe dann diese Ansicht auf dem Smartphone. Öffne dieses Testlabor auf dem Notebook und prüfe, ob derselbe Auftrag noch läuft oder abgeschlossen ist.</p>
           <p><strong>Status:</strong> ${label}</p>
           <p><strong>Fortschritt:</strong> ${progress}</p>
+          <p><strong>Restzeit:</strong> <span class="countdown" id="remaining">${this._remainingText()}</span></p>
           <p class="note"><strong>Auftragskennung:</strong> <code>${safeId}</code></p>
           ${this._error ? `<p class="error">${this._error}</p>` : ""}
           <button id="start" ${busy ? "disabled" : ""}>Testauftrag starten</button>
@@ -275,6 +350,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     s.querySelector("#git-remove")?.addEventListener("click", () => this._configureGit(true));
     s.querySelector("#git-cancel")?.addEventListener("click", () => { this._gitSetup = false; this._render(); });
     s.querySelector("#git-export")?.addEventListener("click", () => this._exportGit());
+    this._syncCountdownTimer();
   }
 }
 if (!customElements.get("dra-v2-dev-lab-panel")) {

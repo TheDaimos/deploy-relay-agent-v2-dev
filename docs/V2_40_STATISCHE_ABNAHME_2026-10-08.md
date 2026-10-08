@@ -156,3 +156,28 @@ Auf Anforderung des Nutzers ergänzt V2-40-50 den bestehenden ausdrücklich ausg
 - **DRA-V1- und DRA-V2-RAM sind nicht isoliert messbar**, da beide Integrationen in ein und demselben Python-Prozess leben und Bibliotheken sowie Speicherverwaltung teilen. Beide Felder bleiben bewusst \`null\` mit festem Grund \`SHARED_HA_PROCESS_CANNOT_ATTRIBUTE\`. \`VmRSS\` ist weder die Summe noch eine korrekte Aufteilung dieser Komponenten.
 - Der Git-Export erhält das neue Schema \`dra-v2-dev-git-measurement.v2\`, inklusive strikt geprüfter Zahlengrenzen, vier Snapshot-Namen und unveränderlicher Hinweisfelder; kein Gerät, Token, private Datei, Auftragskennung oder Rohfehler. Bereits vorhandene öffentliche \`v1\`-Exporte bleiben nach ihrem alten Schema gültig und werden nicht überschrieben.
 - V2-DEV-Version \`0.1.5\` ist **noch nicht auf HA-DEV installiert**. Erst CI und gesonderte V1-Vorschau, dann ausdrückliche Installationsfreigabe. V2-40-50 bleibt bis zur realen Messung und V1-Funktionsprüfung **OFFEN**; V2-Schreibfunktionen bleiben gesperrt.
+
+
+### Auswertung: drei reale 0.1.5-Messexporte und Startprozess-Effekt
+
+Drei öffentliche Git-Messdateien wurden am 08.10.2026 abgerufen, Version \`0.1.5\`, Schema \`dra-v2-dev-git-measurement.v2\`. Der Nutzer teilte ausdrücklich mit, dass **der erste** dieser drei Läufe **während des Home-Assistant-Starts** erzeugt wurde; die weiteren Werte bilden eine ruhigere nachfolgende Vergleichsphase.
+
+| Wert | Erster Lauf nach HA-Start | Zweiter Lauf | Dritter Lauf |
+| --- | ---: | ---: | ---: |
+| Git-Exportzeit (UTC) | 21:32:56 | 21:34:35 | 21:35:52 |
+| Gesamtdauer | 40.872 ms | 40.268 ms | 40.057 ms |
+| Prozess-CPU-Zeit während 20 s Arbeit | 3.414 ms | 1.203 ms | 1.112 ms |
+| Maximale Zeitsteuerungsverzögerung | 769 ms | 26 ms | 1 ms |
+| HA-Prozess-RSS Start → Ende (KiB) | 1.586.732 → 1.827.752 | 1.813.212 → 1.817.508 | 1.823.700 → 1.844.656 |
+| Änderung HA-Prozess-RSS (ungefähr) | +235 MiB | +4 MiB | +20 MiB |
+| Synthetische Durchläufe | 640 | 640 | 640 |
+
+Das größere Prozess-RSS-Wachstum beim ersten Lauf und die höhere Verzögerung sind **mit parallel aktivem HA-Startprozess vereinbar**, aber weder dessen spezifische Ursache noch V2-Mehrlast sind isoliert nachgewiesen. Die Basiswerte der zweiten und dritten Messung sind kein kontrollierter Vorher-Nachher-Nachweis, sondern ein nützlicher weiterer Verlaufspunkt. In allen drei JSON-Dateien stehen getrennte Linux-Speicher- und HA-Prozess-Zähler sowie \`null\` für die nicht zuordenbaren V1-/V2-RAM-Werte.
+
+### Bedienerweiterung V2 DEV 0.1.6: verbleibende Sekunden
+
+Der 40-Sekunden-Test und der explizite Messlauf zeigen künftig eine sichtbare **ungefähre Restzeit**. Sie wird vom Backend-Fortschritt \`current_index/total_count\` geankert und **rein lokal im offenen Browser** im Ein-Sekunden-Takt weitergeführt. Die bestehende Backend-Abfrage (ca. 1,5 s während aktiver Aufträge) bleibt unverändert, **kein zusätzlicher sekündlicher WebSocket-Abruf**. Der Timer wird bei Abschluss, Unterbrechung oder Trennen der Oberfläche gelöscht und läuft nicht im Leerlauf. Bei \`running\` wird nie 0 s behauptet; Abschluss zeigt nur das bestätigte Backend. Auch ein Neustart/Laden zeigt zunächst den vom Server gelieferten Status. Ein Countdown ist kein exakter Fertigstellungstermin.
+
+Das HA-System kann auf mehr als einem logischen CPU-Kern arbeiten; der aktuelle synthetische Messlauf führt aber nur **einen begrenzten Arbeitsfaden** pro Ausführung aus. Er beweist daher ausdrücklich **keine Multikern-Skalierung**. Die zugewiesenen 12 vCPUs sind eine Proxmox-Konfiguration, kein Messwert aus diesen Exporten.
+
+**Gates:** Änderung auf dem isolierten V2-DEV-Quellzweig; noch keine Realabnahme von 0.1.6. Vor tatsächlicher Installation V1-Vorschau, ausdrückliche Nutzerfreigabe und gesonderte Neustartfreigabe. V1, V2-PUB und Journal bleiben unangetastet. V2-40-50 ist noch offen.
