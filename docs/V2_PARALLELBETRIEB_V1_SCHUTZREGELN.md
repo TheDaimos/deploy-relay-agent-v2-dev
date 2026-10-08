@@ -1,5 +1,7 @@
 # DRA V2 – sicherer Parallelbetrieb auf einer einzigen Home-Assistant-Instanz
 
+> **Standnachtrag (08.10.2026):** Die historische Aussage „noch nicht installierbar“ im Konzept wurde durch die gesondert isolierte `deploy_relay_v2_dev`-Testintegration überholt: Realer Parallelbetrieb mit DRA V1 einschließlich Gewitterradar-Update und HA-Neustart wurde bestätigt. Alle Schutzregeln behalten ihre Gültigkeit. Die V2-40-Journalversion 0.1.1 ist bis zur erneuten Vorschau und Freigabe **noch nicht auf HA-DEV aktualisiert**. Siehe `docs/V2_40_STATISCHE_ABNAHME_2026-10-08.md`.
+
 Stand: 08.10.2026. Der Projektinhaber hat nur **eine HA-DEV-Instanz** und benötigt die unverändert nutzbare DRA V1 **während** des gesamten V2-Umbaus. Eine zweite HA-VM oder ein zweiter HA-Core sind ausdrücklich **keine Voraussetzung**. Dieser Beschluss ersetzt den früheren Vorschlag einer zweiten HA-Instanz.
 
 ## Verbindliches Ziel
