@@ -101,9 +101,9 @@ Bezug: `docs/V2_40_PERSISTENZ_ENTWURF_2026-10-08.md`, `docs/V2_STUFENPLAN.md`, `
 
 ### HA-DEV – Erste Proxmox-Ressourcenbeobachtung (08.10.2026)
 
-- Der Nutzer stellte Proxmox-Bilder aus der Ansicht der vorhandenen HA-VM bereit (VM-ID 109, circa 20:06–20:07 Uhr Ortszeit); VM-Hostname und private Bilddateien werden **nicht** in dieses öffentliche Dokument übernommen.
+- Der Nutzer stellte Proxmox-Bilder einer HA-VM bereit (VM-ID 109, circa 20:06–20:07 Uhr Ortszeit); VM-Hostname und private Bilddateien werden **nicht** in dieses öffentliche Dokument übernommen. **Die Zuordnung dieser VM zur tatsächlich genutzten HA-DEV-Testinstanz wurde anhand der Bildschirmfotos noch nicht bestätigt und ist vor der Verwendung als V2-40-Referenz zu verifizieren.**
 - Sichtbare Ausstattung: **12 virtuelle CPU-Kerne, ein Sockel, 7.168 MiB zugewiesener Arbeitsspeicher**. Die VM war online.
 - CPU-Momentaufnahme: **1,39 %**; im angezeigten Verlauf von ungefähr **69 Minuten** stand **max. 5,47 %**. Dies sind *VM-weite* Werte einschließlich anderer Home-Assistant-Komponenten; kein isolierter DRA-V2-Verbrauch und keine V1-Vergleichsbasis.
 - Die App meldete bei Arbeitsspeicher **„0 B“**, obwohl die Speicherverlaufsgrafik **„max 5,56 GiB“** auswies und einen nichtleeren Verlauf zeigte. Deshalb **keine valide aktuelle RAM-Belegung / RAM-Basis-Spitze** daraus ableiten. Die Anzeige muss über eine unabhängige Proxmox-Quelle plausibilisiert werden.
 - Datenträger-Ein-/Ausgabe und Home-Assistant-Reaktionszeit sind auf diesen Bildern nicht ablesbar. CPU-Spitzen aus einem zeitlich gemischten Verlauf (einschließlich Neustarts) erlauben **keinen Nachweis fehlender zusätzlicher Last durch V2**.
-- **Status V2-40-50: TEILMESSUNG / OFFEN.** Nächster gefahrloser Einzelschritt: Speicherbelegung über die Proxmox-Weboberfläche der gleichen VM prüfen, danach erst weitere Messungen. Keine Installation und kein Neustart notwendig; V2-Schreibfunktionen bleiben gesperrt.
+- **Status V2-40-50: TEILMESSUNG / OFFEN.** Nächster gefahrloser Einzelschritt: Zuerst die VM-Zuordnung zu HA-DEV bestätigen; anschließend die Speicherbelegung über die Proxmox-Weboberfläche derselben VM prüfen. Keine Installation und kein Neustart notwendig; V2-Schreibfunktionen bleiben gesperrt.
