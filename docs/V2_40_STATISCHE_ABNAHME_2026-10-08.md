@@ -97,3 +97,13 @@ Bezug: `docs/V2_40_PERSISTENZ_ENTWURF_2026-10-08.md`, `docs/V2_STUFENPLAN.md`, `
 - **Abnahme V1-Betriebsschutz für V2-40-40: PASS.** Das bestätigt die Funktion der Prüfung, nicht sämtliche möglichen V1-Installationspfade; eine echte V1-Aktualisierung war zuvor während des Parallelbetriebs bereits erfolgreich bestätigt worden.
 - Auf dem Screenshot war die Git-Quellrevision des V2-DEV-Projektes neuer als der installierte Laufzeitstand; zwischen den beiden Ständen liegen nur Dokumentationsänderungen, **kein erneutes HA-V2-Update daraus ableiten**.
 - **Offen für V2-40-50:** reproduzierbare CPU-, RAM-, Datenträger-Ein-/Ausgabe- und Reaktionszeitmessungen. Keine Zahlen annehmen oder aus einem funktionsfähigen UI ableiten. Kein Vorziehen von V2-50 oder schreibenden V2-Funktionen.
+
+
+### HA-DEV – Erste Proxmox-Ressourcenbeobachtung (08.10.2026)
+
+- Der Nutzer stellte Proxmox-Bilder aus der Ansicht der vorhandenen HA-VM bereit (VM-ID 109, circa 20:06–20:07 Uhr Ortszeit); VM-Hostname und private Bilddateien werden **nicht** in dieses öffentliche Dokument übernommen.
+- Sichtbare Ausstattung: **12 virtuelle CPU-Kerne, ein Sockel, 7.168 MiB zugewiesener Arbeitsspeicher**. Die VM war online.
+- CPU-Momentaufnahme: **1,39 %**; im angezeigten Verlauf von ungefähr **69 Minuten** stand **max. 5,47 %**. Dies sind *VM-weite* Werte einschließlich anderer Home-Assistant-Komponenten; kein isolierter DRA-V2-Verbrauch und keine V1-Vergleichsbasis.
+- Die App meldete bei Arbeitsspeicher **„0 B“**, obwohl die Speicherverlaufsgrafik **„max 5,56 GiB“** auswies und einen nichtleeren Verlauf zeigte. Deshalb **keine valide aktuelle RAM-Belegung / RAM-Basis-Spitze** daraus ableiten. Die Anzeige muss über eine unabhängige Proxmox-Quelle plausibilisiert werden.
+- Datenträger-Ein-/Ausgabe und Home-Assistant-Reaktionszeit sind auf diesen Bildern nicht ablesbar. CPU-Spitzen aus einem zeitlich gemischten Verlauf (einschließlich Neustarts) erlauben **keinen Nachweis fehlender zusätzlicher Last durch V2**.
+- **Status V2-40-50: TEILMESSUNG / OFFEN.** Nächster gefahrloser Einzelschritt: Speicherbelegung über die Proxmox-Weboberfläche der gleichen VM prüfen, danach erst weitere Messungen. Keine Installation und kein Neustart notwendig; V2-Schreibfunktionen bleiben gesperrt.
