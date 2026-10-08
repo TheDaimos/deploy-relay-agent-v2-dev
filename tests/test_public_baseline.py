@@ -6,6 +6,7 @@ Only stdlib; no Home Assistant runtime or live credentials required.
 import ast
 import hashlib
 import json
+import re
 import struct
 import unittest
 from pathlib import Path
@@ -63,7 +64,7 @@ class PublicBaselineContracts(unittest.TestCase):
 
     def test_no_instance_specific_payloads(self) -> None:
         forbidden = (
-            ".storage", ".deploy-relay", ".weather-router", "backups",
+            ".storage", ".weather-router", "backups",
             "config", "logs", "secrets.yaml", ".env", "hacs.json",
         )
         for name in forbidden:
@@ -71,6 +72,91 @@ class PublicBaselineContracts(unittest.TestCase):
         # A public development source is not an installable HACS release.
         self.assertTrue((ROOT / "docs" / "PUBLIC_DEVELOPMENT_POLICY.md").is_file())
         self.assertTrue((ROOT / "docs" / "SOURCE_PROVENANCE.md").is_file())
+
+
+    def test_public_git_diagnostics_only_contain_strict_measurement_data(self) -> None:
+        """Do not reject safe Git exports, but fail closed on other runtime payloads."""
+        root = ROOT / ".deploy-relay"
+        if not root.exists():
+            return
+        self.assertTrue(root.is_dir())
+        self.assertFalse(root.is_symlink())
+        allowed_dirs = re.compile(
+            r"diagnostics(?:/v2-dev(?:/\d{4}-\d{2}-\d{2})?)?\Z"
+        )
+        allowed_file = re.compile(
+            r"diagnostics/v2-dev/(\d{4}-\d{2}-\d{2})/"
+            r"(\d{8}T\d{6}Z)-[0-9a-f]{8}\.json\Z"
+        )
+        records = []
+        for node in root.rglob("*"):
+            self.assertFalse(node.is_symlink(), str(node))
+            rel = node.relative_to(root).as_posix()
+            if node.is_dir():
+                self.assertRegex(rel, allowed_dirs)
+                continue
+            self.assertTrue(node.is_file(), rel)
+            match = allowed_file.fullmatch(rel)
+            self.assertIsNotNone(match, rel)
+            self.assertLessEqual(node.stat().st_size, 4096)
+            records.append(node)
+            payload = json.loads(node.read_text("utf-8"))
+            self.assertEqual(
+                set(payload),
+                {"branch", "path", "repository", "schema", "snapshot"},
+            )
+            self.assertEqual(payload["branch"], "main")
+            self.assertEqual(payload["repository"], "TheDaimos/deploy-relay-agent-v2-dev")
+            self.assertEqual(payload["path"], ".deploy-relay/" + rel)
+            self.assertEqual(payload["schema"], "dra-v2-dev-git-measurement.v1")
+            snapshot = payload["snapshot"]
+            self.assertEqual(
+                set(snapshot),
+                {"component", "created_at", "measurement", "mode",
+                 "note", "schema", "version"},
+            )
+            self.assertEqual(snapshot["component"], "deploy_relay_v2_dev")
+            self.assertEqual(snapshot["mode"], "READ_ONLY_TEST")
+            self.assertEqual(snapshot["schema"], "dra-v2-dev-git-measurement.v1")
+            self.assertRegex(snapshot["version"], r"\A0\.1\.\d{1,3}\Z")
+            self.assertEqual(
+                snapshot["note"],
+                "Synthetic workload. CPU measured across the whole HA process, not DRA alone.",
+            )
+            self.assertRegex(
+                snapshot["created_at"], r"\A\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z\Z"
+            )
+            self.assertEqual(snapshot["created_at"].replace(":", "").replace("-", ""), match[2])
+            self.assertEqual(snapshot["created_at"][:10], match[1])
+            measurement = snapshot["measurement"]
+            caps = {
+                "base_process_cpu_ms": 3600000,
+                "work_process_cpu_ms": 3600000,
+                "after_process_cpu_ms": 3600000,
+                "max_wakeup_delay_ms": 60000,
+                "elapsed_ms": 3600000,
+                "synthetic_hashes": 640,
+            }
+            self.assertEqual(
+                set(measurement),
+                {"scope", "base_seconds", "work_seconds", "after_seconds", *caps},
+            )
+            self.assertEqual(
+                measurement["scope"], "HA_PROCESS_WIDE_CPU_NOT_DRA_ONLY"
+            )
+            for field, expected in (
+                ("base_seconds", 10), ("work_seconds", 20),
+                ("after_seconds", 10),
+            ):
+                self.assertIs(type(measurement[field]), int)
+                self.assertEqual(measurement[field], expected)
+            for field, maximum in caps.items():
+                value = measurement[field]
+                self.assertIs(type(value), int)
+                self.assertGreaterEqual(value, 0)
+                self.assertLessEqual(value, maximum)
+        self.assertTrue(records, "Unrecognized or empty .deploy-relay folder")
+        self.assertLessEqual(len(records), 128, "Unbounded public Git diagnostics")
 
 
 if __name__ == "__main__":

@@ -62,7 +62,9 @@ jobs:
       - name: Keine Artefakte oder V2-Installation veroeffentlichen
         run: |
           test ! -e hacs.json
-          test ! -e .deploy-relay
+          # The strict stdlib test above permits only anonymous, size-bounded
+          # V2 measurement JSON in the reserved public Git diagnostic directory.
+          # All other local runtime/configuration payloads are still rejected.
           test ! -e .storage
           test ! -e secrets.yaml
           echo "Quellpruefung abgeschlossen; kein Artefaktupload."
