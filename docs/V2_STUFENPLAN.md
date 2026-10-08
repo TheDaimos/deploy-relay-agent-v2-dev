@@ -14,8 +14,8 @@ Abnahmeregel: Zu jedem Punkt gehören (1) Entwurf, (2) automatisierte Prüfungen
 | V2-05 | Ressourcen-/Mobilbaseline auf V1 | BLOCKED: Messwerte fehlen |
 | V2-10 | Inventar WebSocket, Frontend, Speicher, Locks, Executor | STATIC REVIEW |
 | V2-20 | Serverseitiges Operationsmodell, Übergänge und Tests | DRAFT (isoliert) |
-| V2-30 | Auftragsmanager und Client-unabhängige Tasks | NOT STARTED |
-| V2-40 | Journale, Persistenz und Neustart-Recovery | NOT STARTED |
+| V2-30 | Auftragsmanager und Client-unabhängige Tasks | Isoliertes DEV-Testlabor real geprüft (Zweitsitzung, Browserneuladen, V1-Parallelbetrieb); produktive Schreibpfade weiterhin gesperrt |
+| V2-40 | Journale, Persistenz und Neustart-Recovery | V2-40-10/-20/-30 implementiert, 100/100 CI grün; V2-40-40/-50 HA-Neustart-Realabnahme und Abschluss OFFEN |
 | V2-50 | Echter Fortschritt aus dem Backend | NOT STARTED |
 | V2-60 | Vorschau als Auftrag; Reconnect und Pagination | NOT STARTED |
 | V2-70 | Installation als Auftrag; unveränderte Sicherheitsgrenzen | NOT STARTED |
@@ -53,3 +53,7 @@ Installationsfortschritt soll **im Installationsbereich** erscheinen und reale P
 - Freigegebene öffentliche V1-Ausgangsbasis: `TheDaimos/deploy-relay-agent-pub` Commit `0c9d7f49f080dfe77b6c3910f89d6a61ae4b8cfa`.
 - Neuer V2-DEV-Baselinecommit: `454dac719de325edc8e9749542c6ab7666bd2bf2`.
 - V1-FINAL-SHA, V1-Leistungs- und reale V2-Benchmarks: noch nicht vorhanden.
+
+## Nachtrag V2-30/V2-40 (08.10.2026)
+
+Die früheren Gate-Statuswerte waren vor dem mittlerweile bestandenen Realtest des getrennten V2-DEV-Testlabors erstellt. Zweitsitzung, Notebook-Browserneuladen, V1-Gewitterradar-Update und anschließender HA-Neustart sind bestätigt. Ein bei HA-Neustart *aktiver* Auftrag war dabei noch nicht im Test: Das ist **V2-40-40** und ausdrücklich offen. Das Journal der V2-40-Implementierung ist zunächst auf synthetische Leseaufträge begrenzt; spätere schreibende Transaktionen bleiben untersagt. Statische Abnahme und CI: `docs/V2_40_STATISCHE_ABNAHME_2026-10-08.md`. V2-00/V2-05 und finale V2-PUB-Gates bleiben unverändert offen.
