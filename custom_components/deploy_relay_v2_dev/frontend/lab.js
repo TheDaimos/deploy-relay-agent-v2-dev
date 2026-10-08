@@ -6,6 +6,12 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._hass = null;
     this._operation = null;
     this._measurement = null;
+    this._gitConfigured = false;
+    this._gitAvailable = false;
+    this._gitSetup = false;
+    this._gitBusy = false;
+    this._gitStatus = "";
+    this._lastExport = null;
     this._busy = false;
     this._timer = null;
     this._error = "";
@@ -52,6 +58,8 @@ class DRAV2DevLabPanel extends HTMLElement {
       const data = await this._hass.callWS({ type: "deploy_relay_v2_dev/test/state" });
       this._operation = (data.operations || [])[0] || null;
       this._measurement = data.measurement || null;
+      this._gitConfigured = data.git_configured === true;
+      this._gitAvailable = data.git_available === true;
       this._error = "";
     } catch (_error) {
       this._error = "Status konnte nicht geladen werden. Verbindung prüfen.";
@@ -93,6 +101,7 @@ class DRAV2DevLabPanel extends HTMLElement {
         request_id: requestId,
       });
       this._measurement = null;
+      this._lastExport = null;
       this._error = "";
     } catch (_error) {
       this._error = "Messlauf konnte nicht gestartet werden.";
@@ -103,10 +112,58 @@ class DRAV2DevLabPanel extends HTMLElement {
     }
   }
 
+  async _configureGit(clear = false) {
+    if (!this._hass || this._gitBusy || !this._gitAvailable) return;
+    const input = this.shadowRoot?.querySelector("#git-token");
+    const token = clear ? "" : String(input?.value || "").trim();
+    if (input) input.value = "";
+    if (!clear && !token) { this._gitStatus = "Bitte einen eigenen GitHub-Schreibtoken eingeben."; this._render(); return; }
+    this._gitBusy = true;
+    this._gitSetup = false;
+    this._gitStatus = "Git-Zugang wird gespeichert …";
+    this._render();
+    try {
+      const response = await this._hass.callWS({
+        type: "deploy_relay_v2_dev/test/git_configure", token, clear,
+      });
+      this._gitConfigured = response.configured === true;
+      this._gitStatus = clear ? "Git-Zugang entfernt." : "Git-Zugang eingerichtet.";
+      this._lastExport = null;
+    } catch (_error) {
+      this._gitStatus = "Git-Zugang konnte nicht geändert werden."; 
+    } finally {
+      this._gitBusy = false;
+      if (this.isConnected) this._render();
+    }
+  }
+
+  async _exportGit() {
+    if (!this._hass || this._gitBusy || this._busy || this._active()) return;
+    if (!this._gitConfigured) { this._gitSetup = true; this._render(); return; }
+    this._gitBusy = true;
+    this._gitStatus = "Messdaten werden nach Git exportiert …";
+    this._lastExport = null;
+    this._render();
+    try {
+      const result = await this._hass.callWS({ type: "deploy_relay_v2_dev/test/git_export" });
+      const url = String(result.file_url || "");
+      const sha = String(result.commit_sha || "");
+      if (!/^https:\/\/github\.com\/TheDaimos\/deploy-relay-agent-v2-dev\/blob\/main\/\.deploy-relay\/diagnostics\/v2-dev\/[0-9]{4}-[0-9]{2}-[0-9]{2}\/[0-9TZ-]+-[0-9a-f]{8}\.json$/.test(url) || !/^[0-9a-f]{40}$/.test(sha)) {
+        throw new Error("invalid confirmation");
+      }
+      this._lastExport = { file_url: url, commit_sha: sha };
+      this._gitStatus = "Export abgeschlossen · Commit " + sha.slice(0, 12);
+    } catch (_error) {
+      this._gitStatus = "Git-Export fehlgeschlagen. Zugang und Repository prüfen."; 
+    } finally {
+      this._gitBusy = false;
+      if (this.isConnected) this._render();
+    }
+  }
   _render() {
     const s = this.shadowRoot;
     const op = this._operation;
-    const busy = this._busy || this._active();
+    const busy = this._busy || this._active() || this._gitBusy;
     const data = this._measurement;
     const valid = data && op && data.operation_id === op.operation_id &&
       data.schema === "dra-v2-dev-measurement.v1" &&
@@ -151,6 +208,8 @@ class DRAV2DevLabPanel extends HTMLElement {
         button:disabled { opacity:.5; cursor:default; }
         code { overflow-wrap:anywhere; }
         .error { color:var(--error-color,#f55); }
+        input.git-token { box-sizing:border-box; width:100%; min-height:40px; background:var(--primary-background-color,#151515); color:inherit; border:1px solid var(--divider-color,#555); border-radius:8px; padding:8px; }
+        .git-link { display:inline-block; padding:12px 0; color:var(--primary-color,#65b4d2); overflow-wrap:anywhere; }
       </style>
       <main>
         <h1>DRA V2 DEV · Testlabor</h1>
@@ -170,12 +229,32 @@ class DRAV2DevLabPanel extends HTMLElement {
           ${report}
           <button id="refresh" ${this._busy ? "disabled" : ""}>Status aktualisieren</button>
         </article>
+        <article>
+          <strong>Messdaten nach Git exportieren</strong>
+          <p class="note">Wie bei DRA V1: separater GitHub-Schreibtoken und ein neues JSON-Dokument pro Export.
+          Das Zielrepository ist öffentlich. Übertragen werden ausschließlich anonyme Messzahlen, keine Projektdateien oder Auftragskennungen.</p>
+          <p>Git-Zugang: ${this._gitConfigured ? "Bereit" : "Nicht eingerichtet"}</p>
+          ${this._gitSetup ? `<label>Separater GitHub-Schreibtoken (nur V2-DEV-Repository)
+          <input class="git-token" id="git-token" type="password" autocomplete="off" spellcheck="false" placeholder="Fine-grained Token" /></label>
+          <button id="git-save" ${this._gitBusy ? "disabled" : ""}>Zugang speichern</button>
+          <button id="git-cancel">Abbrechen</button>` : ""}
+          <button id="git-setup" ${this._gitBusy || !this._gitAvailable ? "disabled" : ""}>Git-Export einrichten</button>
+          <button id="git-export" ${this._gitBusy || busy || !valid || op?.status !== "success" || !this._gitAvailable ? "disabled" : ""}>Messdaten nach Git exportieren</button>
+          ${this._gitConfigured ? `<button id="git-remove" ${this._gitBusy ? "disabled" : ""}>Git-Zugang entfernen</button>` : ""}
+          <p class="note">${this._gitStatus}</p>
+          ${this._lastExport ? `<a class="git-link" href="${this._lastExport.file_url}" target="_blank" rel="noopener noreferrer">Export in GitHub öffnen</a>` : ""}
+        </article>
         <p class="note">Während eines laufenden Tests wird der Status etwa alle 1,5 Sekunden aktualisiert. Im Leerlauf erfolgt keine regelmäßige Abfrage. Nach einem Home-Assistant-Neustart bleiben abgeschlossene Aufträge im begrenzten Verlauf abrufbar. Vorher laufende Testaufträge erscheinen als unterbrochen und werden nicht neu gestartet.</p>
       </main>
     `;
     s.querySelector("#start")?.addEventListener("click", () => this._start());
     s.querySelector("#measure")?.addEventListener("click", () => this._measure());
     s.querySelector("#refresh")?.addEventListener("click", () => this._refresh());
+    s.querySelector("#git-setup")?.addEventListener("click", () => { this._gitSetup = true; this._render(); });
+    s.querySelector("#git-save")?.addEventListener("click", () => this._configureGit(false));
+    s.querySelector("#git-remove")?.addEventListener("click", () => this._configureGit(true));
+    s.querySelector("#git-cancel")?.addEventListener("click", () => { this._gitSetup = false; this._render(); });
+    s.querySelector("#git-export")?.addEventListener("click", () => this._exportGit());
   }
 }
 if (!customElements.get("dra-v2-dev-lab-panel")) {
