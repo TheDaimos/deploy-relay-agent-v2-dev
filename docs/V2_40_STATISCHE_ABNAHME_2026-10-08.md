@@ -127,9 +127,9 @@ Die Messansicht zeigt lediglich Zähler, monotone Gesamtdauer, maximale Verzöge
 
 ### V2-40 Git-Export – isolierter Einbau als V2 DEV 0.1.4
 
-Auf Wunsch des Nutzers wurde parallel zur V2-40-50-Ressourcenabnahme der direkte Git-Export nach dem Sicherheitsmuster von DRA V1 vorbereitet. Details und Freigabegrenze: \`docs/V2_40_GIT_EXPORT_ENTWURF_2026-10-08.md\`.
+Auf Wunsch des Nutzers wurde parallel zur V2-40-50-Ressourcenabnahme der direkte Git-Export nach dem Sicherheitsmuster von DRA V1 vorbereitet. Details und Freigabegrenze: `docs/V2_40_GIT_EXPORT_ENTWURF_2026-10-08.md`.
 
-Der Backendexport liegt **nur** in \`deploy_relay_v2_dev\`. Ein separater Git-Schreibtoken wird ausschließlich in \`deploy_relay_v2_dev.git_auth\` gespeichert; keine Verwendung von V1-Tokens, keine Änderung am schreibgeschützten Operationsjournal. Git-Upload ist nur nach einem vollständig abgeschlossenen synthetischen Messlauf und explizitem Administrator-Klick zulässig. Öffentlicher Pfad fest unter \`.deploy-relay/diagnostics/v2-dev/\`, neues JSON mit ausschließlich validierten Zählern, kein Rohjournal oder private Auftragskennung.
+Der Backendexport liegt **nur** in `deploy_relay_v2_dev`. Ein separater Git-Schreibtoken wird ausschließlich in `deploy_relay_v2_dev.git_auth` gespeichert; keine Verwendung von V1-Tokens, keine Änderung am schreibgeschützten Operationsjournal. Git-Upload ist nur nach einem vollständig abgeschlossenen synthetischen Messlauf und explizitem Administrator-Klick zulässig. Öffentlicher Pfad fest unter `.deploy-relay/diagnostics/v2-dev/`, neues JSON mit ausschließlich validierten Zählern, kein Rohjournal oder private Auftragskennung.
 
 Automatische Tests behandeln Fakes für GitHub und den Secret-Store, Manipulationen, defekte Antworten, Authentisierungs-/Schreibfehler, URL- und Pfadgrenzen. Keine echten GitHub-Diagnosedateien wurden hochgeladen.
 

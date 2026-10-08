@@ -36,11 +36,11 @@ Nach Freigabe den Messlauf explizit starten, abschließen, Token für **das öff
 
 ## Umsetzungsstand – V2 DEV 0.1.4
 
-- Backend: \`custom_components/deploy_relay_v2_dev/git_measurement_export.py\` (eigene Tokenablage im Schlüssel \`deploy_relay_v2_dev.git_auth\`, separater Autorisierungspfad). Der bestehende V2-Journal-Schlüssel bleibt unverändert.
-- Zwei zusätzliche, ausschließlich für Administratoren freigeschaltete V2-WebSocket-Befehle: \`test/git_configure\` und \`test/git_export\`. Die Statusantwort zeigt nur die booleschen Werte „Git verfügbar/eingerichtet“, niemals den Token.
+- Backend: `custom_components/deploy_relay_v2_dev/git_measurement_export.py` (eigene Tokenablage im Schlüssel `deploy_relay_v2_dev.git_auth`, separater Autorisierungspfad). Der bestehende V2-Journal-Schlüssel bleibt unverändert.
+- Zwei zusätzliche, ausschließlich für Administratoren freigeschaltete V2-WebSocket-Befehle: `test/git_configure` und `test/git_export`. Die Statusantwort zeigt nur die booleschen Werte „Git verfügbar/eingerichtet“, niemals den Token.
 - Bedienung im V2-DEV-Testlabor: „Git-Export einrichten“, maskierte Token-Eingabe, „Messdaten nach Git exportieren“, „Git-Zugang entfernen“ und verifizierter Link zur erzeugten JSON-Datei. Keine laufenden Abfragen bei Ruhe.
 - Übertragene Felder: festes Schema/Version/Modus, UTC-Exportzeit, feste öffentliche Zielidentität und validierte Messzähler. **Keine** Auftragskennung, freie Texte, lokale Konfiguration, Rohlogs, private Projektangaben oder Token im JSON.
-- GitHub Contents API: eine manuelle \`PUT\`-Erstellung pro Export (HTTP 201), eindeutiger Dateiname, 10-Sekunden-Zeitlimit, keine automatische Wiederholung und höchstens ein gleichzeitig laufender Git-Export. Commit-Nachricht mit \`[skip ci]\`.
+- GitHub Contents API: eine manuelle `PUT`-Erstellung pro Export (HTTP 201), eindeutiger Dateiname, 10-Sekunden-Zeitlimit, keine automatische Wiederholung und höchstens ein gleichzeitig laufender Git-Export. Commit-Nachricht mit `[skip ci]`.
 - Die Tests verwenden ausschließlich Fake-Store/Fake-Session und laden **keine** Datei nach GitHub hoch. Die Realabnahme steht aus; bis dahin sind Einrichtung und Upload auf HA-DEV noch nicht verfügbar.
 
 ### Sicherheits-/Review-Hinweis
