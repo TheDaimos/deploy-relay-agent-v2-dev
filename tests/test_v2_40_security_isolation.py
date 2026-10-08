@@ -60,5 +60,24 @@ class JournalIsolationContracts(unittest.TestCase):
             self.assertNotIn(word, source)
 
 
+    def test_git_export_credentials_never_share_v1_or_journal_store(self):
+        setup = (LAB / "__init__.py").read_text(encoding="utf-8")
+        ws = (LAB / "websocket_api.py").read_text(encoding="utf-8")
+        panel = (LAB / "frontend" / "lab.js").read_text(encoding="utf-8")
+        writer = (LAB / "git_measurement_export.py").read_text(encoding="utf-8")
+        self.assertIn('Store(hass, 1, "deploy_relay_v2_dev.git_auth")', setup)
+        self.assertIn('Store(hass, 1, "deploy_relay_v2_dev.journal")', setup)
+        self.assertNotIn('Store(hass, 1, "deploy_relay.git_auth")', setup)
+        self.assertEqual(ws.count("@websocket_api.require_admin"), 6)
+        self.assertIn("await runtime.git_export.export(summary, version=VERSION)", ws)
+        self.assertNotIn("token", (LAB / "readonly_benchmark.py").read_text(encoding="utf-8"))
+        self.assertIn("Das Zielrepository ist öffentlich", panel)
+        self.assertIn('type="password"', panel)
+        self.assertIn("asyncio.timeout(10)", writer)
+        self.assertNotIn("deploy_relay_agent_v1", writer)
+        self.assertNotIn("custom_components/deploy_relay/", writer)
+
+
+
 if __name__ == "__main__":
     unittest.main()
