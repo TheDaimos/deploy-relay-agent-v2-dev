@@ -33,6 +33,23 @@ def measurement():
         "max_wakeup_delay_ms": 8,
         "elapsed_ms": 40016,
         "synthetic_hashes": 46,
+        "memory": {
+            "schema": module.MEMORY_SCHEMA,
+            "source": module.MEMORY_SOURCE,
+            "component_memory": {
+                "dra_v1_kib": None, "dra_v2_kib": None,
+                "reason": module.MEMORY_REASON,
+            },
+            "snapshots": {
+                point: {
+                    "total_kib": 7340032,
+                    "used_effective_kib": 3145728,
+                    "free_kib": 2097152,
+                    "available_kib": 4194304,
+                    "ha_process_rss_kib": 524288,
+                } for point in module.MEMORY_POINTS
+            },
+        },
     }
 
 
@@ -89,7 +106,7 @@ class GitExportTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(self.writer.configured)
         await self.writer.configure(token=self.token)
         self.assertTrue(self.writer.configured)
-        result = await self.writer.export(measurement(), version="0.1.4")
+        result = await self.writer.export(measurement(), version="0.1.5")
         self.assertEqual(self.store.writes, 1)
         self.assertEqual(len(self.session.requests), 1)
         url, request = self.session.requests[0]
@@ -111,6 +128,11 @@ class GitExportTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(blob["branch"], "main")
         self.assertEqual(blob["snapshot"]["measurement"]["synthetic_hashes"], 46)
         self.assertEqual(blob["snapshot"]["measurement"]["scope"], module.SCOPE)
+        memory = blob["snapshot"]["measurement"]["memory"]
+        self.assertEqual(memory["snapshots"]["start"]["free_kib"], 2097152)
+        self.assertIsNone(memory["component_memory"]["dra_v1_kib"])
+        self.assertIsNone(memory["component_memory"]["dra_v2_kib"])
+        self.assertEqual(blob["schema"], "dra-v2-dev-git-measurement.v2")
         self.assertNotIn("operation_id", blob["snapshot"]["measurement"])
         self.assertTrue(result["file_url"].startswith(
             "https://github.com/TheDaimos/deploy-relay-agent-v2-dev/blob/main/"
@@ -120,7 +142,7 @@ class GitExportTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_no_upload_before_explicit_configuration(self):
         with self.assertRaises(module.GitMeasurementError):
-            await self.writer.export(measurement(), version="0.1.4")
+            await self.writer.export(measurement(), version="0.1.5")
         self.assertEqual(self.session.requests, [])
 
     async def test_secret_store_kept_separate_and_reloaded(self):
@@ -132,7 +154,7 @@ class GitExportTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(another.configured)
         self.assertIsNone(self.store.data["token"])
         with self.assertRaises(module.GitMeasurementError):
-            await another.export(measurement(), version="0.1.4")
+            await another.export(measurement(), version="0.1.5")
 
     async def test_corrupt_store_refused_without_overwriting(self):
         for invalid in (
@@ -165,12 +187,13 @@ class GitExportTests(unittest.IsolatedAsyncioTestCase):
             {"base_process_cpu_ms": True},
             {"scope": "HA_DEV_PRIVATE_PATH"},
             {"operation_id": "not valid"},
+            {"memory": {"token": self.token}},
         ):
             sample = measurement()
             sample.update(update)
             with self.subTest(update=update):
                 with self.assertRaises(module.GitMeasurementError):
-                    await self.writer.export(sample, version="0.1.4")
+                    await self.writer.export(sample, version="0.1.5")
         self.assertEqual(self.session.requests, [])
 
     async def test_git_error_does_not_leak_token_or_response(self):
@@ -178,7 +201,7 @@ class GitExportTests(unittest.IsolatedAsyncioTestCase):
         self.session.response = FakeResponse(status=403,
             payload={"raw_secret": self.token})
         with self.assertRaises(module.GitMeasurementError) as error:
-            await self.writer.export(measurement(), version="0.1.4")
+            await self.writer.export(measurement(), version="0.1.5")
         self.assertNotIn(self.token, str(error.exception))
         self.assertNotIn("raw_secret", str(error.exception))
 
@@ -186,13 +209,57 @@ class GitExportTests(unittest.IsolatedAsyncioTestCase):
         await self.writer.configure(token=self.token)
         self.session.response = FakeResponse(payload={"commit": {"sha": "wrong"}})
         with self.assertRaises(module.GitMeasurementError):
-            await self.writer.export(measurement(), version="0.1.4")
+            await self.writer.export(measurement(), version="0.1.5")
+
+
+    async def test_memory_forgery_or_private_data_rejected_before_upload(self):
+        await self.writer.configure(token=self.token)
+        variants = []
+        wrong = measurement()
+        wrong["memory"]["snapshots"]["work_end"]["private_path"] = "/config/secret"
+        variants.append(wrong)
+        wrong = measurement()
+        wrong["memory"]["component_memory"]["dra_v1_kib"] = 123
+        variants.append(wrong)
+        wrong = measurement()
+        wrong["memory"]["component_memory"]["reason"] = "isolated"
+        variants.append(wrong)
+        wrong = measurement()
+        wrong["memory"]["snapshots"]["end"]["free_kib"] = 8000000
+        variants.append(wrong)
+        wrong = measurement()
+        wrong["memory"]["snapshots"]["end"]["used_effective_kib"] = -1
+        variants.append(wrong)
+        wrong = measurement()
+        wrong["memory"]["snapshots"]["end"]["used_effective_kib"] = 0
+        variants.append(wrong)
+        wrong = measurement()
+        wrong["memory"]["snapshots"]["end"]["ha_process_rss_kib"] = True
+        variants.append(wrong)
+        for sample in variants:
+            with self.subTest(sample=sample["memory"]):
+                with self.assertRaises(module.GitMeasurementError):
+                    await self.writer.export(sample, version="0.1.5")
+        self.assertEqual(self.session.requests, [])
+
+    async def test_missing_linux_probe_memory_remains_public_safe(self):
+        await self.writer.configure(token=self.token)
+        sample = measurement()
+        for snap in sample["memory"]["snapshots"].values():
+            for key in ("total_kib", "used_effective_kib", "free_kib",
+                        "available_kib", "ha_process_rss_kib"):
+                snap[key] = None
+        await self.writer.export(sample, version="0.1.5")
+        body = self.session.requests[0][1]["json"]["content"]
+        decoded = json.loads(base64.b64decode(body))
+        self.assertIsNone(decoded["snapshot"]["measurement"]["memory"]
+                          ["snapshots"]["work_end"]["total_kib"])
 
     def test_fixed_public_target_and_utc_document(self):
         self.assertEqual(module.REPOSITORY, "TheDaimos/deploy-relay-agent-v2-dev")
         self.assertEqual(module.ROOT, ".deploy-relay/diagnostics/v2-dev")
         now = datetime(2026, 10, 8, 18, 30, tzinfo=timezone.utc)
-        doc = module.public_export_document(measurement(), version="0.1.4", now=now)
+        doc = module.public_export_document(measurement(), version="0.1.5", now=now)
         self.assertEqual(doc["created_at"], "2026-10-08T18:30:00Z")
         self.assertEqual(doc["schema"], module.EXPORT_SCHEMA)
 
