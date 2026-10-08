@@ -1,0 +1,9 @@
+{
+  "schema": "deploy-relay.channel.v1",
+  "project_id": "deploy_relay_agent_v2_dev",
+  "recommended": {
+    "channel": "development",
+    "kind": "branch",
+    "ref": "feature/v2-10-inventory-operation-contract"
+  }
+}
