@@ -113,11 +113,13 @@ class DRAV2DevLabPanel extends HTMLElement {
       ["base_process_cpu_ms", "work_process_cpu_ms", "after_process_cpu_ms",
        "max_wakeup_delay_ms", "elapsed_ms", "synthetic_hashes"]
         .every(k => Number.isInteger(data[k]) && data[k] >= 0);
+    const processRate = (cpuMs, duration) =>
+      (100 * cpuMs / (1000 * duration)).toFixed(2) + " % eines CPU-Kerns";
     const report = valid ? `
       <p><strong>Messlauf abgeschlossen (Prozesswerte):</strong></p>
-      <p>CPU-Basis (10 s): ${data.base_process_cpu_ms} ms ·
-         CPU-Arbeitsphase (20 s): ${data.work_process_cpu_ms} ms ·
-         CPU-Nachlauf (10 s): ${data.after_process_cpu_ms} ms</p>
+      <p>CPU-Basis (10 s): ${processRate(data.base_process_cpu_ms, 10)} ·
+         CPU-Arbeitsphase (20 s): ${processRate(data.work_process_cpu_ms, 20)} ·
+         CPU-Nachlauf (10 s): ${processRate(data.after_process_cpu_ms, 10)}</p>
       <p>Max. Verzögerung der Zeitsteuerung: ${data.max_wakeup_delay_ms} ms;
          Gesamtdauer: ${data.elapsed_ms} ms;
          synthetische Hash-Durchläufe: ${data.synthetic_hashes}</p>
