@@ -32,6 +32,7 @@ async def async_state(hass, connection, msg):
         "version": VERSION,
         "mode": "READ_ONLY_TEST",
         "operations": operations,
+        "measurement": runtime.measurement.summary(),
     })
 
 
@@ -66,6 +67,31 @@ async def async_start(hass, connection, msg):
 
 
 @websocket_api.websocket_command({
+    probatio.Required("type"): "deploy_relay_v2_dev/test/measure",
+    probatio.Required("request_id"): str,
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def async_measure(hass, connection, msg):
+    """Separate opt-in measurement; never authorize mutation or background idle work."""
+    runtime = _runtime(hass)
+    if runtime is None:
+        connection.send_error(msg["id"], "not_ready", "Testlabor nicht gestartet")
+        return
+    try:
+        receipt = await runtime.supervisor.start_preview(
+            project_key="lab_readonly_preview",
+            request_id=msg["request_id"],
+            work=runtime.measurement.run,
+        )
+        runtime.measurement.claim(str(receipt["operation_id"]))
+    except OperationContractError:
+        connection.send_error(msg["id"], "busy", "Messlauf bereits aktiv oder ungueltig")
+        return
+    connection.send_result(msg["id"], receipt)
+
+
+@websocket_api.websocket_command({
     probatio.Required("type"): "deploy_relay_v2_dev/test/get",
     probatio.Required("operation_id"): str,
 })
@@ -93,6 +119,6 @@ def async_register_commands(hass: HomeAssistant) -> None:
     state = hass.data.setdefault(DOMAIN, {})
     if state.get("commands_registered"):
         return
-    for handler in (async_state, async_start, async_get):
+    for handler in (async_state, async_start, async_measure, async_get):
         websocket_api.async_register_command(hass, handler)
     state["commands_registered"] = True

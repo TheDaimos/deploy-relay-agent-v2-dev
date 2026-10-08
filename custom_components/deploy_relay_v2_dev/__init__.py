@@ -16,6 +16,7 @@ from .const import DOMAIN
 from .operation_registry import OperationRegistry
 from .operation_journal import JournalError, OperationJournal
 from .readonly_task_supervisor import ReadOnlyTaskSupervisor
+from .readonly_benchmark import ReadOnlyMeasurement
 from .ha_preview_task_factory import PreviewTaskFactory
 from .panel import async_register_panel, async_remove_panel
 from .websocket_api import async_register_commands
@@ -26,6 +27,7 @@ class LabRuntime:
     registry: OperationRegistry
     supervisor: ReadOnlyTaskSupervisor
     journal: OperationJournal
+    measurement: ReadOnlyMeasurement
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -40,6 +42,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await journal.load()
     except JournalError:
         return False
+    measurement = ReadOnlyMeasurement()
     registry = OperationRegistry(max_completed=12, max_readonly=1)
     supervisor = ReadOnlyTaskSupervisor(
         registry,
@@ -47,7 +50,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         on_registered=journal.capture,
         on_terminal=journal.capture,
     )
-    runtime = LabRuntime(registry=registry, supervisor=supervisor, journal=journal)
+    runtime = LabRuntime(registry=registry, supervisor=supervisor, journal=journal,
+                         measurement=measurement)
     store["runtime"] = runtime
     try:
         async_register_commands(hass)

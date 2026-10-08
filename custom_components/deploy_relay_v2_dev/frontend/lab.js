@@ -5,6 +5,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     this.attachShadow({ mode: "open" });
     this._hass = null;
     this._operation = null;
+    this._measurement = null;
     this._busy = false;
     this._timer = null;
     this._error = "";
@@ -50,6 +51,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     try {
       const data = await this._hass.callWS({ type: "deploy_relay_v2_dev/test/state" });
       this._operation = (data.operations || [])[0] || null;
+      this._measurement = data.measurement || null;
       this._error = "";
     } catch (_error) {
       this._error = "Status konnte nicht geladen werden. Verbindung prüfen.";
@@ -80,10 +82,49 @@ class DRAV2DevLabPanel extends HTMLElement {
     }
   }
 
+  async _measure() {
+    if (!this._hass || this._busy || this._active()) return;
+    this._busy = true;
+    this._render();
+    try {
+      const requestId = "measurement-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2) + "-" + Math.random().toString(36).slice(2);
+      this._operation = await this._hass.callWS({
+        type: "deploy_relay_v2_dev/test/measure",
+        request_id: requestId,
+      });
+      this._measurement = null;
+      this._error = "";
+    } catch (_error) {
+      this._error = "Messlauf konnte nicht gestartet werden.";
+    } finally {
+      this._busy = false;
+      if (this.isConnected) this._render();
+      this._schedule();
+    }
+  }
+
   _render() {
     const s = this.shadowRoot;
     const op = this._operation;
     const busy = this._busy || this._active();
+    const data = this._measurement;
+    const valid = data && op && data.operation_id === op.operation_id &&
+      data.schema === "dra-v2-dev-measurement.v1" &&
+      ["base_process_cpu_ms", "work_process_cpu_ms", "after_process_cpu_ms",
+       "max_wakeup_delay_ms", "elapsed_ms", "synthetic_hashes"]
+        .every(k => Number.isInteger(data[k]) && data[k] >= 0);
+    const report = valid ? `
+      <p><strong>Messlauf abgeschlossen (Prozesswerte):</strong></p>
+      <p>CPU-Basis (10 s): ${data.base_process_cpu_ms} ms ·
+         CPU-Arbeitsphase (20 s): ${data.work_process_cpu_ms} ms ·
+         CPU-Nachlauf (10 s): ${data.after_process_cpu_ms} ms</p>
+      <p>Max. Verzögerung der Zeitsteuerung: ${data.max_wakeup_delay_ms} ms;
+         Gesamtdauer: ${data.elapsed_ms} ms;
+         synthetische Hash-Durchläufe: ${data.synthetic_hashes}</p>
+      <p class="note">CPU-Werte gelten für den gesamten Home-Assistant-Prozess
+      und sind KEIN isolierter DRA-Verbrauch. RAM und Datenträgerlast bitte
+      separat in Proxmox beurteilen. Keine echten Projektdateien verarbeitet.</p>
+    ` : "";
     const states = {
       queued: "Wartet", waiting_for_resource: "Wartet auf Ressourcen",
       running: "Läuft unabhängig vom Browser",
@@ -121,12 +162,17 @@ class DRAV2DevLabPanel extends HTMLElement {
           <p class="note"><strong>Auftragskennung:</strong> <code>${safeId}</code></p>
           ${this._error ? `<p class="error">${this._error}</p>` : ""}
           <button id="start" ${busy ? "disabled" : ""}>Testauftrag starten</button>
+          <button id="measure" ${busy ? "disabled" : ""}>Messlauf starten (40 s)</button>
+          <p class="note">Messlauf: 10 Sekunden Basis, 20 Sekunden begrenzte Rechenarbeit
+          außerhalb der HA-Ereignisschleife, 10 Sekunden Nachlauf. Maximal ein Auftrag gleichzeitig.</p>
+          ${report}
           <button id="refresh" ${this._busy ? "disabled" : ""}>Status aktualisieren</button>
         </article>
         <p class="note">Während eines laufenden Tests wird der Status etwa alle 1,5 Sekunden aktualisiert. Im Leerlauf erfolgt keine regelmäßige Abfrage. Nach einem Home-Assistant-Neustart bleiben abgeschlossene Aufträge im begrenzten Verlauf abrufbar. Vorher laufende Testaufträge erscheinen als unterbrochen und werden nicht neu gestartet.</p>
       </main>
     `;
     s.querySelector("#start")?.addEventListener("click", () => this._start());
+    s.querySelector("#measure")?.addEventListener("click", () => this._measure());
     s.querySelector("#refresh")?.addEventListener("click", () => this._refresh());
   }
 }

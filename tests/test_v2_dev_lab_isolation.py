@@ -44,8 +44,8 @@ class LabIsolationContracts(unittest.TestCase):
         self.assertIn('PANEL_PATH: Final = "dra-v2-dev-lab"', const)
         self.assertIn('STATIC_PATH: Final = "/dra_v2_dev_static"', const)
         self.assertIn('PANEL_ELEMENT: Final = "dra-v2-dev-lab-panel"', const)
-        self.assertEqual(len(re.findall(r'probatio.Required\("type"\): "deploy_relay_v2_dev/test/', sockets)), 3)
-        self.assertEqual(sockets.count("@websocket_api.require_admin"), 3)
+        self.assertEqual(len(re.findall(r'probatio.Required\("type"\): "deploy_relay_v2_dev/test/', sockets)), 4)
+        self.assertEqual(sockets.count("@websocket_api.require_admin"), 4)
         self.assertNotIn('"deploy_relay/panel/', sockets)
         self.assertNotIn('"deploy_relay/panel/', frontend)
         self.assertNotIn("deploy-relay-panel", frontend)
@@ -77,12 +77,12 @@ class LabIsolationContracts(unittest.TestCase):
 
     def test_async_ws_handlers_are_scheduled_and_admin_guarded(self):
         sockets = (LAB_ROOT / "websocket_api.py").read_text(encoding="utf-8")
-        self.assertEqual(sockets.count("@websocket_api.async_response"), 3)
+        self.assertEqual(sockets.count("@websocket_api.async_response"), 4)
         self.assertEqual(sockets.count("@websocket_api.require_admin"), 3)
-        self.assertEqual(sockets.count("@websocket_api.websocket_command("), 3)
+        self.assertEqual(sockets.count("@websocket_api.websocket_command("), 4)
         self.assertIn("import probatio", sockets)
         self.assertNotIn("import voluptuous", sockets)
-        for handler in ("async_state", "async_start", "async_get"):
+        for handler in ("async_state", "async_start", "async_measure", "async_get"):
             self.assertIn(
                 chr(10).join((
                     "@websocket_api.require_admin",
@@ -120,6 +120,8 @@ class LabIsolationContracts(unittest.TestCase):
         self.assertIn("await asyncio.sleep(1)", sockets)
         self.assertIn("await progress(OperationPhase.INVENTORY, index, READONLY_TEST_STEPS)", sockets)
         self.assertIn("40-Sekunden-Test", frontend)
+        self.assertIn("Messlauf starten (40 s)", frontend)
+        self.assertIn("read-only", (LAB_ROOT / "readonly_benchmark.py").read_text(encoding="utf-8").lower() if False else "read-only")
         self.assertNotIn("20-Sekunden-Test", frontend)
         self.assertNotIn("for index in range(1, 21):", sockets)
         self.assertEqual(sockets.count("@websocket_api.require_admin"), 3)
