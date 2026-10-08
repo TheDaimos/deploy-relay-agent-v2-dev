@@ -111,11 +111,13 @@ class PublicBaselineContracts(unittest.TestCase):
             self.assertIn(payload["schema"], {
                 "dra-v2-dev-git-measurement.v1",
                 "dra-v2-dev-git-measurement.v2",
+                "dra-v2-dev-git-suite.v1",
             })
             snapshot = payload["snapshot"]
+            suite_file = payload["schema"] == "dra-v2-dev-git-suite.v1"
             self.assertEqual(
                 set(snapshot),
-                {"component", "created_at", "measurement", "mode",
+                {"component", "created_at", "suite" if suite_file else "measurement", "mode",
                  "note", "schema", "version"},
             )
             self.assertEqual(snapshot["component"], "deploy_relay_v2_dev")
@@ -124,13 +126,18 @@ class PublicBaselineContracts(unittest.TestCase):
             self.assertRegex(snapshot["version"], r"\A0\.1\.\d{1,3}\Z")
             self.assertEqual(
                 snapshot["note"],
-                "Synthetic workload. CPU measured across the whole HA process, not DRA alone.",
+                ("Synthetic subprocess comparison, not individual DRA CPU attribution."
+                 if suite_file else
+                 "Synthetic workload. CPU measured across the whole HA process, not DRA alone."),
             )
             self.assertRegex(
                 snapshot["created_at"], r"\A\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z\Z"
             )
             self.assertEqual(snapshot["created_at"].replace(":", "").replace("-", ""), match[2])
             self.assertEqual(snapshot["created_at"][:10], match[1])
+            if suite_file:
+                self._verify_public_suite(snapshot["suite"])
+                continue
             measurement = snapshot["measurement"]
             caps = {
                 "base_process_cpu_ms": 3600000,
@@ -165,6 +172,81 @@ class PublicBaselineContracts(unittest.TestCase):
         self.assertTrue(records, "Unrecognized or empty .deploy-relay folder")
         self.assertLessEqual(len(records), 128, "Unbounded public Git diagnostics")
 
+
+
+    def _verify_public_suite(self, data: object) -> None:
+        self.assertIs(type(data), dict)
+        self.assertEqual(set(data), {
+            "schema", "mode", "readonly_steps", "measurement", "multicore",
+        })
+        self.assertEqual(data["schema"], "dra-v2-dev-suite.v1")
+        self.assertIn(data["mode"], ("full", "multicore"))
+        is_full = data["mode"] == "full"
+        self.assertIs(type(data["readonly_steps"]), int)
+        self.assertEqual(data["readonly_steps"], 40 if is_full else 0)
+        measurement = data["measurement"]
+        if is_full:
+            self.assertIs(type(measurement), dict)
+            self.assertEqual(set(measurement), {
+                "scope", "base_seconds", "work_seconds", "after_seconds",
+                "base_process_cpu_ms", "work_process_cpu_ms",
+                "after_process_cpu_ms", "max_wakeup_delay_ms",
+                "elapsed_ms", "synthetic_hashes", "memory",
+            })
+            self.assertEqual(measurement["scope"], "HA_PROCESS_WIDE_CPU_NOT_DRA_ONLY")
+            for k, n in (("base_seconds", 10), ("work_seconds", 20),
+                         ("after_seconds", 10)):
+                self.assertIs(type(measurement[k]), int)
+                self.assertEqual(measurement[k], n)
+            for k, limit in {
+                "base_process_cpu_ms": 3600000, "work_process_cpu_ms": 3600000,
+                "after_process_cpu_ms": 3600000, "max_wakeup_delay_ms": 60000,
+                "elapsed_ms": 3600000, "synthetic_hashes": 640,
+            }.items():
+                self.assertIs(type(measurement[k]), int)
+                self.assertGreaterEqual(measurement[k], 0)
+                self.assertLessEqual(measurement[k], limit)
+            self._verify_anonymous_memory(measurement["memory"])
+        else:
+            self.assertIsNone(measurement)
+        multicore = data["multicore"]
+        self.assertEqual(set(multicore), {
+            "schema", "method", "logical_cpus_visible",
+            "affinity_cpus_visible", "levels",
+        })
+        self.assertEqual(multicore["schema"], "dra-v2-dev-multicore.v1")
+        self.assertEqual(multicore["method"], "BOUNDED_CHILD_PROCESSES")
+        for k in ("logical_cpus_visible", "affinity_cpus_visible"):
+            v = multicore[k]
+            if v is not None:
+                self.assertIs(type(v), int)
+                self.assertGreaterEqual(v, 1)
+                self.assertLessEqual(v, 1024)
+        levels = multicore["levels"]
+        self.assertIs(type(levels), list)
+        self.assertEqual(len(levels), 3)
+        for workers, level in zip((1, 2, 4), levels):
+            self.assertEqual(set(level), {
+                "workers", "status", "wall_ms",
+                "aggregate_worker_cpu_ms", "iterations_total",
+            })
+            self.assertIs(type(level["workers"]), int)
+            self.assertEqual(level["workers"], workers)
+            self.assertIn(level["status"], ("ok", "unavailable"))
+            if level["status"] == "unavailable":
+                self.assertIsNone(level["wall_ms"])
+                self.assertIsNone(level["aggregate_worker_cpu_ms"])
+                self.assertIsNone(level["iterations_total"])
+            else:
+                for key, maxvalue in (
+                    ("wall_ms", 30000),
+                    ("aggregate_worker_cpu_ms", 30000),
+                    ("iterations_total", workers * 400000),
+                ):
+                    self.assertIs(type(level[key]), int)
+                    self.assertGreaterEqual(level[key], 0)
+                    self.assertLessEqual(level[key], maxvalue)
+                self.assertEqual(level["iterations_total"], workers * 400000)
 
     def _verify_anonymous_memory(self, memory: object) -> None:
         """Historical v1 exports stay valid; v2 contains only fixed counters."""
