@@ -81,7 +81,7 @@ panel._operation = sample("running", 40);
 panel._observeCountdown(panel._operation);
 panel._render();
 now += 9000;
-assert.equal(panel._remainingText(), "Noch ca. 1 Sekunden");
+assert.equal(panel._remainingText(), "Noch ca. 1 Sekunde");
 panel._operation = sample("success", 40);
 panel._observeCountdown(panel._operation);
 panel._render();
