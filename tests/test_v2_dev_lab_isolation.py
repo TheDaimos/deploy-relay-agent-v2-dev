@@ -75,6 +75,27 @@ class LabIsolationContracts(unittest.TestCase):
         self.assertIn("await asyncio.sleep(1)", source)
         self.assertIn('store["runtime"]', (LAB_ROOT / "__init__.py").read_text(encoding="utf-8"))
 
+    def test_async_ws_handlers_are_scheduled_and_admin_guarded(self):
+        sockets = (LAB_ROOT / "websocket_api.py").read_text(encoding="utf-8")
+        self.assertEqual(sockets.count("@websocket_api.async_response"), 3)
+        self.assertEqual(sockets.count("@websocket_api.require_admin"), 3)
+        self.assertEqual(sockets.count("@websocket_api.websocket_command("), 3)
+        self.assertIn("import probatio", sockets)
+        self.assertNotIn("import voluptuous", sockets)
+        for handler in ("async_state", "async_start", "async_get"):
+            self.assertIn(
+                "@websocket_api.require_admin\\n"
+                "@websocket_api.async_response\\n"
+                "async def " + handler + "(",
+                sockets,
+            )
+
+    def test_config_flow_uses_same_ha_schema_contract_as_v1(self):
+        flow = (LAB_ROOT / "config_flow.py").read_text(encoding="utf-8")
+        self.assertIn("import probatio", flow)
+        self.assertIn("probatio.Schema({})", flow)
+        self.assertNotIn("import voluptuous", flow)
+
     def test_idle_panel_has_no_recurring_timer(self):
         frontend = (LAB_ROOT / "frontend/lab.js").read_text(encoding="utf-8")
         self.assertIn("if (this.isConnected && this._active())", frontend)
