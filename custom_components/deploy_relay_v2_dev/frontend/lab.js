@@ -65,7 +65,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._busy = true;
     this._render();
     try {
-      const requestId = "request-" + crypto.randomUUID().replaceAll("-", "");
+      const requestId = "request-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2) + "-" + Math.random().toString(36).slice(2);
       this._operation = await this._hass.callWS({
         type: "deploy_relay_v2_dev/test/start",
         request_id: requestId,
