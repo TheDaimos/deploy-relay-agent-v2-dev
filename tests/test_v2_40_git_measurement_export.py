@@ -53,6 +53,29 @@ def measurement():
     }
 
 
+
+
+def combined_suite(mode="full"):
+    return {
+        "schema": module.SUITE_SCHEMA,
+        "operation_id": "a" * 32,
+        "mode": mode,
+        "readonly_steps": 40 if mode == "full" else 0,
+        "measurement": measurement() if mode == "full" else None,
+        "multicore": {
+            "schema": module.MULTICORE_SCHEMA,
+            "method": "BOUNDED_CHILD_PROCESSES",
+            "logical_cpus_visible": 12,
+            "affinity_cpus_visible": 12,
+            "levels": [
+                {"workers": workers, "status": "ok", "wall_ms": 260,
+                 "aggregate_worker_cpu_ms": workers * 120,
+                 "iterations_total": workers * 400000}
+                for workers in (1, 2, 4)
+            ],
+        },
+    }
+
 class FakeStore:
     def __init__(self, data=None):
         self.data = copy.deepcopy(data)
@@ -254,6 +277,53 @@ class GitExportTests(unittest.IsolatedAsyncioTestCase):
         decoded = json.loads(base64.b64decode(body))
         self.assertIsNone(decoded["snapshot"]["measurement"]["memory"]
                           ["snapshots"]["work_end"]["total_kib"])
+
+
+    async def test_one_export_contains_all_suite_results_without_operation_id(self):
+        await self.writer.configure(token=self.token)
+        result = await self.writer.export(combined_suite(), version="0.1.7")
+        self.assertEqual(len(self.session.requests), 1)
+        data = self.session.requests[0][1]["json"]["content"]
+        decoded = base64.b64decode(data).decode("utf-8")
+        self.assertLessEqual(len(decoded.encode("utf-8")), 4096)
+        self.assertNotIn("operation_id", decoded)
+        self.assertNotIn(self.token, decoded)
+        obj = json.loads(decoded)
+        self.assertEqual(obj["schema"], module.SUITE_EXPORT_SCHEMA)
+        report = obj["snapshot"]["suite"]
+        self.assertEqual(report["mode"], "full")
+        self.assertEqual(report["readonly_steps"], 40)
+        self.assertEqual(report["measurement"]["memory"]["snapshots"]["start"]["total_kib"], 7340032)
+        self.assertEqual([x["workers"] for x in report["multicore"]["levels"]], [1, 2, 4])
+        self.assertEqual(result["repository"], module.REPOSITORY)
+
+    async def test_multicore_only_export_with_unavailable_stage(self):
+        await self.writer.configure(token=self.token)
+        report = combined_suite("multicore")
+        report["multicore"]["levels"][2].update({
+            "status": "unavailable", "wall_ms": None,
+            "aggregate_worker_cpu_ms": None, "iterations_total": None,
+        })
+        await self.writer.export(report, version="0.1.7")
+        encoded = self.session.requests[0][1]["json"]["content"]
+        payload = json.loads(base64.b64decode(encoded))
+        self.assertIsNone(payload["snapshot"]["suite"]["measurement"])
+        self.assertEqual(payload["snapshot"]["suite"]["multicore"]["levels"][2]["status"], "unavailable")
+
+    async def test_forged_multicore_data_never_uploaded(self):
+        await self.writer.configure(token=self.token)
+        variants = []
+        x = combined_suite(); x["multicore"]["password"] = self.token; variants.append(x)
+        x = combined_suite(); x["multicore"]["levels"][1]["workers"] = 9; variants.append(x)
+        x = combined_suite(); x["multicore"]["levels"][1]["iterations_total"] = 999999; variants.append(x)
+        x = combined_suite(); x["measurement"]["operation_id"] = "b"*32; variants.append(x)
+        x = combined_suite(); x["multicore"]["levels"][2]["status"] = "unavailable"; variants.append(x)
+        x = combined_suite(); x["mode"] = "invalid"; variants.append(x)
+        for value in variants:
+            with self.subTest(value=value["mode"]):
+                with self.assertRaises(module.GitMeasurementError):
+                    await self.writer.export(value, version="0.1.7")
+        self.assertEqual(self.session.requests, [])
 
     def test_fixed_public_target_and_utc_document(self):
         self.assertEqual(module.REPOSITORY, "TheDaimos/deploy-relay-agent-v2-dev")
