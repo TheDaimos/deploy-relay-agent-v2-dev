@@ -1,5 +1,7 @@
 # V2-30 – Home-Assistant-Hintergrundaufgaben (vorbereiteter Adapter)
 
+> **Aktueller Nachtrag (08.10.2026):** Der untere Text beschreibt den damaligen Entwurfsstand. Der getrennte Adapter ist inzwischen ausschließlich im schreibgeschützten `deploy_relay_v2_dev`-Testlabor eingebunden. Zwei Sitzungen/Browserneuladen und V1-Parallelbetrieb wurden auf dem einzigen HA-DEV erfolgreich getestet. V2-40 besitzt nun einen geprüften Journalbaustein; gezielte Wiederherstellung aktiver Aufträge nach HA-Neustart bleibt als Realtest ausstehend. Keine Anbindung an V1 oder schreibende Operationen. Siehe `docs/V2_40_STATISCHE_ABNAHME_2026-10-08.md`.
+
 Stand: 2026-10-08 · Status: **isolierter Entwurf, keine produktive Anbindung**.
 
 ## Technische Entscheidung
