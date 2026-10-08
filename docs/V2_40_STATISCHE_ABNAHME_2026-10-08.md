@@ -48,3 +48,10 @@
 **Keine behauptete Realabnahme:** Die früheren V2-30-Zweitsitzungs-/Browser- und V1-Parallelbetriebstests sind real bestätigt, aber sie ersetzen die neue gezielte V2-40-Neustart-Prüfung nicht.
 
 Bezug: `docs/V2_40_PERSISTENZ_ENTWURF_2026-10-08.md`, `docs/V2_STUFENPLAN.md`, `docs/HANDOFF_DRA_V2_40_2026-10-08.md`, Issues #3/#4 und PR #2.
+
+## HA-DEV: Eingangskontrolle nach Installation (08.10.2026)
+
+- Nutzer bestätigte anhand der DRA-V1-Installationsansicht: isolierte Testlaboraktualisierung auf den **festen Quellencommit** `07649ac36c3814dd41f29836175ca49a81c958f3` erfolgreich, mit nachfolgend gefordertem vollständigem HA-Neustart. Die sichtbare Installation nannte eine V1-Transaktionssicherung, deren private Pfade/IDs hier nicht übernommen werden.
+- Nach dem vollständigen Neustart bestätigte der Nutzer ausdrücklich: **Beide DRA-Integrationen funktionieren**. Screenshot der V2-DEV-Seitenleiste zeigt die aktuelle Journalbeschreibung und „Noch kein Test gestartet“ – das beweist Erreichbarkeit der neuen Oberfläche, **nicht** die Persistenz eines konkreten Auftrags.
+- **V2-40-40 bleibt OFFEN:** Zuerst einen synthetischen Auftrag komplett durchlaufen lassen, Kennung und Status prüfen, danach nur mit gesonderter Freigabe einen erneuten HA-Neustart durchführen und dieselbe Kennung nachschlagen. Anschließend gezielt Unterbrechung eines aktiven Auftrags testen, ebenfalls mit eigener Neustartfreigabe.
+- V1-Runtime und V2-Testlabor erreichbar; keine Aussage über Leistungsbaseline oder produktive V2-Schreibaufträge. HA-DEV bleibt die einzige HA-Instanz.
