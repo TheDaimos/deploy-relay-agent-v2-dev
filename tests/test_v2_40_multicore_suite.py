@@ -127,6 +127,15 @@ class SuiteTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(killed), 2)
         self.assertIsNone(result["wall_ms"])
 
+
+    async def test_real_short_lived_workers_execute_and_exit(self):
+        """CI smoke: fixed subprocess executable, no network or HA imports."""
+        level = await asyncio.wait_for(m._single_multicore_stage(1), timeout=9)
+        self.assertEqual(level["workers"], 1)
+        self.assertEqual(level["status"], "ok")
+        self.assertEqual(level["iterations_total"], 400000)
+        self.assertGreaterEqual(level["aggregate_worker_cpu_ms"], 1)
+
     async def test_no_more_than_four_workers_allowed(self):
         with self.assertRaises(ValueError):
             await m._single_multicore_stage(12)
