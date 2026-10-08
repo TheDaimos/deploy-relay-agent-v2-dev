@@ -295,7 +295,7 @@ class MeasurementGitExport:
                 raise GitMeasurementError("Git export not configured")
             now = datetime.now(timezone.utc)
             if type(summary) is dict and summary.get("schema") == SUITE_SCHEMA:
-                if type(version) is not str or not re.fullmatch(r"0\\.1\\.[0-9]{1,3}", version):
+                if type(version) is not str or not re.fullmatch(r"0\.1\.[0-9]{1,3}", version):
                     raise GitMeasurementError("invalid suite version")
                 document = {
                     "schema": SUITE_EXPORT_SCHEMA,
