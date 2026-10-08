@@ -77,8 +77,8 @@ class MemorySnapshotTests(unittest.TestCase):
         src = inspect.getsource(m._read_fields)
         self.assertIn("source.read(16384)", src)
         self.assertNotIn("os.environ", src)
-        self.assertIn('"/proc/meminfo"', inspect.getsource(m.snapshot_memory))
-        self.assertIn('"/proc/self/status"', inspect.getsource(m.snapshot_memory))
+        self.assertEqual(m._MEMINFO, "/proc/meminfo")
+        self.assertEqual(m._STATUS, "/proc/self/status")
 
 
 if __name__ == "__main__":
