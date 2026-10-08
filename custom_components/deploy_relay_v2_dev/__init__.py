@@ -10,9 +10,11 @@ from dataclasses import dataclass
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.storage import Store
 
 from .const import DOMAIN
 from .operation_registry import OperationRegistry
+from .operation_journal import JournalError, OperationJournal
 from .readonly_task_supervisor import ReadOnlyTaskSupervisor
 from .ha_preview_task_factory import PreviewTaskFactory
 from .panel import async_register_panel, async_remove_panel
@@ -23,6 +25,7 @@ from .websocket_api import async_register_commands
 class LabRuntime:
     registry: OperationRegistry
     supervisor: ReadOnlyTaskSupervisor
+    journal: OperationJournal
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -30,12 +33,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     store = hass.data.setdefault(DOMAIN, {})
     if "runtime" in store:
         return False
+    # Fixed, private-to-this-integration .storage key; fail closed on any
+    # unreadable/incompatible record instead of overwriting evidence.
+    journal = OperationJournal(Store(hass, 1, "deploy_relay_v2_dev.journal"))
+    try:
+        await journal.load()
+    except JournalError:
+        return False
     registry = OperationRegistry(max_completed=12, max_readonly=1)
     supervisor = ReadOnlyTaskSupervisor(
         registry,
         PreviewTaskFactory(hass, entry),
+        on_registered=journal.capture,
+        on_terminal=journal.capture,
     )
-    runtime = LabRuntime(registry=registry, supervisor=supervisor)
+    runtime = LabRuntime(registry=registry, supervisor=supervisor, journal=journal)
     store["runtime"] = runtime
     try:
         async_register_commands(hass)
