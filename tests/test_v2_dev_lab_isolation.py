@@ -84,9 +84,11 @@ class LabIsolationContracts(unittest.TestCase):
         self.assertNotIn("import voluptuous", sockets)
         for handler in ("async_state", "async_start", "async_get"):
             self.assertIn(
-                "@websocket_api.require_admin\\n"
-                "@websocket_api.async_response\\n"
-                "async def " + handler + "(",
+                chr(10).join((
+                    "@websocket_api.require_admin",
+                    "@websocket_api.async_response",
+                    "async def " + handler + "(",
+                )),
                 sockets,
             )
 
