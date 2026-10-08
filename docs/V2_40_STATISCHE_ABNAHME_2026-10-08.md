@@ -101,7 +101,7 @@ Bezug: `docs/V2_40_PERSISTENZ_ENTWURF_2026-10-08.md`, `docs/V2_STUFENPLAN.md`, `
 
 ### HA-DEV – Erste Proxmox-Ressourcenbeobachtung (08.10.2026)
 
-- Der Nutzer stellte Proxmox-Bilder einer HA-VM bereit (VM-ID 109, circa 20:06–20:07 Uhr Ortszeit); VM-Hostname und private Bilddateien werden **nicht** in dieses öffentliche Dokument übernommen. **Die Zuordnung dieser VM zur tatsächlich genutzten HA-DEV-Testinstanz wurde anhand der Bildschirmfotos noch nicht bestätigt und ist vor der Verwendung als V2-40-Referenz zu verifizieren.**
+- Der Nutzer stellte Proxmox-Bilder einer HA-VM bereit (VM-ID 109, circa 20:06–20:07 Uhr Ortszeit); VM-Hostname und private Bilddateien werden **nicht** in dieses öffentliche Dokument übernommen. **VM-Zuordnung durch den Nutzer bestätigt:** VM 109 ist die HA-DEV-Instanz mit DRA V1 und dem isolierten V2-Testlabor. Die CPU-Werte sind damit als VM-weite Beobachtung zuordenbar, jedoch weiterhin kein isolierter DRA-V2-Leistungsnachweis.
 - Sichtbare Ausstattung: **12 virtuelle CPU-Kerne, ein Sockel, 7.168 MiB zugewiesener Arbeitsspeicher**. Die VM war online.
 - CPU-Momentaufnahme: **1,39 %**; im angezeigten Verlauf von ungefähr **69 Minuten** stand **max. 5,47 %**. Dies sind *VM-weite* Werte einschließlich anderer Home-Assistant-Komponenten; kein isolierter DRA-V2-Verbrauch und keine V1-Vergleichsbasis.
 - Die App meldete bei Arbeitsspeicher **„0 B“**, obwohl die Speicherverlaufsgrafik **„max 5,56 GiB“** auswies und einen nichtleeren Verlauf zeigte. Deshalb **keine valide aktuelle RAM-Belegung / RAM-Basis-Spitze** daraus ableiten. Die Anzeige muss über eine unabhängige Proxmox-Quelle plausibilisiert werden.
