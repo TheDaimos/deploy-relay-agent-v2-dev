@@ -1,0 +1,127 @@
+{
+  "title": "Deploy Relay Agent",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Deploy Relay Agent einrichten",
+        "description": "Deploy Relay startet gesperrt. Die Projekterkennung arbeitet nur lesend und verändert keine Projektdateien."
+      }
+    },
+    "abort": {
+      "already_configured": "Deploy Relay Agent ist bereits eingerichtet."
+    }
+  },
+  "config_subentries": {
+    "project": {
+      "entry_type": "Projekt",
+      "initiate_flow": {
+        "user": "Projekt importieren"
+      },
+      "error": {
+        "invalid_repository": "Gib ein gültiges GitHub-Repository als Besitzer/Repository oder eine GitHub-Repository-URL ein.",
+        "invalid_manifest_path": "Der Pfad zum Deployment-Manifest ist ungültig.",
+        "invalid_auth": "GitHub hat den Token abgelehnt.",
+        "rate_limited": "Das GitHub-API-Limit ist erreicht. Versuche es später erneut oder verwende einen Lesetoken.",
+        "access_denied": "GitHub verweigert den Zugriff auf dieses Repository.",
+        "repository_not_found": "Das Repository wurde nicht gefunden oder ist mit dem angegebenen Token nicht sichtbar.",
+        "source_not_found": "Die angeforderte Repository-Quelle wurde nicht gefunden.",
+        "invalid_manifest": "Das Repository enthält ein Deployment-Manifest, das Deploy Relay nicht akzeptieren kann.",
+        "cannot_connect": "GitHub konnte nicht erreicht werden.",
+        "unknown": "Beim Prüfen des Projekts ist ein unerwarteter Fehler aufgetreten.",
+        "already_imported": "Dieses Repository ist bereits importiert."
+      },
+      "abort": {
+        "invalid_auth": "GitHub hat den gespeicherten Projekttoken abgelehnt.",
+        "rate_limited": "Das GitHub-API-Limit ist erreicht.",
+        "access_denied": "GitHub verweigert den Zugriff auf dieses Repository.",
+        "source_not_found": "Der ausgewählte Branch, Tag, Release oder Commit wurde nicht gefunden.",
+        "source_manifest_missing": "Die ausgewählte Quelle enthält das konfigurierte deploy-relay.json-Manifest nicht.",
+        "source_not_selected": "Wähle zuerst eine Quelle beziehungsweise Version aus.",
+        "invalid_source": "Die ausgewählte Quelle oder ihr Deployment-Manifest ist ungültig.",
+        "preview_failed": "Deploy Relay konnte keine sichere deterministische Vorschau erstellen.",
+        "preview_complete": "Vorschau geschlossen. Es wurden keine Projektdateien verändert.",
+        "cannot_connect": "GitHub konnte nicht erreicht werden.",
+        "unknown": "Beim Auflösen oder Prüfen der ausgewählten Quelle ist ein unerwarteter Fehler aufgetreten."
+      },
+      "step": {
+        "user": {
+          "title": "Projekt importieren",
+          "description": "Deploy Relay prüft Repository und Deployment-Manifest, ohne Projektdateien zu verändern. Für ein privates Repository gibst du einen fein granularen GitHub-Lesetoken an.",
+          "data": {
+            "repository": "GitHub-Repository",
+            "manifest_path": "Deployment-Manifest",
+            "github_token": "GitHub-Lesetoken"
+          },
+          "data_description": {
+            "repository": "Verwende Besitzer/Repository oder eine vollständige GitHub-Repository-URL.",
+            "manifest_path": "Pfad zum versionierten Deploy-Relay-Manifest im Repository. Normalerweise deploy-relay.json.",
+            "github_token": "Für öffentliche Repositories optional. Für private Repositories sollte der fein granulare Token auf dieses Repository beschränkt sein und nur Metadaten sowie Inhalte lesen dürfen."
+          }
+        },
+        "reconfigure": {
+          "title": "Projekt neu konfigurieren",
+          "description": "Wähle, ob Repository/Zugang geändert, eine Git-Quelle beziehungsweise Version ausgewählt oder eine frische Nur-Lese-Vorschau geöffnet werden soll.",
+          "menu_options": {
+            "repository_settings": "Repository und Zugang",
+            "source_selection": "Quelle und Version",
+            "preview": "Vorschau"
+          }
+        },
+        "repository_settings": {
+          "title": "Repository und Zugang",
+          "description": "Repository, Manifest und Zugang werden erneut geprüft. Bleibt das Token-Feld leer, wird der bereits gespeicherte Projekttoken weiterverwendet.",
+          "data": {
+            "repository": "GitHub-Repository",
+            "manifest_path": "Deployment-Manifest",
+            "github_token": "Neuer GitHub-Lesetoken",
+            "clear_github_token": "Gespeicherten Token entfernen"
+          },
+          "data_description": {
+            "repository": "Verwende Besitzer/Repository oder eine vollständige GitHub-Repository-URL.",
+            "manifest_path": "Pfad zum versionierten Deploy-Relay-Manifest im Repository.",
+            "github_token": "Nur ausfüllen, wenn der bisher gespeicherte Projekttoken ersetzt werden soll.",
+            "clear_github_token": "Entfernt den gespeicherten Token vor der Prüfung. Sinnvoll, wenn das Projekt öffentlich ist oder keine Anmeldung mehr benötigt."
+          }
+        },
+        "source_selection": {
+          "title": "Quelle und Version",
+          "description": "Wähle einen Branch, Tag oder eine veröffentlichte GitHub-Version. Deploy Relay löst die Auswahl auf einen exakten Commit-SHA auf und prüft das Deployment-Manifest genau dieses Commits.",
+          "data": {
+            "source_choice": "Git-Quelle"
+          },
+          "data_description": {
+            "source_choice": "Entwurfs-Releases werden nicht angeboten. Verwende die manuelle Commit-Auswahl, wenn du einen bestimmten Commit benötigst, der nicht aufgelistet ist."
+          }
+        },
+        "manual_commit": {
+          "title": "Commit auswählen",
+          "description": "Gib einen Git-Commit-SHA ein. Deploy Relay löst ihn auf den kanonischen Commit auf und prüft das Manifest genau dieses Commits.",
+          "data": {
+            "commit_sha": "Commit-SHA"
+          },
+          "data_description": {
+            "commit_sha": "Verwende eine hexadezimale Git-Commit-ID. Kurze GitHub-Commit-IDs werden akzeptiert und auf den vollständigen SHA aufgelöst."
+          }
+        },
+        "preview": {
+          "title": "Deployment-Vorschau",
+          "description": "Quelle: {source}\n\nÜbersicht: {summary}\n\nGeänderte Dateien:\n{details}\n\nDiese Vorschau arbeitet nur lesend. Es werden keine Projektdateien verändert."
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Deploy Relay Agent Optionen",
+        "description": "Steuert, wie Deploy Relay Agent in die Home-Assistant-Oberfläche eingebunden wird. Das Ausblenden aus der Seitenleiste deaktiviert oder entlädt die Integration nicht.",
+        "data": {
+          "show_sidebar_panel": "Deploy Relay Agent in der Seitenleiste anzeigen"
+        },
+        "data_description": {
+          "show_sidebar_panel": "Wenn aktiviert, ist Deploy Relay Agent als nur für Administratoren sichtbares Home-Assistant-Seitenleistenpanel verfügbar."
+        }
+      }
+    }
+  }
+}

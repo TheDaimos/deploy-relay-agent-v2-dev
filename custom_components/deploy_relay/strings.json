@@ -1,0 +1,127 @@
+{
+  "title": "Deploy Relay Agent",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set up Deploy Relay Agent",
+        "description": "Deploy Relay starts locked. Project discovery is read-only and does not change project files."
+      }
+    },
+    "abort": {
+      "already_configured": "Deploy Relay Agent is already configured."
+    }
+  },
+  "config_subentries": {
+    "project": {
+      "entry_type": "Project",
+      "initiate_flow": {
+        "user": "Import project"
+      },
+      "error": {
+        "invalid_repository": "Enter a valid GitHub repository as owner/repository or a GitHub repository URL.",
+        "invalid_manifest_path": "The deployment manifest path is invalid.",
+        "invalid_auth": "GitHub rejected the token.",
+        "rate_limited": "The GitHub API rate limit has been reached. Try again later or use a read-only token.",
+        "access_denied": "GitHub denied access to this repository.",
+        "repository_not_found": "The repository was not found or is not visible with the supplied token.",
+        "source_not_found": "The repository source could not be found.",
+        "invalid_manifest": "The repository contains a deployment manifest that Deploy Relay cannot accept.",
+        "cannot_connect": "Could not communicate with GitHub.",
+        "unknown": "An unexpected error occurred while checking the project.",
+        "already_imported": "This repository is already imported."
+      },
+      "abort": {
+        "invalid_auth": "GitHub rejected the stored project token.",
+        "rate_limited": "The GitHub API rate limit has been reached.",
+        "access_denied": "GitHub denied access to this repository.",
+        "source_not_found": "The selected branch, tag, release or commit could not be found.",
+        "source_manifest_missing": "The selected source does not contain the configured deploy-relay.json manifest.",
+        "source_not_selected": "Select a source/version before opening the preview.",
+        "invalid_source": "The selected source or its deployment manifest is invalid.",
+        "preview_failed": "Deploy Relay could not build a safe deterministic preview.",
+        "preview_complete": "Preview closed. No project files were changed.",
+        "cannot_connect": "Could not communicate with GitHub.",
+        "unknown": "An unexpected error occurred while resolving or previewing the selected source."
+      },
+      "step": {
+        "user": {
+          "title": "Import project",
+          "description": "Deploy Relay checks the repository and its deployment manifest without writing project files. For a private repository, provide a fine-grained read-only GitHub token.",
+          "data": {
+            "repository": "GitHub repository",
+            "manifest_path": "Deployment manifest",
+            "github_token": "GitHub read token"
+          },
+          "data_description": {
+            "repository": "Use owner/repository or a full GitHub repository URL.",
+            "manifest_path": "Path to the versioned Deploy Relay manifest in the repository. Usually deploy-relay.json.",
+            "github_token": "Optional for public repositories. For private repositories, use a fine-grained token restricted to this repository with read access to metadata and contents."
+          }
+        },
+        "reconfigure": {
+          "title": "Reconfigure project",
+          "description": "Choose whether to change repository access, select the Git source/version or open a fresh read-only preview.",
+          "menu_options": {
+            "repository_settings": "Repository and access",
+            "source_selection": "Source and version",
+            "preview": "Preview"
+          }
+        },
+        "repository_settings": {
+          "title": "Repository and access",
+          "description": "Re-check the repository, manifest and credential. Leaving the token empty keeps the currently stored project token.",
+          "data": {
+            "repository": "GitHub repository",
+            "manifest_path": "Deployment manifest",
+            "github_token": "New GitHub read token",
+            "clear_github_token": "Remove stored token"
+          },
+          "data_description": {
+            "repository": "Use owner/repository or a full GitHub repository URL.",
+            "manifest_path": "Path to the versioned Deploy Relay manifest in the repository.",
+            "github_token": "Enter a token only when it should replace the currently stored project token.",
+            "clear_github_token": "Removes the stored token before checking the repository. Use this when the project is public or no longer needs authentication."
+          }
+        },
+        "source_selection": {
+          "title": "Source and version",
+          "description": "Select a branch, tag or published GitHub release. Deploy Relay resolves the selection to an exact commit SHA and validates the deployment manifest from that commit.",
+          "data": {
+            "source_choice": "Git source"
+          },
+          "data_description": {
+            "source_choice": "Draft releases are not offered. Use the manual commit option when you need an exact commit that is not listed."
+          }
+        },
+        "manual_commit": {
+          "title": "Select commit",
+          "description": "Enter a Git commit SHA. Deploy Relay resolves it to the canonical commit and validates the manifest from exactly that commit.",
+          "data": {
+            "commit_sha": "Commit SHA"
+          },
+          "data_description": {
+            "commit_sha": "Use a hexadecimal Git commit id. Short GitHub commit ids are accepted and resolved to their canonical SHA."
+          }
+        },
+        "preview": {
+          "title": "Deployment preview",
+          "description": "Source: {source}\n\nSummary: {summary}\n\nChanged files:\n{details}\n\nThis preview is read-only. No project files are changed."
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Deploy Relay Agent options",
+        "description": "Control how Deploy Relay Agent is integrated into the Home Assistant interface. Disabling the sidebar entry does not unload or disable the integration.",
+        "data": {
+          "show_sidebar_panel": "Show Deploy Relay Agent in the sidebar"
+        },
+        "data_description": {
+          "show_sidebar_panel": "When enabled, Deploy Relay Agent is available as an admin-only Home Assistant sidebar panel."
+        }
+      }
+    }
+  }
+}

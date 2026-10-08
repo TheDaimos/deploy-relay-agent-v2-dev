@@ -1,0 +1,58 @@
+name: DRA V2 public validation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "custom_components/**"
+      - "tests/**"
+      - ".github/workflows/v2-validate.yml"
+      - "LICENSE"
+      - "BRANDING.md"
+      - "COPYRIGHT.md"
+  pull_request:
+    branches: [main]
+    paths:
+      - "custom_components/**"
+      - "tests/**"
+      - ".github/workflows/v2-validate.yml"
+      - "LICENSE"
+      - "BRANDING.md"
+      - "COPYRIGHT.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static:
+    name: Statische und sicherheitsbezogene Basispruefung
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Standardbibliothek-Vertragstests
+        run: python -m unittest discover -s tests -p 'test_*.py' -v
+      - name: Python-Syntax
+        run: python -m compileall -q custom_components/deploy_relay tests
+      - name: JavaScript-Syntax
+        shell: bash
+        run: |
+          find custom_components/deploy_relay/frontend -type f -name '*.js' -print0 \
+            | xargs -0 -r -n1 node --check
+      - name: Keine Artefakte oder V2-Installation veroeffentlichen
+        run: |
+          test ! -e hacs.json
+          test ! -e .deploy-relay
+          test ! -e .storage
+          test ! -e secrets.yaml
+          echo "Quellpruefung abgeschlossen; kein Artefaktupload."

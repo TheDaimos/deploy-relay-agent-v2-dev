@@ -1,0 +1,19 @@
+{
+  "domain": "deploy_relay",
+  "name": "Deploy Relay Agent",
+  "codeowners": [
+    "@TheDaimos"
+  ],
+  "config_flow": true,
+  "dependencies": [
+    "http",
+    "websocket_api"
+  ],
+  "documentation": "https://github.com/TheDaimos/deploy-relay-agent-pub",
+  "integration_type": "service",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/TheDaimos/deploy-relay-agent-pub/issues",
+  "requirements": [],
+  "single_config_entry": true,
+  "version": "1.0.0"
+}
