@@ -64,3 +64,11 @@ Bezug: `docs/V2_40_PERSISTENZ_ENTWURF_2026-10-08.md`, `docs/V2_STUFENPLAN.md`, `
 - **Ergebnis: Vorbedingung für Pflicht-Test 1 BESTANDEN.** Die tatsächliche dauerhafte Wiederauffindbarkeit ist **noch nicht geprüft**; dafür ist ein weiterer *ausdrücklich freigegebener* vollständiger HA-Core-Neustart nötig.
 - Nach Neustart muss derselbe Auftrag mit demselben `operation_id`, Status `success` und 100 % angezeigt werden. Kein automatisches Neustarten des Auftrags.
 - V2-Schreiboperationen, weitere HA-Änderungen und V2-PUB bleiben gesperrt.
+
+### HA-Pflichttest 1 – Neustart-Wiederabruf BESTANDEN
+
+- **08.10.2026, nach dem vollständig ausgeführten HA-Core-Neustart:** Die Home-Assistant-Companion-App zeigte zunächst die identische Kennung, Status `success` und `100 %`, allerdings zugleich einen Neustart-Hinweis. Daher wurde dieser erste Bildschirm **nicht** als ausreichender Nachweis gewertet (möglicher zwischengespeicherter Zustand).
+- Anschließend schloss und öffnete der Nutzer die Companion-App erneut und führte den angeforderten Statusabruf aus. Der neue Screenshot (ca. 19:20 Uhr Ortszeit) zeigte weiterhin **exakt die ursprüngliche Auftragskennung**, **„Erfolgreich abgeschlossen“** und **„100 % der Testschritte“**, jetzt ohne Neustart-Hinweis.
+- **Abnahme: PASS – abgeschlossener rein lesender V2-Testauftrag nach vollem HA-Core-Neustart weiterhin abrufbar.** Die Auftragskennung wird aus Datenschutzgründen nicht in diesem öffentlichen Abnahmeprotokoll wiedergegeben; Abgleich und Screenshots erfolgten in der privaten Testunterhaltung.
+- **Noch nicht geprüft:** Neustart bei einem `running`-Auftrag mit erzwungenem `interrupted` und garantiert ausbleibender Wiederaufnahme. Dies ist der nächste gesondert freizugebende HA-Pflichttest. V2-40 als Gesamtgate bleibt bis dahin **OFFEN**.
+- Unverändert: V2 keine Mutationen, V1 unverändert, nur ein HA-DEV, PR #2 Entwurf, kein V2-PUB.
