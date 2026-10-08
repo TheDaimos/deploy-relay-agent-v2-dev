@@ -88,3 +88,12 @@ Bezug: `docs/V2_40_PERSISTENZ_ENTWURF_2026-10-08.md`, `docs/V2_STUFENPLAN.md`, `
 - **Ergebnis: HA-Pflichttest 2 BESTANDEN**: ein vorher nicht terminaler, rein lesender Testauftrag bleibt wiedererkennbar, wird nicht als `success` ausgegeben und erscheint beim Wiederabruf als `interrupted`. Die Fortschrittsanzeige zeigt den zuletzt erfassten Stand; 77 % entsprechen bei 40 Schritten rechnerisch 31 abgeschlossenen Schritten, nicht einem nachträglichen Fortsetzen.
 - Die private Auftragskennung und Screenshots verbleiben in der Testkonversation; keine Rohdaten oder lokalen Pfade in öffentlicher Dokumentation.
 - **Noch offen vor V2-40-50:** V1-Funktionskontrolle nach diesem zweiten Neustart sowie Ressourcen- und Latenzbeobachtungen. Keine mutierenden V2-Operationen freigeben. PR #2 bleibt Entwurf, V2-PUB bleibt gesperrt.
+
+
+### HA-DEV – DRA-V1-Funktionskontrolle nach Pflichttest 2
+
+- **08.10.2026, ca. 20:01 Ortszeit:** Der Nutzer öffnete nach dem HA-Neustart die **Sammelprüfung von DRA V1** und zeigte den abgeschlossenen Status der Prüfung. Alle fünf eingebundenen Projekte wurden mit **„Aktuell“** und **0 Änderungen** angezeigt; „Keine ausgewählten Projekte benötigen eine Installation“.
+- Die vorhandene V1-Bedienung und die rein lesende Sammelprüfung funktionieren somit **nach dem V2-40-Unterbrechungstest weiterhin**. Der Schreibzugriff war nicht freigegeben; kein Installationsversuch und keine Mutation wurde durchgeführt.
+- **Abnahme V1-Betriebsschutz für V2-40-40: PASS.** Das bestätigt die Funktion der Prüfung, nicht sämtliche möglichen V1-Installationspfade; eine echte V1-Aktualisierung war zuvor während des Parallelbetriebs bereits erfolgreich bestätigt worden.
+- Auf dem Screenshot war die Git-Quellrevision des V2-DEV-Projektes neuer als der installierte Laufzeitstand; zwischen den beiden Ständen liegen nur Dokumentationsänderungen, **kein erneutes HA-V2-Update daraus ableiten**.
+- **Offen für V2-40-50:** reproduzierbare CPU-, RAM-, Datenträger-Ein-/Ausgabe- und Reaktionszeitmessungen. Keine Zahlen annehmen oder aus einem funktionsfähigen UI ableiten. Kein Vorziehen von V2-50 oder schreibenden V2-Funktionen.
