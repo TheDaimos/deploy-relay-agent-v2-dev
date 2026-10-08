@@ -166,12 +166,27 @@ class DRAV2DevLabPanel extends HTMLElement {
     const busy = this._busy || this._active() || this._gitBusy;
     const data = this._measurement;
     const valid = data && op && data.operation_id === op.operation_id &&
-      data.schema === "dra-v2-dev-measurement.v1" &&
+      data.schema === "dra-v2-dev-measurement.v2" &&
       ["base_process_cpu_ms", "work_process_cpu_ms", "after_process_cpu_ms",
        "max_wakeup_delay_ms", "elapsed_ms", "synthetic_hashes"]
         .every(k => Number.isInteger(data[k]) && data[k] >= 0);
     const processRate = (cpuMs, duration) =>
       (100 * cpuMs / (1000 * duration)).toFixed(2) + " % eines CPU-Kerns";
+    const memory = valid ? data.memory : null;
+    const kib = value => Number.isInteger(value) && value >= 0 ? (value / 1024).toFixed(1) + " MiB" : "Nicht verfügbar";
+    const memoryRow = (label, key) => {
+      const m = memory?.snapshots?.[key];
+      if (!m) return "";
+      return `<tr><th>${label}</th><td>${kib(m.total_kib)}</td><td>${kib(m.used_effective_kib)}</td><td>${kib(m.free_kib)}</td><td>${kib(m.available_kib)}</td><td>${kib(m.ha_process_rss_kib)}</td></tr>`;
+    };
+    const memoryReport = memory?.schema === "dra-v2-dev-memory.v1" ? `
+      <p><strong>Arbeitsspeicher des HA-Linux-Umfelds</strong></p>
+      <div class="table-wrap"><table><thead><tr><th>Messpunkt</th><th>Gesamt</th><th>Belegt (effektiv)</th><th>Frei</th><th>Verfügbar</th><th>HA-Prozess (RSS)</th></tr></thead><tbody>
+      ${memoryRow("Start", "start")}${memoryRow("Nach Basis", "base_end")}${memoryRow("Nach Last", "work_end")}${memoryRow("Ende", "end")}
+      </tbody></table></div>
+      <p class="note">„Belegt“ = Gesamt minus verfügbar. „Frei“ ist ohne Zwischenspeicher. Die Werte stammen aus der Linux-Sicht von Home Assistant, nicht direkt aus Proxmox.</p>
+      <p class="note"><strong>DRA V1: nicht einzeln messbar · DRA V2: nicht einzeln messbar.</strong> Beide Integrationen teilen sich denselben Home-Assistant-Prozess. Ein genauer Speicherverbrauch pro Integration lässt sich daraus nicht seriös bestimmen.</p>
+    ` : "";
     const report = valid ? `
       <p><strong>Messlauf abgeschlossen (Prozesswerte):</strong></p>
       <p>CPU-Basis (10 s): ${processRate(data.base_process_cpu_ms, 10)} ·
@@ -183,6 +198,7 @@ class DRAV2DevLabPanel extends HTMLElement {
       <p class="note">CPU-Werte gelten für den gesamten Home-Assistant-Prozess
       und sind KEIN isolierter DRA-Verbrauch. RAM und Datenträgerlast bitte
       separat in Proxmox beurteilen. Keine echten Projektdateien verarbeitet.</p>
+      ${memoryReport}
     ` : "";
     const states = {
       queued: "Wartet", waiting_for_resource: "Wartet auf Ressourcen",
@@ -208,6 +224,10 @@ class DRAV2DevLabPanel extends HTMLElement {
         button:disabled { opacity:.5; cursor:default; }
         code { overflow-wrap:anywhere; }
         .error { color:var(--error-color,#f55); }
+        .table-wrap { overflow-x:auto; max-width:100%; }
+        table { border-collapse:collapse; width:100%; font-size:12px; }
+        th, td { padding:8px; border-bottom:1px solid var(--divider-color,#555); text-align:left; white-space:nowrap; }
+
         input.git-token { box-sizing:border-box; width:100%; min-height:40px; background:var(--primary-background-color,#151515); color:inherit; border:1px solid var(--divider-color,#555); border-radius:8px; padding:8px; }
         .git-link { display:inline-block; padding:12px 0; color:var(--primary-color,#65b4d2); overflow-wrap:anywhere; }
       </style>

@@ -23,6 +23,7 @@ class MeasurementTests(unittest.IsolatedAsyncioTestCase):
         report.claim("a" * 32)
         steps = []
         work_calls = 0
+        memory_calls = 0
 
         async def instant_sleep(seconds):
             self.assertEqual(seconds, 1)
@@ -30,6 +31,10 @@ class MeasurementTests(unittest.IsolatedAsyncioTestCase):
 
         async def fake_thread(fn):
             nonlocal work_calls
+            nonlocal memory_calls
+            if fn is m.snapshot_memory:
+                memory_calls += 1
+                return {key: 1024 for key in m.snapshot_memory.__globals__["SNAPSHOT_FIELDS"]}
             self.assertIs(fn, m._bounded_synthetic_hash)
             work_calls += 1
             await asyncio.sleep(0)
@@ -46,10 +51,15 @@ class MeasurementTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(steps[0], (1, 40))
         self.assertEqual(steps[-1], (40, 40))
         self.assertEqual(work_calls, 20)
+        self.assertEqual(memory_calls, 4)
         self.assertEqual(s["synthetic_hashes"], 40)
         self.assertEqual([s["base_seconds"], s["work_seconds"], s["after_seconds"]], [10, 20, 10])
         self.assertEqual(s["operation_id"], "a" * 32)
         self.assertEqual(s["scope"], "HA_PROCESS_WIDE_CPU_NOT_DRA_ONLY")
+        self.assertEqual(s["schema"], "dra-v2-dev-measurement.v2")
+        self.assertEqual(set(s["memory"]["snapshots"]), {"start", "base_end", "work_end", "end"})
+        self.assertIsNone(s["memory"]["component_memory"]["dra_v1_kib"])
+        self.assertIsNone(s["memory"]["component_memory"]["dra_v2_kib"])
         self.assertNotIn("path", s)
         self.assertNotIn("token", s)
 

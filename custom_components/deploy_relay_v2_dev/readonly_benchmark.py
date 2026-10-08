@@ -11,6 +11,7 @@ from asyncio import sleep, to_thread, wait_for
 from collections.abc import Awaitable, Callable
 
 from .operation_model import OperationPhase
+from .memory_probe import SOURCE as MEMORY_SOURCE, snapshot_memory
 
 STEPS = 40
 BASE_STEPS = 10
@@ -59,6 +60,7 @@ class ReadOnlyMeasurement:
         samples = 0
         max_scheduler_lag_ms = 0
         start = time.monotonic()
+        memory = {"start": await to_thread(snapshot_memory)}
         for index in range(1, STEPS + 1):
             stage = 0 if index <= BASE_STEPS else (1 if index <= BASE_STEPS + WORK_STEPS else 2)
             began = time.monotonic()
@@ -73,9 +75,15 @@ class ReadOnlyMeasurement:
             await progress(OperationPhase.INVENTORY, index, STEPS)
             phase_cpu[stage] += max(0, (time.process_time_ns() - cpu_before) // 1_000_000)
             phase_seconds[stage] += 1
+            if index == BASE_STEPS:
+                memory["base_end"] = await to_thread(snapshot_memory)
+            elif index == BASE_STEPS + WORK_STEPS:
+                memory["work_end"] = await to_thread(snapshot_memory)
+            elif index == STEPS:
+                memory["end"] = await to_thread(snapshot_memory)
         self._summary = {
             "operation_id": self._operation_id,
-            "schema": "dra-v2-dev-measurement.v1",
+            "schema": "dra-v2-dev-measurement.v2",
             "base_process_cpu_ms": phase_cpu[0],
             "work_process_cpu_ms": phase_cpu[1],
             "after_process_cpu_ms": phase_cpu[2],
@@ -86,4 +94,14 @@ class ReadOnlyMeasurement:
             "synthetic_hashes": samples,
             "elapsed_ms": min(int((time.monotonic() - start) * 1000), 3600000),
             "scope": "HA_PROCESS_WIDE_CPU_NOT_DRA_ONLY",
+            "memory": {
+                "schema": "dra-v2-dev-memory.v1",
+                "source": MEMORY_SOURCE,
+                "snapshots": memory,
+                "component_memory": {
+                    "dra_v1_kib": None,
+                    "dra_v2_kib": None,
+                    "reason": "SHARED_HA_PROCESS_CANNOT_ATTRIBUTE",
+                },
+            },
         }
