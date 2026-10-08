@@ -181,3 +181,12 @@ Der 40-Sekunden-Test und der explizite Messlauf zeigen künftig eine sichtbare *
 Das HA-System kann auf mehr als einem logischen CPU-Kern arbeiten; der aktuelle synthetische Messlauf führt aber nur **einen begrenzten Arbeitsfaden** pro Ausführung aus. Er beweist daher ausdrücklich **keine Multikern-Skalierung**. Die zugewiesenen 12 vCPUs sind eine Proxmox-Konfiguration, kein Messwert aus diesen Exporten.
 
 **Gates:** Änderung auf dem isolierten V2-DEV-Quellzweig; noch keine Realabnahme von 0.1.6. Vor tatsächlicher Installation V1-Vorschau, ausdrückliche Nutzerfreigabe und gesonderte Neustartfreigabe. V1, V2-PUB und Journal bleiben unangetastet. V2-40-50 ist noch offen.
+
+
+### Geplante Erweiterung V2 DEV 0.1.7 – Multikern und ein Gesamttest
+
+Der Nutzer wünscht eine explizite Mehrkern-Diagnose (1, 2, 4 **separate** Arbeitsprozesse) und einen Knopf, der sämtliche vorhandenen synthetischen Tests **in einem** durchgängigen Auftragsverlauf ausführt. Ein einziger anschließender, weiterhin separat bestätigter Git-Export führt die anonymisierten Ergebnisse zusammen. Das Modul \`readonly_benchmark.py\` enthält den begrenzten Arbeitsprozessvergleich, \`websocket_api.py\` zwei neue administrativ geschützte Befehle, und das Frontend zeigt auch einzelne Ergebnisse. Die vorherigen Einzeltests bleiben erhalten.
+
+**Grenze:** höchstens vier Prozesse gleichzeitig, 4 Sekunden je Stufe, feste Testdaten ohne Projekt- oder Netzwerkzugriff, Kindprozesse bei Timeout/Abbruch konsequent beenden. Fehlende Messungen erscheinen als \`unavailable\`. Die 1/2/4-Prüfung beweist keine unabhängige CPU-Quote für DRA V1 oder V2.
+
+Details und verbindliche Negativtests: \`docs/V2_40_MULTICORE_AND_SUITE_2026-10-08.md\`. Vor HA-Installation weiterhin V1-Vorschau, CI-Prüfung und ausdrückliche Freigabe. **Noch keine HA-Realabnahme** dieses neuen Prüfpfads; V2-40-50 bleibt offen.

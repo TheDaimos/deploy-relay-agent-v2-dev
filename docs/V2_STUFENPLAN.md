@@ -71,3 +71,7 @@ Die vier Messpunkte und deren öffentliche Schema-/Attributionsregeln für **V2 
 ## V2-40-50 – Restzeit und reale Messserien (08.10.2026)
 
 Drei reale Speicher- und CPU-Messreihen mit V2 DEV 0.1.5 aus dem öffentlichen Git-Diagnoseverzeichnis wurden ausgewertet; die erste stammt nach Nutzerangabe aus dem HA-Startprozess und kann nicht als reiner DRA-Verbrauch gelten. Neu vorbereitet: V2 DEV 0.1.6 mit clientseitigem, backendverankertem Sekunden-Countdown, ohne zusätzliche Serveranfragen im Sekundentakt. Die vorhandene 40-Sekunden-Arbeit testet genau einen Hintergrundfaden und beweist keine Mehrkernleistung. CI und anschließende Installationsvorschau/Realabnahme bleiben verbindlich; V2-40-50 ist weiter OFFEN.
+
+## V2-40-50 Mehrkern-Diagnose und Gesamttest (08.10.2026)
+
+In V2 DEV 0.1.7 wurde ein separater begrenzter 1/2/4-Prozesse-Vergleich und ein einziger 83-Schritte-Gesamttest vorbereitet. Ein vollständig geprüfter Bericht kann manuell als ein anonymisierter Git-Export veröffentlicht werden. Entwicklung und statische Abnahme sind vom HA-Echttest zu unterscheiden; Dokumentation: `docs/V2_40_MULTICORE_AND_SUITE_2026-10-08.md`. Keine V1-Änderung und keine Installationsfreigabe; V2-40-50 bleibt OFFEN.
