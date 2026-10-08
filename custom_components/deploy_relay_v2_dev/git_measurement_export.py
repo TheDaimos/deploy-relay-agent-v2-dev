@@ -18,8 +18,8 @@ REPOSITORY = "TheDaimos/deploy-relay-agent-v2-dev"
 BRANCH = "main"
 ROOT = ".deploy-relay/diagnostics/v2-dev"
 AUTH_SCHEMA = "dra-v2-dev-git-auth.v1"
-MEASUREMENT_SCHEMA = "dra-v2-dev-measurement.v1"
-EXPORT_SCHEMA = "dra-v2-dev-git-measurement.v1"
+MEASUREMENT_SCHEMA = "dra-v2-dev-measurement.v2"
+EXPORT_SCHEMA = "dra-v2-dev-git-measurement.v2"
 SCOPE = "HA_PROCESS_WIDE_CPU_NOT_DRA_ONLY"
 MAX_EXPORT_BYTES = 4096
 TOKEN_RE = re.compile(r"[^\s\x00-\x1f\x7f]{10,256}\Z", re.ASCII)
@@ -35,7 +35,7 @@ COUNTERS = {
 }
 SUMMARY_KEYS = frozenset({
     "operation_id", "schema", "scope", "base_seconds", "work_seconds",
-    "after_seconds", *COUNTERS.keys(),
+    "after_seconds", "memory", *COUNTERS.keys(),
 })
 
 
@@ -47,6 +47,72 @@ class SecretStore(Protocol):
     async def async_load(self) -> object: ...
     async def async_save(self, value: dict[str, object]) -> None: ...
 
+
+
+
+MEMORY_SCHEMA = "dra-v2-dev-memory.v1"
+MEMORY_SOURCE = "LINUX_PROCFS_VISIBLE_TO_HA"
+MEMORY_REASON = "SHARED_HA_PROCESS_CANNOT_ATTRIBUTE"
+MEMORY_POINTS = ("start", "base_end", "work_end", "end")
+MEMORY_FIELDS = frozenset({
+    "total_kib", "used_effective_kib", "free_kib", "available_kib",
+    "ha_process_rss_kib",
+})
+MAX_MEMORY_KIB = 1 << 44
+
+
+def sanitized_memory(value: object) -> dict[str, object]:
+    """Validate and copy fixed numeric snapshots, never arbitrary memory data."""
+    if type(value) is not dict or set(value) != {
+        "schema", "source", "snapshots", "component_memory"
+    }:
+        raise GitMeasurementError("invalid memory snapshot")
+    if value["schema"] != MEMORY_SCHEMA or value["source"] != MEMORY_SOURCE:
+        raise GitMeasurementError("invalid memory scope")
+    attribution = value["component_memory"]
+    if (type(attribution) is not dict or set(attribution) != {
+        "dra_v1_kib", "dra_v2_kib", "reason"
+    } or attribution["dra_v1_kib"] is not None or
+        attribution["dra_v2_kib"] is not None or
+        attribution["reason"] != MEMORY_REASON):
+        raise GitMeasurementError("invalid component attribution")
+    snaps = value["snapshots"]
+    if type(snaps) is not dict or set(snaps) != set(MEMORY_POINTS):
+        raise GitMeasurementError("invalid memory samples")
+    checked = {}
+    for name in MEMORY_POINTS:
+        sample = snaps[name]
+        if type(sample) is not dict or set(sample) != MEMORY_FIELDS:
+            raise GitMeasurementError("invalid memory sample")
+        clean = {}
+        for key in MEMORY_FIELDS:
+            number = sample[key]
+            if number is not None and (
+                type(number) is not int or number < 0 or number > MAX_MEMORY_KIB
+            ):
+                raise GitMeasurementError("invalid memory quantity")
+            clean[key] = number
+        t, u, free, available = (
+            clean["total_kib"], clean["used_effective_kib"],
+            clean["free_kib"], clean["available_kib"],
+        )
+        if not (
+            (t is None and u is None and free is None and available is None)
+            or (type(t) is int and t > 0 and type(u) is int and
+                type(free) is int and type(available) is int and
+                free <= t and available <= t and u == t - available)
+        ):
+            raise GitMeasurementError("inconsistent memory quantities")
+        checked[name] = clean
+    return {
+        "schema": MEMORY_SCHEMA,
+        "source": MEMORY_SOURCE,
+        "snapshots": checked,
+        "component_memory": {
+            "dra_v1_kib": None, "dra_v2_kib": None,
+            "reason": MEMORY_REASON,
+        },
+    }
 
 def sanitized_measurement(value: object) -> dict[str, object]:
     """Strict allowlist: no source IDs, arbitrary client JSON or project data."""
@@ -72,6 +138,7 @@ def sanitized_measurement(value: object) -> dict[str, object]:
         "work_seconds": 20,
         "after_seconds": 10,
         **numeric,
+        "memory": sanitized_memory(source["memory"]),
     }
 
 
