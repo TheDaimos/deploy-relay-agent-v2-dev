@@ -107,7 +107,7 @@ class LabIsolationContracts(unittest.TestCase):
         self.assertIn("this._observeCountdown(this._operation)", frontend)
         self.assertIn("this._syncCountdownTimer()", frontend)
         self.assertIn("id=\"remaining\"", frontend)
-        self.assertIn("Math.max(1, 40 - step - elapsed)", frontend)
+        self.assertIn("Math.max(1, (op.total_count === 83 ? 80 : 40) - step - elapsed)", frontend)
         self.assertIn("disconnectedCallback()", frontend)
 
     def test_config_flow_uses_test_domain_not_v1_domain(self):
@@ -127,6 +127,8 @@ class LabIsolationContracts(unittest.TestCase):
         self.assertIn("await progress(OperationPhase.INVENTORY, index, READONLY_TEST_STEPS)", sockets)
         self.assertIn("40-Sekunden-Test", frontend)
         self.assertIn("Messlauf starten (40 s)", frontend)
+        self.assertIn("Alle Tests nacheinander starten", frontend)
+        self.assertIn("Mehrkern-Diagnose (1 / 2 / 4)", frontend)
         self.assertIn("No project or file access", (LAB_ROOT / "readonly_benchmark.py").read_text(encoding="utf-8"))
         self.assertNotIn("20-Sekunden-Test", frontend)
         self.assertNotIn("for index in range(1, 21):", sockets)
