@@ -1,5 +1,7 @@
 # V2-DEV-Testlabor auf dem vorhandenen HA-DEV
 
+> **Standnachtrag (08.10.2026):** Das zuvor geplante isolierte Testlabor wurde mittlerweile auf dem einzigen HA-DEV erfolgreich installiert und zusammen mit DRA V1 real geprüft. Der untenstehende ursprüngliche Installationsplan bleibt als Sicherheits- und Rückfallreferenz erhalten, ist aber **kein aktueller Installationsstatus**. Die nun vorbereitete Version 0.1.1 mit V2-40-Journal benötigt vor jeglichem HA-Update erneut Vorschau und ausdrückliche Freigabe. Siehe `docs/V2_40_STATISCHE_ABNAHME_2026-10-08.md`.
+
 Stand 08.10.2026. **Technischer Kandidat – vor einer Installation automatische Prüfungen und Freigabe erforderlich.**
 
 ## Warum dieses Paket anders ist
