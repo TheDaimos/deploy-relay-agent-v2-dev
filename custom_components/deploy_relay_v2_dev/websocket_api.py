@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import asyncio
-import voluptuous as vol
+import probatio
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
 
@@ -15,8 +15,9 @@ def _runtime(hass: HomeAssistant):
     return state.get("runtime") if isinstance(state, dict) else None
 
 
-@websocket_api.websocket_command({vol.Required("type"): "deploy_relay_v2_dev/test/state"})
+@websocket_api.websocket_command({probatio.Required("type"): "deploy_relay_v2_dev/test/state"})
 @websocket_api.require_admin
+@websocket_api.async_response
 async def async_state(hass, connection, msg):
     runtime = _runtime(hass)
     if runtime is None:
@@ -31,10 +32,11 @@ async def async_state(hass, connection, msg):
 
 
 @websocket_api.websocket_command({
-    vol.Required("type"): "deploy_relay_v2_dev/test/start",
-    vol.Required("request_id"): vol.All(str, vol.Length(min=16, max=128)),
+    probatio.Required("type"): "deploy_relay_v2_dev/test/start",
+    probatio.Required("request_id"): str,
 })
 @websocket_api.require_admin
+@websocket_api.async_response
 async def async_start(hass, connection, msg):
     runtime = _runtime(hass)
     if runtime is None:
@@ -60,10 +62,11 @@ async def async_start(hass, connection, msg):
 
 
 @websocket_api.websocket_command({
-    vol.Required("type"): "deploy_relay_v2_dev/test/get",
-    vol.Required("operation_id"): str,
+    probatio.Required("type"): "deploy_relay_v2_dev/test/get",
+    probatio.Required("operation_id"): str,
 })
 @websocket_api.require_admin
+@websocket_api.async_response
 async def async_get(hass, connection, msg):
     runtime = _runtime(hass)
     if runtime is None:
