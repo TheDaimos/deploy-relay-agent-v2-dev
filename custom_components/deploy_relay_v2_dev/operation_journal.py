@@ -73,8 +73,9 @@ def _snapshot(value: object) -> dict[str, object]:
         s["operation_type"] != "preview" or
         s["project_key"] != "lab_readonly_preview" or
         s["source_commit"] is not None or s["run_id"] is not None or
-        s["status"] not in STATUSES or s["status"] == "recovery_required" or
-        s["phase"] not in PHASES or
+        not isinstance(s["status"], str) or s["status"] not in STATUSES or
+        s["status"] == "recovery_required" or
+        not isinstance(s["phase"], str) or s["phase"] not in PHASES or
         not _time(s["created_at"]) or not _time(s["started_at"], optional=True) or
         not _time(s["finished_at"], optional=True) or
         (s["status"] in TERMINAL) != (s["finished_at"] is not None) or
@@ -86,7 +87,9 @@ def _snapshot(value: object) -> dict[str, object]:
         not _number(s["phase_percent"], 0, 100, optional=True) or
         not _number(s["progress_percent"], 0, 100, optional=True) or
         type(s["progress_exact"]) is not bool or
-        s["error_family"] not in (ERRORS | {None}) or
+        (s["error_family"] is not None and
+            (not isinstance(s["error_family"], str) or
+             s["error_family"] not in ERRORS)) or
         (s["status"] != "failed" and s["error_family"] is not None) or
         s["restart_required"] is not False or
         s["frontend_reload_possible"] is not False or
@@ -106,6 +109,7 @@ def _event(value: object) -> dict[str, str]:
         raise JournalError("invalid journal event")
     if (not isinstance(value["operation_id"], str) or
         not ID_PATTERN.fullmatch(value["operation_id"]) or
+        not isinstance(value["status"], str) or
         value["status"] not in STATUSES or
         not _time(value["at"])):
         raise JournalError("invalid journal event")
