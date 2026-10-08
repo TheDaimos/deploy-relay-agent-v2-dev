@@ -34,6 +34,7 @@ async def async_state(hass, connection, msg):
         "mode": "READ_ONLY_TEST",
         "operations": operations,
         "measurement": runtime.measurement.summary(),
+        "suite": runtime.suite.summary(),
         "git_configured": runtime.git_export.configured,
         "git_available": runtime.git_export.available,
     })
@@ -90,6 +91,56 @@ async def async_measure(hass, connection, msg):
         runtime.measurement.claim(str(receipt["operation_id"]))
     except OperationContractError:
         connection.send_error(msg["id"], "busy", "Messlauf bereits aktiv oder ungueltig")
+        return
+    connection.send_result(msg["id"], receipt)
+
+
+
+
+@websocket_api.websocket_command({
+    probatio.Required("type"): "deploy_relay_v2_dev/test/multicore",
+    probatio.Required("request_id"): str,
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def async_multicore(hass, connection, msg):
+    runtime = _runtime(hass)
+    if runtime is None:
+        connection.send_error(msg["id"], "not_ready", "Testlabor nicht gestartet")
+        return
+    try:
+        receipt = await runtime.supervisor.start_preview(
+            project_key="lab_readonly_preview",
+            request_id=msg["request_id"],
+            work=runtime.suite.run_multicore,
+        )
+        runtime.suite.claim(str(receipt["operation_id"]))
+    except OperationContractError:
+        connection.send_error(msg["id"], "busy", "Leseauftrag aktiv oder ungueltig")
+        return
+    connection.send_result(msg["id"], receipt)
+
+
+@websocket_api.websocket_command({
+    probatio.Required("type"): "deploy_relay_v2_dev/test/all",
+    probatio.Required("request_id"): str,
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def async_all(hass, connection, msg):
+    runtime = _runtime(hass)
+    if runtime is None:
+        connection.send_error(msg["id"], "not_ready", "Testlabor nicht gestartet")
+        return
+    try:
+        receipt = await runtime.supervisor.start_preview(
+            project_key="lab_readonly_preview",
+            request_id=msg["request_id"],
+            work=runtime.suite.run_all,
+        )
+        runtime.suite.claim(str(receipt["operation_id"]))
+    except OperationContractError:
+        connection.send_error(msg["id"], "busy", "Gesamttest aktiv oder ungueltig")
         return
     connection.send_result(msg["id"], receipt)
 
@@ -177,7 +228,7 @@ def async_register_commands(hass: HomeAssistant) -> None:
     state = hass.data.setdefault(DOMAIN, {})
     if state.get("commands_registered"):
         return
-    for handler in (async_state, async_start, async_measure, async_get,
-                    async_git_configure, async_git_export):
+    for handler in (async_state, async_start, async_measure, async_multicore,
+                    async_all, async_get, async_git_configure, async_git_export):
         websocket_api.async_register_command(hass, handler)
     state["commands_registered"] = True

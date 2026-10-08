@@ -18,7 +18,7 @@ from .operation_registry import OperationRegistry
 from .operation_journal import JournalError, OperationJournal
 from .git_measurement_export import GitMeasurementError, MeasurementGitExport
 from .readonly_task_supervisor import ReadOnlyTaskSupervisor
-from .readonly_benchmark import ReadOnlyMeasurement
+from .readonly_benchmark import ReadOnlyMeasurement, ReadOnlySuite
 from .ha_preview_task_factory import PreviewTaskFactory
 from .panel import async_register_panel, async_remove_panel
 from .websocket_api import async_register_commands
@@ -30,6 +30,7 @@ class LabRuntime:
     supervisor: ReadOnlyTaskSupervisor
     journal: OperationJournal
     measurement: ReadOnlyMeasurement
+    suite: ReadOnlySuite
     git_export: MeasurementGitExport
 
 
@@ -56,6 +57,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # A damaged configuration is never silently overwritten.
         pass
     measurement = ReadOnlyMeasurement()
+    suite = ReadOnlySuite(measurement)
     registry = OperationRegistry(max_completed=12, max_readonly=1)
     supervisor = ReadOnlyTaskSupervisor(
         registry,
@@ -64,7 +66,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         on_terminal=journal.capture,
     )
     runtime = LabRuntime(registry=registry, supervisor=supervisor, journal=journal,
-                         measurement=measurement, git_export=git_export)
+                         measurement=measurement, suite=suite, git_export=git_export)
     store["runtime"] = runtime
     try:
         async_register_commands(hass)
