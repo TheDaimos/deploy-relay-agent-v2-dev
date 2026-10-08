@@ -55,3 +55,12 @@ Bezug: `docs/V2_40_PERSISTENZ_ENTWURF_2026-10-08.md`, `docs/V2_STUFENPLAN.md`, `
 - Nach dem vollständigen Neustart bestätigte der Nutzer ausdrücklich: **Beide DRA-Integrationen funktionieren**. Screenshot der V2-DEV-Seitenleiste zeigt die aktuelle Journalbeschreibung und „Noch kein Test gestartet“ – das beweist Erreichbarkeit der neuen Oberfläche, **nicht** die Persistenz eines konkreten Auftrags.
 - **V2-40-40 bleibt OFFEN:** Zuerst einen synthetischen Auftrag komplett durchlaufen lassen, Kennung und Status prüfen, danach nur mit gesonderter Freigabe einen erneuten HA-Neustart durchführen und dieselbe Kennung nachschlagen. Anschließend gezielt Unterbrechung eines aktiven Auftrags testen, ebenfalls mit eigener Neustartfreigabe.
 - V1-Runtime und V2-Testlabor erreichbar; keine Aussage über Leistungsbaseline oder produktive V2-Schreibaufträge. HA-DEV bleibt die einzige HA-Instanz.
+
+### HA-Pflichttest 1 – abgeschlossener Auftrag vor Neustart
+
+- Datum: 08.10.2026, nach Installation des isolierten Testlabors 0.1.1 und einem bestätigten HA-Core-Neustart.
+- Im echten HA-DEV wurde ein neuer synthetischer 20-Schritte-Leseauftrag gestartet. Nutzer-Screenshot: **„Erfolgreich abgeschlossen“**, **100 % der Testschritte**, eindeutige 32-stellige Auftragskennung sichtbar.
+- Auftragskennung und Screenshot bleiben nur in der privaten Testkonversation; keine Sitzungskennung oder Nutzerdaten im öffentlichen Repository.
+- **Ergebnis: Vorbedingung für Pflicht-Test 1 BESTANDEN.** Die tatsächliche dauerhafte Wiederauffindbarkeit ist **noch nicht geprüft**; dafür ist ein weiterer *ausdrücklich freigegebener* vollständiger HA-Core-Neustart nötig.
+- Nach Neustart muss derselbe Auftrag mit demselben `operation_id`, Status `success` und 100 % angezeigt werden. Kein automatisches Neustarten des Auftrags.
+- V2-Schreiboperationen, weitere HA-Änderungen und V2-PUB bleiben gesperrt.
