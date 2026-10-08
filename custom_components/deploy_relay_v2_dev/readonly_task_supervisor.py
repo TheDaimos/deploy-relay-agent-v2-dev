@@ -27,16 +27,23 @@ except ImportError:
 ProgressReporter = Callable[[OperationPhase, int, int], Awaitable[None]]
 ReadOnlyWork = Callable[[ProgressReporter], Awaitable[None]]
 TaskFactory = Callable[[Coroutine[Any, Any, None]], asyncio.Task[None]]
+SnapshotHook = Callable[[dict[str, object]], Awaitable[None]]
 
 
 class ReadOnlyTaskSupervisor:
     """In-memory preview job ownership without any external API or mutations."""
 
-    def __init__(self, registry: OperationRegistry, task_factory: TaskFactory) -> None:
+    def __init__(
+        self, registry: OperationRegistry, task_factory: TaskFactory,
+        *, on_registered: SnapshotHook | None = None,
+        on_terminal: SnapshotHook | None = None,
+    ) -> None:
         if not isinstance(registry, OperationRegistry) or not callable(task_factory):
             raise OperationContractError("registry and task factory are required")
         self._registry = registry
         self._task_factory = task_factory
+        self._on_registered = on_registered
+        self._on_terminal = on_terminal
         self._start_lock = asyncio.Lock()
         self._tasks: dict[str, asyncio.Task[None]] = {}
         self._closed = False
@@ -64,6 +71,18 @@ class ReadOnlyTaskSupervisor:
             key = str(snapshot["operation_id"])
             if key in self._tasks or snapshot["status"] != OperationStatus.QUEUED.value:
                 return snapshot
+            # Commit the queued descriptor before spawning any HA-owned work.
+            if self._on_registered is not None:
+                try:
+                    await self._on_registered(snapshot)
+                except Exception:
+                    await self._registry.transition(
+                        key, OperationStatus.FAILED,
+                        error_family=ErrorFamily.RESOURCE,
+                    )
+                    raise OperationContractError(
+                        "read-only journal refused the task"
+                    ) from None
 
             async def runner() -> None:
                 try:
@@ -88,6 +107,17 @@ class ReadOnlyTaskSupervisor:
                         key, OperationStatus.FAILED,
                         error_family=ErrorFamily.UNKNOWN,
                     )
+                finally:
+                    if self._on_terminal is not None:
+                        terminal = await self._registry.get(key)
+                        if terminal is not None and terminal["status"] in {
+                            "success", "failed", "interrupted", "cancelled",
+                        }:
+                            try:
+                                await self._on_terminal(terminal)
+                            except Exception:
+                                # On-disk state stays conservative; never retry work.
+                                pass
 
             coro = runner()
             try:
@@ -96,10 +126,15 @@ class ReadOnlyTaskSupervisor:
                     raise TypeError("task factory returned no Task")
             except Exception:
                 coro.close()
-                await self._registry.transition(
+                failed = await self._registry.transition(
                     key, OperationStatus.FAILED,
                     error_family=ErrorFamily.RESOURCE,
                 )
+                if self._on_terminal is not None:
+                    try:
+                        await self._on_terminal(failed)
+                    except Exception:
+                        pass
                 raise OperationContractError(
                     "unable to schedule a read-only job"
                 ) from None
@@ -128,6 +163,11 @@ class ReadOnlyTaskSupervisor:
                 OperationStatus.RUNNING.value,
                 OperationStatus.CANCEL_REQUESTED.value,
             }:
-                await self._registry.transition(
+                interrupted = await self._registry.transition(
                     key, OperationStatus.INTERRUPTED
                 )
+                if self._on_terminal is not None:
+                    try:
+                        await self._on_terminal(interrupted)
+                    except Exception:
+                        pass
