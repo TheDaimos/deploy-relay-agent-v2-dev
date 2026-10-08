@@ -108,7 +108,10 @@ class PublicBaselineContracts(unittest.TestCase):
             self.assertEqual(payload["branch"], "main")
             self.assertEqual(payload["repository"], "TheDaimos/deploy-relay-agent-v2-dev")
             self.assertEqual(payload["path"], ".deploy-relay/" + rel)
-            self.assertEqual(payload["schema"], "dra-v2-dev-git-measurement.v1")
+            self.assertIn(payload["schema"], {
+                "dra-v2-dev-git-measurement.v1",
+                "dra-v2-dev-git-measurement.v2",
+            })
             snapshot = payload["snapshot"]
             self.assertEqual(
                 set(snapshot),
@@ -117,7 +120,7 @@ class PublicBaselineContracts(unittest.TestCase):
             )
             self.assertEqual(snapshot["component"], "deploy_relay_v2_dev")
             self.assertEqual(snapshot["mode"], "READ_ONLY_TEST")
-            self.assertEqual(snapshot["schema"], "dra-v2-dev-git-measurement.v1")
+            self.assertEqual(snapshot["schema"], payload["schema"])
             self.assertRegex(snapshot["version"], r"\A0\.1\.\d{1,3}\Z")
             self.assertEqual(
                 snapshot["note"],
@@ -137,9 +140,11 @@ class PublicBaselineContracts(unittest.TestCase):
                 "elapsed_ms": 3600000,
                 "synthetic_hashes": 640,
             }
+            new_schema = payload["schema"].endswith(".v2")
             self.assertEqual(
                 set(measurement),
-                {"scope", "base_seconds", "work_seconds", "after_seconds", *caps},
+                {"scope", "base_seconds", "work_seconds", "after_seconds",
+                 *caps, *({"memory"} if new_schema else set())},
             )
             self.assertEqual(
                 measurement["scope"], "HA_PROCESS_WIDE_CPU_NOT_DRA_ONLY"
@@ -155,8 +160,52 @@ class PublicBaselineContracts(unittest.TestCase):
                 self.assertIs(type(value), int)
                 self.assertGreaterEqual(value, 0)
                 self.assertLessEqual(value, maximum)
+            if new_schema:
+                self._verify_anonymous_memory(measurement["memory"])
         self.assertTrue(records, "Unrecognized or empty .deploy-relay folder")
         self.assertLessEqual(len(records), 128, "Unbounded public Git diagnostics")
+
+
+    def _verify_anonymous_memory(self, memory: object) -> None:
+        """Historical v1 exports stay valid; v2 contains only fixed counters."""
+        self.assertIs(type(memory), dict)
+        self.assertEqual(set(memory), {
+            "schema", "source", "snapshots", "component_memory",
+        })
+        self.assertEqual(memory["schema"], "dra-v2-dev-memory.v1")
+        self.assertEqual(memory["source"], "LINUX_PROCFS_VISIBLE_TO_HA")
+        attr = memory["component_memory"]
+        self.assertIs(type(attr), dict)
+        self.assertEqual(set(attr), {"dra_v1_kib", "dra_v2_kib", "reason"})
+        self.assertIsNone(attr["dra_v1_kib"])
+        self.assertIsNone(attr["dra_v2_kib"])
+        self.assertEqual(attr["reason"], "SHARED_HA_PROCESS_CANNOT_ATTRIBUTE")
+        snapshots = memory["snapshots"]
+        self.assertEqual(set(snapshots), {"start", "base_end", "work_end", "end"})
+        keys = {
+            "total_kib", "used_effective_kib", "free_kib", "available_kib",
+            "ha_process_rss_kib",
+        }
+        for sample in snapshots.values():
+            self.assertEqual(set(sample), keys)
+            for number in sample.values():
+                if number is not None:
+                    self.assertIs(type(number), int)
+                    self.assertGreaterEqual(number, 0)
+                    self.assertLessEqual(number, 1 << 44)
+            total, used, free, available = (
+                sample["total_kib"], sample["used_effective_kib"],
+                sample["free_kib"], sample["available_kib"],
+            )
+            if total is None:
+                self.assertIsNone(used)
+                self.assertIsNone(free)
+                self.assertIsNone(available)
+            else:
+                self.assertGreater(total, 0)
+                self.assertLessEqual(free, total)
+                self.assertLessEqual(available, total)
+                self.assertEqual(used, total - available)
 
 
 if __name__ == "__main__":
