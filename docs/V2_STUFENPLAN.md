@@ -63,3 +63,7 @@ Die früheren Gate-Statuswerte waren vor dem mittlerweile bestandenen Realtest d
 HA-DEV VM 109: bei einem reinen 40-Sekunden-Warteauftrag VM-weite Auslastung ca. 1 % CPU und 3,3 GB von 7 GB RAM; das ist **kein isolierter DRA-V2-Leistungsnachweis**. Für V2-40-50 wurden ein ausdrücklicher, begrenzter Messlauf (V2 DEV 0.1.3) und auf Wunsch des Nutzers ein eigener, V1-konformer Git-Export für **ausschließlich anonyme Messzahlen** vorbereitet (V2 DEV 0.1.4). Der Git-Export kann nur in das öffentliche `TheDaimos/deploy-relay-agent-v2-dev` unter `.deploy-relay/diagnostics/v2-dev/` schreiben; kein V1-Zugang und keine V2-Installationsfreigabe.
 
 Statische Tests/CI und GitHub-Review ersetzen **nicht** die ausstehende HA-DEV-Vorschau, Benutzerfreigabe, Realmessung und Git-Export-Abnahme. Die Stufen V2-50 ff. bleiben gesperrt.
+
+## V2-40-50 Speicher-Messvertrag (08.10.2026)
+
+Die vier Messpunkte und deren öffentliche Schema-/Attributionsregeln für **V2 DEV 0.1.5** sind in `docs/V2_40_MEMORY_MEASUREMENT_2026-10-08.md` verbindlich dokumentiert. Linux-Systemwerte und HA-Prozess-RSS sind getrennt zu kennzeichnen. RAM für V1 bzw. V2 einzeln kann im geteilten Python-Prozess **nicht seriös isoliert gemessen** werden; diese Werte bleiben `null`. V2-40-50 bleibt bis zum Realtest offen; V1 und V2-PUB dürfen nicht verändert werden.

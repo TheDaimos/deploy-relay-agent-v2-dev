@@ -50,3 +50,16 @@ Das V2-DEV-Repository ist **öffentlich**. Der Export erfolgt nur auf ausdrückl
 ### Erster Git-Realexport (08.10.2026)
 
 Ein reales anonymes JSON ist im öffentlichen Repository im vorgesehenen Diagnoseverzeichnis angekommen (Commit `d8131253eee23c850387045491b5c4e329f47ade`). Der Inhalt entspricht dem fest begrenzten Messschema. Sicherheitsgrenzen und ausstehende V2-40-50-Ressourcenabnahme bleiben unverändert. Siehe `docs/V2_40_STATISCHE_ABNAHME_2026-10-08.md`.
+
+
+### Erweiterung der Ressourcenmessung – V2 DEV 0.1.5 (Entwicklung, HA-Realtest ausstehend)
+
+Auf Anforderung des Nutzers ergänzt V2-40-50 den bestehenden ausdrücklich ausgelösten 40-Sekunden-Messlauf um **vier Speichermesspunkte**: beim Start, nach der 10-Sekunden-Basisphase, nach 20 Sekunden synthetischer Rechenarbeit und nach dem 10-Sekunden-Nachlauf. Die Messwerte kommen aus zwei fest verdrahteten Linux-Kernel-Pseudodateien, niemals aus Projektdateien:
+
+- Linux \`/proc/meminfo\`: \`MemTotal\` (Gesamtspeicher), \`MemFree\` (unmittelbar frei), \`MemAvailable\` (einschließlich voraussichtlich verfügbarer Zwischenspeicher); „effektiv belegt“ wird exakt als \`MemTotal - MemAvailable\` berechnet.
+- Linux \`/proc/self/status\`: \`VmRSS\` des **gesamten Home-Assistant-Prozesses**, nicht einzelner Integrationen. Speicherwerte in KiB (1024 Byte).
+- Alle vier Stichproben laufen nach explizitem Teststart im Arbeiterfaden; begrenzte Lesegröße 16 KiB je Pseudodatei. **Keine zusätzliche Arbeit oder periodische Abfrage im Leerlauf.** Nicht lesbare/inkonsistente Daten werden \`null\`, niemals erfundene Nullen.
+- Die Kernelwerte beschreiben ausschließlich den von Home Assistant aus sichtbaren Linux-Speicherraum. Je nach Virtualisierung/Containern kann dieser von der Proxmox-Gastsicht abweichen. Weder Ballooning noch Proxmox-VM-Werte werden ohne eigene Schnittstelle behauptet.
+- **DRA-V1- und DRA-V2-RAM sind nicht isoliert messbar**, da beide Integrationen in ein und demselben Python-Prozess leben und Bibliotheken sowie Speicherverwaltung teilen. Beide Felder bleiben bewusst \`null\` mit festem Grund \`SHARED_HA_PROCESS_CANNOT_ATTRIBUTE\`. \`VmRSS\` ist weder die Summe noch eine korrekte Aufteilung dieser Komponenten.
+- Der Git-Export erhält das neue Schema \`dra-v2-dev-git-measurement.v2\`, inklusive strikt geprüfter Zahlengrenzen, vier Snapshot-Namen und unveränderlicher Hinweisfelder; kein Gerät, Token, private Datei, Auftragskennung oder Rohfehler. Bereits vorhandene öffentliche \`v1\`-Exporte bleiben nach ihrem alten Schema gültig und werden nicht überschrieben.
+- V2-DEV-Version \`0.1.5\` ist **noch nicht auf HA-DEV installiert**. Erst CI und gesonderte V1-Vorschau, dann ausdrückliche Installationsfreigabe. V2-40-50 bleibt bis zur realen Messung und V1-Funktionsprüfung **OFFEN**; V2-Schreibfunktionen bleiben gesperrt.
