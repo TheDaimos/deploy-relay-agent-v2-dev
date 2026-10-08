@@ -88,7 +88,7 @@ class DRAV2DevLabPanel extends HTMLElement {
       queued: "Wartet", waiting_for_resource: "Wartet auf Ressourcen",
       running: "Läuft unabhängig vom Browser",
       success: "Erfolgreich abgeschlossen",
-      failed: "Fehlgeschlagen", interrupted: "Beim Beenden unterbrochen",
+      failed: "Fehlgeschlagen", interrupted: "Durch Beenden oder Neustart unterbrochen",
       cancelled: "Abgebrochen", recovery_required: "Prüfung erforderlich",
       cancel_requested: "Beenden angefordert",
     };
@@ -123,7 +123,7 @@ class DRAV2DevLabPanel extends HTMLElement {
           <button id="start" ${busy ? "disabled" : ""}>Testauftrag starten</button>
           <button id="refresh" ${this._busy ? "disabled" : ""}>Status aktualisieren</button>
         </article>
-        <p class="note">Während eines laufenden Tests wird der Status etwa alle 1,5 Sekunden aktualisiert. Im Leerlauf erfolgt keine regelmäßige Abfrage. Nach einem Home-Assistant-Neustart werden Testaufträge noch nicht wiederhergestellt.</p>
+        <p class="note">Während eines laufenden Tests wird der Status etwa alle 1,5 Sekunden aktualisiert. Im Leerlauf erfolgt keine regelmäßige Abfrage. Nach einem Home-Assistant-Neustart bleiben abgeschlossene Aufträge im begrenzten Verlauf abrufbar. Vorher laufende Testaufträge erscheinen als unterbrochen und werden nicht neu gestartet.</p>
       </main>
     `;
     s.querySelector("#start")?.addEventListener("click", () => this._start());
