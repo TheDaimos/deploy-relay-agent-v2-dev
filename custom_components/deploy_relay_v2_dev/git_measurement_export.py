@@ -163,24 +163,24 @@ class MeasurementGitExport:
             owner, repo = REPOSITORY.split("/")
             url = f"https://api.github.com/repos/{owner}/{repo}/contents/{url_path}"
             try:
-                async with self._session.put(
-                    url,
-                    headers={
-                        "Accept": "application/vnd.github+json",
-                        "Authorization": f"Bearer {self._token}",
-                        "User-Agent": "DRA-V2-DEV-Measurement-Export",
-                        "X-GitHub-Api-Version": "2022-11-28",
-                    },
-                    json={
-                        "message": "chore(diagnostics): export sanitized V2 DEV measurement [skip ci]",
-                        "content": encoded,
-                        "branch": BRANCH,
-                    },
-                    timeout=10,
-                ) as response:
-                    if response.status != 201:
-                        raise GitMeasurementError("Git export rejected")
-                    result = await response.json()
+                async with asyncio.timeout(10):
+                    async with self._session.put(
+                        url,
+                        headers={
+                            "Accept": "application/vnd.github+json",
+                            "Authorization": f"Bearer {self._token}",
+                            "User-Agent": "DRA-V2-DEV-Measurement-Export",
+                            "X-GitHub-Api-Version": "2022-11-28",
+                        },
+                        json={
+                            "message": "chore(diagnostics): export sanitized V2 DEV measurement [skip ci]",
+                            "content": encoded,
+                            "branch": BRANCH,
+                        },
+                    ) as response:
+                        if response.status != 201:
+                            raise GitMeasurementError("Git export rejected")
+                        result = await response.json()
             except GitMeasurementError:
                 raise
             except Exception:
