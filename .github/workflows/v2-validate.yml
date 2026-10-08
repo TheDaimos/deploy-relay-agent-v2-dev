@@ -6,6 +6,7 @@ on:
     paths:
       - "custom_components/**"
       - "tests/**"
+      - "docs/V2_40_*.md"
       - ".github/workflows/v2-validate.yml"
       - "LICENSE"
       - "BRANDING.md"
@@ -15,6 +16,7 @@ on:
     paths:
       - "custom_components/**"
       - "tests/**"
+      - "docs/V2_40_*.md"
       - ".github/workflows/v2-validate.yml"
       - "LICENSE"
       - "BRANDING.md"
@@ -43,7 +45,7 @@ jobs:
       - name: Standardbibliothek-Vertragstests
         run: python -m unittest discover -s tests -p 'test_*.py' -v
       - name: Python-Syntax
-        run: python -m compileall -q custom_components/deploy_relay tests
+        run: python -m compileall -q custom_components/deploy_relay custom_components/deploy_relay_v2_dev tests
       - name: JavaScript-Syntax
         shell: bash
         run: |
