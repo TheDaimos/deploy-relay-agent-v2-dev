@@ -57,3 +57,9 @@ Installationsfortschritt soll **im Installationsbereich** erscheinen und reale P
 ## Nachtrag V2-30/V2-40 (08.10.2026)
 
 Die früheren Gate-Statuswerte waren vor dem mittlerweile bestandenen Realtest des getrennten V2-DEV-Testlabors erstellt. Zweitsitzung, Notebook-Browserneuladen, V1-Gewitterradar-Update und anschließender HA-Neustart sind bestätigt. **Aktueller Stand vom 08.10.2026:** Beide V2-40-40-Realtests sind nun bestanden: Ein abgeschlossener Auftrag blieb nach vollem HA-Neustart mit identischer Kennung und Erfolg/100 % abrufbar. Ein späterer künstlicher 40-Sekunden-Leseauftrag wurde nach dem HA-Neustart mit identischer Kennung als `interrupted` bei 77 % angezeigt, ohne sichtbaren automatischen Neustart. Die V1-Funktions- und Ressourcenabschlussprüfung für V2-40-50 bleibt offen. Das Journal der V2-40-Implementierung ist zunächst auf synthetische Leseaufträge begrenzt; spätere schreibende Transaktionen bleiben untersagt. Statische Abnahme und CI: `docs/V2_40_STATISCHE_ABNAHME_2026-10-08.md`. V2-00/V2-05 und finale V2-PUB-Gates bleiben unverändert offen.
+
+## Nachtrag: V2-40-Ressourcenmessung und Git-Export (08.10.2026)
+
+HA-DEV VM 109: bei einem reinen 40-Sekunden-Warteauftrag VM-weite Auslastung ca. 1 % CPU und 3,3 GB von 7 GB RAM; das ist **kein isolierter DRA-V2-Leistungsnachweis**. Für V2-40-50 wurden ein ausdrücklicher, begrenzter Messlauf (V2 DEV 0.1.3) und auf Wunsch des Nutzers ein eigener, V1-konformer Git-Export für **ausschließlich anonyme Messzahlen** vorbereitet (V2 DEV 0.1.4). Der Git-Export kann nur in das öffentliche \`TheDaimos/deploy-relay-agent-v2-dev\` unter \`.deploy-relay/diagnostics/v2-dev/\` schreiben; kein V1-Zugang und keine V2-Installationsfreigabe.
+
+Statische Tests/CI und GitHub-Review ersetzen **nicht** die ausstehende HA-DEV-Vorschau, Benutzerfreigabe, Realmessung und Git-Export-Abnahme. Die Stufen V2-50 ff. bleiben gesperrt.
