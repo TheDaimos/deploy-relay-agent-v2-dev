@@ -183,6 +183,28 @@ async def async_get(hass, connection, msg):
 
 
 @websocket_api.websocket_command({
+    probatio.Required("type"): "deploy_relay_v2_dev/archive_repository/check",
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def async_archive_repository_check(hass, connection, msg):
+    """Recheck saved private GitHub source; never return the secret."""
+    runtime = _runtime(hass)
+    if runtime is None:
+        connection.send_error(msg["id"], "not_ready", "Archivverwaltung nicht bereit")
+        return
+    try:
+        status = await runtime.git_export.check_archive()
+    except GitMeasurementError:
+        connection.send_error(
+            msg["id"], "archive_check_failed",
+            "Privates Repository oder gespeicherter GitHub-Zugang nicht erreichbar.",
+        )
+        return
+    connection.send_result(msg["id"], status)
+
+
+@websocket_api.websocket_command({
     probatio.Required("type"): "deploy_relay_v2_dev/archive_repository/configure",
     probatio.Required("repository"): str,
     probatio.Required("token"): str,
@@ -660,6 +682,7 @@ def async_register_commands(hass: HomeAssistant) -> None:
                     async_git_read_configure, async_git_read_clear,
                     async_archive_repository_set, async_archive_repository_clear,
                     async_archive_repository_configure,
+                    async_archive_repository_check,
                     async_download_json):
         websocket_api.async_register_command(hass, handler)
     state["commands_registered"] = True
