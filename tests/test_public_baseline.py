@@ -112,9 +112,10 @@ class PublicBaselineContracts(unittest.TestCase):
                 "dra-v2-dev-git-measurement.v1",
                 "dra-v2-dev-git-measurement.v2",
                 "dra-v2-dev-git-suite.v1",
+                "dra-v2-dev-git-suite.v2",
             })
             snapshot = payload["snapshot"]
-            suite_file = payload["schema"] == "dra-v2-dev-git-suite.v1"
+            suite_file = payload["schema"] in {"dra-v2-dev-git-suite.v1", "dra-v2-dev-git-suite.v2"}
             self.assertEqual(
                 set(snapshot),
                 {"component", "created_at", "suite" if suite_file else "measurement", "mode",
@@ -136,7 +137,7 @@ class PublicBaselineContracts(unittest.TestCase):
             self.assertEqual(snapshot["created_at"].replace(":", "").replace("-", ""), match[2])
             self.assertEqual(snapshot["created_at"][:10], match[1])
             if suite_file:
-                self._verify_public_suite(snapshot["suite"])
+                self._verify_public_suite(snapshot["suite"], payload["schema"])
                 continue
             measurement = snapshot["measurement"]
             caps = {
@@ -174,12 +175,13 @@ class PublicBaselineContracts(unittest.TestCase):
 
 
 
-    def _verify_public_suite(self, data: object) -> None:
+    def _verify_public_suite(self, data: object, public_schema: str) -> None:
         self.assertIs(type(data), dict)
         self.assertEqual(set(data), {
             "schema", "mode", "readonly_steps", "measurement", "multicore",
         })
-        self.assertEqual(data["schema"], "dra-v2-dev-suite.v1")
+        suite_version = "v2" if public_schema.endswith(".v2") else "v1"
+        self.assertEqual(data["schema"], f"dra-v2-dev-suite.{suite_version}")
         self.assertIn(data["mode"], ("full", "multicore"))
         is_full = data["mode"] == "full"
         self.assertIs(type(data["readonly_steps"]), int)
@@ -214,7 +216,7 @@ class PublicBaselineContracts(unittest.TestCase):
             "schema", "method", "logical_cpus_visible",
             "affinity_cpus_visible", "levels",
         })
-        self.assertEqual(multicore["schema"], "dra-v2-dev-multicore.v1")
+        self.assertEqual(multicore["schema"], f"dra-v2-dev-multicore.{suite_version}")
         self.assertEqual(multicore["method"], "BOUNDED_CHILD_PROCESSES")
         for k in ("logical_cpus_visible", "affinity_cpus_visible"):
             v = multicore[k]
@@ -224,8 +226,8 @@ class PublicBaselineContracts(unittest.TestCase):
                 self.assertLessEqual(v, 1024)
         levels = multicore["levels"]
         self.assertIs(type(levels), list)
-        self.assertEqual(len(levels), 3)
-        for workers, level in zip((1, 2, 4), levels):
+        self.assertEqual(len(levels), 7 if suite_version == "v2" else 3)
+        for workers, level in zip((1, 2, 4, 6, 8, 10, 12) if suite_version == "v2" else (1, 2, 4), levels):
             self.assertEqual(set(level), {
                 "workers", "status", "wall_ms",
                 "aggregate_worker_cpu_ms", "iterations_total",

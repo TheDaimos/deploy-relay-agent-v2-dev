@@ -92,6 +92,15 @@ panel._operation = { ...sample("running", 1), operation_id: "b".repeat(32) };
 panel._observeCountdown(panel._operation);
 panel._render();
 assert.equal(panel._remainingText(), "Noch ca. 39 Sekunden");
+
+panel._operation = { ...sample("running", 80), operation_id: "c".repeat(32), total_count: 87 };
+panel._observeCountdown(panel._operation);
+panel._render();
+assert.equal(panel._remainingText(), "Mehrkernprüfung läuft");
+panel._operation = { ...sample("running", 2), operation_id: "d".repeat(32), total_count: 7 };
+panel._observeCountdown(panel._operation);
+panel._render();
+assert.equal(panel._remainingText(), "Mehrkernprüfung läuft");
 panel.disconnectedCallback();
 assert.equal(panel._countdownTimer, null, "detach must cancel all live countdown work");
 assert.equal(panel._timer, null);
