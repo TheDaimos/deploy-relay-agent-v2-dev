@@ -42,6 +42,7 @@ async def async_state(hass, connection, msg):
         "projects": runtime.projects.list(),
         "settings": runtime.settings.snapshot(),
         "settings_effective": runtime.settings.effective(),
+        "cpu_status": runtime.settings.core_status(),
     })
 
 
@@ -355,6 +356,7 @@ async def async_settings_get(hass, connection, msg):
     connection.send_result(msg["id"], {
         "settings": runtime.settings.snapshot(),
         "effective": runtime.settings.effective(),
+        "cpu_status": runtime.settings.core_status(),
     })
 
 
@@ -381,8 +383,27 @@ async def async_settings_save(hass, connection, msg):
         connection.send_error(msg["id"], "invalid_settings", "Einstellungen nicht gespeichert")
         return
     connection.send_result(msg["id"], {
-        "settings": result, "effective": runtime.settings.effective()
+        "settings": result, "effective": runtime.settings.effective(),
+        "cpu_status": runtime.settings.core_status()
     })
+
+
+@websocket_api.websocket_command({
+    probatio.Required("type"): "deploy_relay_v2_dev/settings/ack_cpu_warning",
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def async_settings_ack_cpu_warning(hass, connection, msg):
+    runtime = _runtime(hass)
+    if runtime is None:
+        connection.send_error(msg["id"], "not_ready", "Einstellungen nicht bereit")
+        return
+    try:
+        result = await runtime.settings.acknowledge_warning()
+    except SettingsError:
+        connection.send_error(msg["id"], "settings_failed", "Warnung konnte nicht bestätigt werden")
+        return
+    connection.send_result(msg["id"], {"cpu_status": result})
 
 
 @websocket_api.websocket_command({
@@ -435,6 +456,7 @@ def async_register_commands(hass: HomeAssistant) -> None:
                     async_projects_list, async_projects_v1_preview,
                     async_projects_import_v1, async_projects_add,
                     async_projects_retention, async_projects_preselect,
-                    async_settings_get, async_settings_save, async_batch_preview):
+                    async_settings_get, async_settings_save, async_settings_ack_cpu_warning,
+                    async_batch_preview):
         websocket_api.async_register_command(hass, handler)
     state["commands_registered"] = True
