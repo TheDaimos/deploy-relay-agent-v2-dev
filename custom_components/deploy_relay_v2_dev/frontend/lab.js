@@ -787,19 +787,43 @@ class DRAV2DevLabPanel extends HTMLElement {
         .git-dialog .critical { color:var(--warning-color,#f0bb53); }
         .git-link { display:inline-block; padding:12px 0; color:var(--primary-color,#65b4d2); overflow-wrap:anywhere; }
         .countdown { font-size:19px; font-weight:700; font-variant-numeric:tabular-nums; }
+
+         .section-card { min-width:0; border:1px solid var(--divider-color,#555); box-shadow:0 2px 12px rgba(0,0,0,.08); }
+         .section-card h2 { font-size:18px; margin:0 0 12px; padding-bottom:12px; border-bottom:1px solid var(--divider-color,#555); }
+         .inner-panel { border:1px solid var(--divider-color,#555); background:var(--secondary-background-color,rgba(127,127,127,.07)); border-radius:10px; padding:12px 14px; margin-top:14px; }
+         .inner-panel h3 { font-size:15px; margin:0 0 8px; }
+         .inner-panel p { margin:9px 0; }
+         .dashboard-grid, .administration-grid { display:grid; grid-template-columns:minmax(0,1fr); gap:16px; align-items:start; }
+         .dashboard-grid > article, .administration-grid > article { margin-top:16px; min-width:0; }
+         .export-card { border-top:3px solid var(--primary-color,#396a96); }
+         .status-panel { border-left:3px solid var(--primary-color,#396a96); }
+         @media (min-width:1100px) {
+           .dashboard-grid { grid-template-columns:minmax(0,1.15fr) minmax(370px,.85fr); }
+           .administration-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+           .project-card { grid-row:span 2; }
+         }
+         @media (max-width:600px) {
+           .dashboard-grid, .administration-grid { gap:0; }
+           .inner-panel { padding:10px; }
+           .section-card h2 { font-size:17px; }
+         }
       </style>
       <main>
         <h1>DRA V2 DEV · Testlabor</h1>
         <p class="safe">Getrennt von DRA V1 · Nur schreibgeschützter Testbetrieb</p>
         <p>Dieser Test liest keine Projektdateien und führt keine Installation, Wiederherstellung oder Neustarts aus.</p>
-        <article>
-          <strong>Schreibgeschützter 40-Sekunden-Test</strong>
+        <div class="dashboard-grid">
+        <article class="section-card test-card">
+          <h2>01 · Teststeuerung</h2>
           <p>Starte einen 40-Sekunden-Test. Schließe dann diese Ansicht auf dem Smartphone. Öffne dieses Testlabor auf dem Notebook und prüfe, ob derselbe Auftrag noch läuft oder abgeschlossen ist.</p>
+          <div class="inner-panel status-panel"><h3>Aktueller Auftrag</h3>
           <p><strong>Status:</strong> ${label}</p>
           <p><strong>Fortschritt:</strong> ${progress}</p>
           <p><strong>Restzeit:</strong> <span class="countdown" id="remaining">${this._remainingText()}</span></p>
           <p class="note"><strong>Auftragskennung:</strong> <code>${safeId}</code></p>
           ${this._error ? `<p class="error">${this._error}</p>` : ""}
+          <button id="refresh" ${this._busy ? "disabled" : ""}>Status aktualisieren</button>
+          </div><div class="inner-panel"><h3>Testarten</h3>
           <button id="start" ${busy ? "disabled" : ""}>Testauftrag starten</button>
           <button id="measure" ${busy ? "disabled" : ""}>Messlauf starten (40 s)</button>
           <button id="multicore" ${busy ? "disabled" : ""}>Mehrkern-Diagnose (1 / 2 / 4 / 6 / 8 / 10 / 12)</button>
@@ -808,12 +832,12 @@ class DRAV2DevLabPanel extends HTMLElement {
           anschließend nacheinander 1, 2, 4, 6, 8, 10 und 12 getrennte Arbeitsprozesse. Ein Auftrag, ein Git-Export.</p>
           <p class="note">Messlauf: 10 Sekunden Basis, 20 Sekunden begrenzte Rechenarbeit
           außerhalb der HA-Ereignisschleife, 10 Sekunden Nachlauf. Maximal ein Auftrag gleichzeitig.</p>
+          </div>
         </article>
-        <article>
-          <strong>Diagnoseexport</strong>
+        <article class="section-card export-card">
+          <h2>02 · Diagnoseexport</h2>
           <p class="note">Lokale JSON-Datei oder Export in dein selbst eingerichtetes privates GitHub-Repository.</p>
           <div class="git-main-actions">
-            <button id="refresh" ${this._busy ? "disabled" : ""}>Status aktualisieren</button>
             <button id="json-download" ${this._downloadBusy || busy ||
               !this._diagnosticsExportReady ? "disabled" : ""}>JSON herunterladen</button>
             <button id="git-export" ${this._gitBusy || busy ||
@@ -841,14 +865,16 @@ class DRAV2DevLabPanel extends HTMLElement {
           ${this._lastExport ? `<p><strong>Export-ID:</strong> ${this._escapeProject(this._lastExport.export_id)}
             · <strong>Zielpfad:</strong> ${this._escapeProject(this._lastExport.path)}</p>` : ""}
         </article>
-        <article class="diagnostic-results">
-          <strong>Messergebnisse und Auswertung</strong>
+        </div>
+        <article class="diagnostic-results section-card">
+          <h2>03 · Messergebnisse und Auswertung</h2>
           <p class="note">Ausführliche Messwerte und Mehrkern-Ergebnisse erscheinen hier nach dem Test.</p>
           ${report}
           ${multicoreReport}
         </article>
-        <article>
-          <strong>DRA-Einstellungen · Auftragsverarbeitung</strong>
+        <div class="administration-grid">
+        <article class="section-card">
+          <h2>04 · Auftragsverarbeitung</h2>
           <p class="note">Gespeicherte Planungsvorgaben. Die aktive Testlabor-Sperre bleibt bei
           einem Leseauftrag und null Schreibaufträgen. Dies begrenzt derzeit keine echten Prozessorkerne.</p>
           <label>Betriebsart
@@ -883,8 +909,8 @@ class DRAV2DevLabPanel extends HTMLElement {
           Schreibzugriff, kein CPU-Pinning und keine automatische Ressourcensteuerung.</p>
         </article>
 
-        <article>
-          <strong>Meine Projekte · V2-Entwicklung</strong>
+        <article class="section-card project-card">
+          <h2>05 · Meine Projekte</h2>
           <p class="note">Projektmetadaten getrennt von DRA V1 verwalten. V1 bleibt unverändert.
           Übernahme kopiert weder Git-Zugangsdaten noch Installationsstände oder Sicherungsdateien.</p>
           <button id="project-preview" ${this._projectBusy ? "disabled" : ""}>V1-Projekte ansehen</button>
@@ -931,8 +957,8 @@ class DRAV2DevLabPanel extends HTMLElement {
           Neue Einträge sind zunächst ungeprüft. Installation, tatsächliche Sicherung,
           Rotation und Wiederherstellung bleiben bis zur separaten Transaktionsabnahme gesperrt.</p>
         </article>
-        <article>
-          <strong>Sammelaktualisierung · Auswahl vorbereiten</strong>
+        <article class="section-card">
+          <h2>06 · Sammelaktualisierung</h2>
           <p class="note">Die gespeicherte Vorauswahl wird nur beim Öffnen dieser
           Ansicht verwendet. Häkchen gelten für den aktuellen Vorgang.</p>
           ${this._projects.length ? batchRows : "<p>Bitte erst Projekte anlegen oder aus V1 übernehmen.</p>"}
@@ -942,6 +968,7 @@ class DRAV2DevLabPanel extends HTMLElement {
           noch nicht überprüft; keine Installation möglich.</p><ul>${batchReport}</ul>` : ""}
         </article>
 
+        </div>
         ${this._gitDialogOpen ? `
           <div class="git-dialog-backdrop">
             <section class="git-dialog" id="git-export-dialog"
