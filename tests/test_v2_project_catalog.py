@@ -173,6 +173,44 @@ class V2ProjectCatalogTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.catalog.list(), [])
         self.assertEqual(self.store.writes, 0)
 
+    async def test_batch_preselection_roundtrip_and_legacy_default(self):
+        original = await self.catalog.add("TheDaimos/gewitterradar", "Gewitterradar")
+        self.assertIs(original["batch_preselect"], True)
+        changed = await self.catalog.set_batch_preselect(original["repository"], False)
+        self.assertIs(changed["batch_preselect"], False)
+        reread = m.ProjectCatalog(self.store)
+        await reread.load()
+        self.assertIs(reread.list()[0]["batch_preselect"], False)
+        legacy = dict(m.proposal("TheDaimos/legacy", "Legacy", origin="manual"))
+        legacy.pop("batch_preselect")
+        old = m.ProjectCatalog(Store({"schema": m.SCHEMA, "projects": [legacy]}))
+        await old.load()
+        self.assertIs(old.list()[0]["batch_preselect"], True)
+
+    async def test_batch_only_accepts_exact_registered_repositories(self):
+        await self.catalog.add("TheDaimos/one", "One")
+        await self.catalog.add("TheDaimos/two", "Two")
+        self.assertIs((await self.catalog.set_batch_preselect("TheDaimos/two", False))["batch_preselect"], False)
+        prev = self.catalog.batch_preview(["TheDaimos/two", "TheDaimos/one"])
+        self.assertEqual([r["repository"] for r in prev["selected"]],
+                         ["TheDaimos/two", "TheDaimos/one"])
+        self.assertEqual([r["status"] for r in prev["selected"]],
+                         ["not_checked", "not_checked"])
+        self.assertIs(prev["installation_enabled"], False)
+        self.assertIs(prev["sources_verified"], False)
+        for bad in (["TheDaimos/unknown"], ["TheDaimos/one", "thedaimos/ONE"],
+                    ["TheDaimos/one", None], "TheDaimos/one", [True]):
+            with self.subTest(bad=bad), self.assertRaises(m.CatalogError):
+                self.catalog.batch_preview(bad)
+        self.assertEqual(len(self.catalog.list()), 2)
+
+    async def test_preselection_invalid_value_does_not_change_state(self):
+        await self.catalog.add("TheDaimos/a", "A")
+        for value in (1, 0, "false", None):
+            with self.assertRaises(m.CatalogError):
+                await self.catalog.set_batch_preselect("TheDaimos/a", value)
+        self.assertIs(self.catalog.list()[0]["batch_preselect"], True)
+
     async def test_catalog_limit_is_hard(self):
         for n in range(32):
             await self.catalog.add(f"TheDaimos/project-{n}", f"Project {n}")
