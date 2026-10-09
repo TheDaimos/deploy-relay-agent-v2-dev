@@ -102,6 +102,22 @@ panel._operation = { ...sample("running", 2), operation_id: "d".repeat(32), tota
 panel._observeCountdown(panel._operation);
 panel._render();
 assert.equal(panel._remainingText(), "Mehrkernprüfung läuft");
+panel._cpuStatus = {
+  available_cores: 2,
+  warning: {code:"cpu_limit_reduced", previous_available:12,
+            available_cores:2, reduced_from:10},
+};
+panel._settings.max_worker_processes = 2;
+panel._render();
+assert(panel.shadowRoot.innerHTML.includes("Änderung der verfügbaren Prozessorkerne erkannt"));
+assert(panel.shadowRoot.innerHTML.includes("Hinweis bestätigen"));
+assert(panel.shadowRoot.innerHTML.includes("auf\n              2 reduziert"));
+panel._cpuStatus = {available_cores:12, warning:null};
+panel._render();
+assert(!panel.shadowRoot.innerHTML.includes("Hinweis bestätigen"),
+       "higher core visibility must not produce a warning");
+assert(panel.shadowRoot.innerHTML.includes("Beim Start erkannte Prozessorkerne"));
+
 panel.disconnectedCallback();
 assert.equal(panel._countdownTimer, null, "detach must cancel all live countdown work");
 assert.equal(panel._timer, null);
