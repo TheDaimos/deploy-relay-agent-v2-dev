@@ -30,6 +30,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._gitConfigured = false;
     this._centralExport = {configured:false,repository_configured:false,server_token_available:false,pending:false,repository:null};
     this._archiveBusy = false;
+    this._gitDialogOpen = false;
     this._archiveMessage = "";
     this._downloadBusy = false;
     this._downloadStatus = "";
@@ -244,29 +245,68 @@ class DRAV2DevLabPanel extends HTMLElement {
       this._schedule();
     }
   }
-  async _setArchiveRepository(clear=false) {
+  _openGitDialog() {
+    this._gitDialogOpen = true;
+    this._render();
+    this.shadowRoot?.querySelector("#git-dialog-repo")?.focus?.();
+  }
+
+  _closeGitDialog() {
+    if (this._archiveBusy || this._gitBusy) return;
+    const input = this.shadowRoot?.querySelector("#git-dialog-token");
+    if (input) input.value = "";
+    this._gitDialogOpen = false;
+    this._render();
+  }
+
+  async _configureArchiveDialog() {
     if (!this._hass || this._archiveBusy || this._gitBusy) return;
-    const repository = clear ? null :
-      this.shadowRoot?.querySelector("#archive-repository")?.value?.trim();
-    if (!clear && !/^[A-Za-z0-9-]{1,39}\/[A-Za-z0-9_.-]{1,100}$/.test(repository || "")) {
-      this._archiveMessage = "Repository als Eigentümer/Repository eingeben.";
+    const repository = this.shadowRoot?.querySelector("#git-dialog-repo")?.value?.trim() || "";
+    const secretInput = this.shadowRoot?.querySelector("#git-dialog-token");
+    const token = secretInput?.value || "";
+    // Clear the browser input before any asynchronous call / re-render.
+    if (secretInput) secretInput.value = "";
+    if (!/^[A-Za-z0-9-]{1,39}\/[A-Za-z0-9_.-]{1,100}$/.test(repository) ||
+        token.length < 10 || token.length > 512) {
+      this._archiveMessage = "Bitte privates Repository und gültigen GitHub-Token eingeben.";
       this._render();
       return;
     }
     this._archiveBusy = true;
+    this._archiveMessage = "Privates Repository und Leseberechtigung werden geprüft …";
+    this._render();
     try {
-      const result = await this._hass.callWS(clear ? {
-        type:"deploy_relay_v2_dev/archive_repository/clear",
-      } : {
-        type:"deploy_relay_v2_dev/archive_repository/set", repository,
+      const result = await this._hass.callWS({
+        type:"deploy_relay_v2_dev/archive_repository/configure",
+        repository, token,
       });
       this._centralExport = result;
       this._gitConfigured = result.configured === true;
-      this._archiveMessage = clear ?
-        "Export-Repository entfernt. GitHub-Export ist jetzt gesperrt." :
-        "Repository gespeichert. Beim Export muss es privat und erreichbar sein.";
+      this._archiveMessage = this._gitConfigured ?
+        "Privates Repository und Zugang gespeichert. Export ist nach erfolgreichem Diagnosetest verfügbar." :
+        "Einrichtung unvollständig – bitte Verbindung prüfen.";
     } catch (_error) {
-      this._archiveMessage = "Repository konnte nicht geändert werden. Möglicherweise wartet ein Export auf Wiederholung.";
+      this._archiveMessage = "Einrichtung fehlgeschlagen: Repository muss privat, erreichbar und für den Token lesbar sein. Keine Zugangsdaten wurden im Browser gespeichert.";
+    } finally {
+      this._archiveBusy = false;
+      if (this.isConnected) this._render();
+    }
+  }
+
+  async _clearArchiveDialog() {
+    if (!this._hass || this._archiveBusy || this._gitBusy) return;
+    this._archiveBusy = true;
+    this._archiveMessage = "Exportzugang wird entfernt …";
+    this._render();
+    try {
+      const result = await this._hass.callWS({
+        type:"deploy_relay_v2_dev/archive_repository/clear",
+      });
+      this._centralExport = result;
+      this._gitConfigured = result.configured === true;
+      this._archiveMessage = "Repository und serverseitiger Zugang entfernt. JSON-Download bleibt verfügbar.";
+    } catch (_error) {
+      this._archiveMessage = "Entfernen nicht möglich. Möglicherweise wartet ein Export auf Wiederholung.";
     } finally {
       this._archiveBusy = false;
       if (this.isConnected) this._render();
@@ -537,6 +577,12 @@ class DRAV2DevLabPanel extends HTMLElement {
   }
   _render() {
     const s = this.shadowRoot;
+    // The HA test status can refresh while this dialog is open. Preserve the
+    // unsent secret only in the transient password input, never component state.
+    const unsentToken = this._gitDialogOpen ?
+      s?.querySelector("#git-dialog-token")?.value || "" : "";
+    const unsentRepository = this._gitDialogOpen ?
+      s?.querySelector("#git-dialog-repo")?.value : null;
     const projectRows = this._projects.map(p => { const saved = this._projectSaved.get(p.repository) === p.backup_retention; return `<tr><td>${this._escapeProject(p.name)}<div class="note">${this._escapeProject(p.repository)}</div></td><td>${p.origin === "v1_import" ? "DRA V1" : "Manuell"}</td><td><input class="retention" type="number" min="3" max="100" value="${Number.isInteger(p.backup_retention) ? p.backup_retention : 10}" aria-label="Sicherungen" /><button class="retention-save ${saved ? "retention-saved" : ""}" data-repo="${this._escapeProject(p.repository)}" ${this._projectBusy ? "disabled" : ""}>${saved ? "Gespeichert" : "Speichern"}</button><button class="preselect-toggle" data-repo="${this._escapeProject(p.repository)}" data-enabled="${p.batch_preselect === false}" ${this._projectBusy ? "disabled" : ""}>Sammelupdate: ${p.batch_preselect === false ? "Aus" : "Ein"}</button><button class="source-check" data-repo="${this._escapeProject(p.repository)}" ${this._sourceBusy ? "disabled" : ""}>Git-Quelle prüfen</button></td></tr>`; }).join("");
     const batchRows = this._projects.map(p => {
       const checked = this._batchSelection === null ? p.batch_preselect !== false : this._batchSelection.includes(p.repository);
@@ -665,6 +711,19 @@ class DRAV2DevLabPanel extends HTMLElement {
         button.retention-saved { background:#247d42; color:#fff; }
         input.project-text { box-sizing:border-box; width:100%; min-height:40px; background:var(--primary-background-color,#151515); color:inherit; border:1px solid var(--divider-color,#555); border-radius:8px; padding:8px; margin:5px 0; }
         input.git-token { box-sizing:border-box; width:100%; min-height:40px; background:var(--primary-background-color,#151515); color:inherit; border:1px solid var(--divider-color,#555); border-radius:8px; padding:8px; }
+        .git-dialog-backdrop { position:fixed; inset:0; z-index:2147483644; display:flex;
+          align-items:center; justify-content:center; padding:12px; box-sizing:border-box;
+          background:rgba(0,0,0,.78); }
+        .git-dialog { width:min(100%,560px); max-height:92dvh; overflow:auto; box-sizing:border-box;
+          background:var(--card-background-color,#222); border:1px solid var(--divider-color,#555);
+          border-radius:14px; padding:18px; box-shadow:0 14px 38px #0009; }
+        .git-dialog header { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+        .git-dialog header h2 { font-size:19px; margin:0; }
+        .git-dialog header button { min-width:40px; margin:0; }
+        .git-dialog .dialog-actions { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
+        .git-dialog .dialog-actions button { margin:0; }
+        .git-dialog label { display:block; margin-top:12px; }
+        .git-dialog .critical { color:var(--warning-color,#f0bb53); }
         .git-link { display:inline-block; padding:12px 0; color:var(--primary-color,#65b4d2); overflow-wrap:anywhere; }
         .countdown { font-size:19px; font-weight:700; font-variant-numeric:tabular-nums; }
       </style>
@@ -788,52 +847,81 @@ class DRAV2DevLabPanel extends HTMLElement {
         </article>
 
         <article>
-          <strong>Diagnoseexport – Download oder privates GitHub-Archiv</strong>
-          <p class="note">Die technische Anwendungs-ID bleibt deploy-relay-agent-v2.
-          JSON-Dateien können ohne Repository und ohne GitHub-Zugang heruntergeladen werden.
-          Für GitHub wird ein selbst gewähltes privates Repository benötigt.
-          Es gibt ausdrücklich kein vorbelegtes Repository.</p>
+          <strong>Diagnoseexport</strong>
+          <p class="note">Bereinigte Messdaten mit Anwendungs-ID und Exportkennung.
+          Download ohne GitHub möglich; private GitHub-Ablage optional.</p>
           <button id="json-download" ${this._downloadBusy || busy ||
             (!valid && !validSuite) || op?.status !== "success" ? "disabled" : ""}>
-            JSON-Datei herunterladen
+            JSON herunterladen
           </button>
-          <p class="note">${this._escapeProject(this._downloadStatus)}</p>
-          <p><strong>Privates GitHub-Archiv (optional)</strong></p>
-          <p class="note">Ein eigener Serverzugang mit minimalen Rechten wird für das
-          ausgewählte Repository benötigt. GitHub-Schlüssel bleiben außerhalb des Browsers.</p>
-          <label>Export-Repository (Eigentümer/Repository)
-            <input id="archive-repository" class="project-text" type="text"
-              placeholder="Eigentümer/Privates-Repository" autocomplete="off"
-              value="${this._escapeProject(this._centralExport.repository || "")}" />
-          </label>
-          <button id="archive-save" ${this._archiveBusy || this._centralExport.pending ?
-            "disabled" : ""}>Export-Repository speichern</button>
-          <button id="archive-clear" ${this._archiveBusy || this._centralExport.pending ||
-            !this._centralExport.repository_configured ? "disabled" : ""}>
-            Export-Repository entfernen
-          </button>
-          <p class="note">Konfiguriertes Repository:
-            ${this._centralExport.repository ?
-              this._escapeProject(this._centralExport.repository) : "Keines"}.
-            Serverseitiger GitHub-Zugang:
-            ${this._centralExport.server_token_available ? "vorhanden" : "nicht eingerichtet"}.
-            ${this._centralExport.pending ? "Ein bereinigter Export wartet auf Wiederholung." : ""}</p>
-          <p class="note">${this._escapeProject(this._archiveMessage)}</p>
-          <button id="git-export" ${this._gitBusy || this._centralExport.pending ||
-            busy || (!valid && !validSuite) || op?.status !== "success" ||
-            !this._gitAvailable || !this._gitConfigured ? "disabled" : ""}>
-            Ins private Repository exportieren
-          </button>
-          <button id="git-retry" ${this._gitBusy || !this._centralExport.pending ||
-            !this._gitConfigured || !this._gitAvailable ? "disabled" : ""}>
-            Gespeicherten Export erneut übertragen
-          </button>
-          <p class="note">${this._escapeProject(this._gitStatus)}</p>
-          ${this._lastExport ? `<p><strong>Export-ID:</strong> ${this._escapeProject(this._lastExport.export_id)}
-          <strong>Zielpfad:</strong> ${this._escapeProject(this._lastExport.path)}</p>
-          <a class="git-link" href="${this._lastExport.file_url}" target="_blank"
-             rel="noopener noreferrer">Privaten Export öffnen</a>` : ""}
+          <button id="git-dialog-open">Git-Export</button>
+          ${this._downloadStatus ? `<p class="note">${this._escapeProject(this._downloadStatus)}</p>` : ""}
         </article>
+        ${this._gitDialogOpen ? `
+          <div class="git-dialog-backdrop">
+            <section class="git-dialog" id="git-export-dialog"
+                     role="dialog" aria-modal="true" aria-labelledby="git-dialog-title">
+              <header>
+                <h2 id="git-dialog-title">Privater Git-Export</h2>
+                <button id="git-dialog-close" aria-label="Schließen"
+                        ${this._archiveBusy || this._gitBusy ? "disabled" : ""}>✕</button>
+              </header>
+              <p class="note">Privates GitHub-Repository und eigenen Fine-grained-Token
+              mit Contents: Lesen und Schreiben sowie Metadata: Lesen einrichten.
+              Es gibt kein Standardrepository.</p>
+              <label for="git-dialog-repo">Repository (Eigentümer/Repository)</label>
+              <input id="git-dialog-repo" class="project-text" type="text"
+                     placeholder="Eigentümer/Privates-Repository" autocomplete="off"
+                     value="${this._escapeProject(this._centralExport.repository || "")}"
+                     ${this._archiveBusy || this._centralExport.pending ? "disabled" : ""} />
+              <label for="git-dialog-token">GitHub-Token (wird nicht wieder angezeigt)</label>
+              <input id="git-dialog-token" class="git-token" type="password"
+                     autocomplete="off" spellcheck="false"
+                     placeholder="Fine-grained GitHub-Token"
+                     ${this._archiveBusy || this._centralExport.pending ? "disabled" : ""} />
+              <p class="note">Der Schlüssel wird nur zur Einrichtung an Home Assistant
+              übertragen, dort getrennt geschützt gespeichert und nicht an
+              die Oberfläche zurückgesendet. Nutze eine verschlüsselte HA-Verbindung.</p>
+              <div class="dialog-actions">
+                <button id="git-dialog-save"
+                        ${this._archiveBusy || this._gitBusy || this._centralExport.pending ? "disabled" : ""}>
+                  Zugang speichern und prüfen
+                </button>
+                <button id="git-dialog-clear"
+                        ${this._archiveBusy || this._gitBusy || this._centralExport.pending ||
+                          !this._centralExport.repository_configured ? "disabled" : ""}>
+                  Zugang entfernen
+                </button>
+              </div>
+              <p class="note"><strong>Repository:</strong>
+                ${this._centralExport.repository ? this._escapeProject(this._centralExport.repository) : "Nicht eingerichtet"}.
+                <strong>Serverzugang:</strong>
+                ${this._centralExport.server_token_available ? "Vorhanden" : "Fehlt"}.
+              </p>
+              <p class="note">${this._escapeProject(this._archiveMessage)}</p>
+              <div class="dialog-actions">
+                <button id="git-export" ${this._gitBusy || this._centralExport.pending ||
+                  busy || (!valid && !validSuite) || op?.status !== "success" ||
+                  !this._gitAvailable || !this._gitConfigured ? "disabled" : ""}>
+                  Jetzt exportieren
+                </button>
+                <button id="git-retry" ${this._gitBusy || !this._centralExport.pending ||
+                  !this._gitConfigured || !this._gitAvailable ? "disabled" : ""}>
+                  Übertragung wiederholen
+                </button>
+                <button id="git-dialog-dismiss" ${this._archiveBusy || this._gitBusy ? "disabled" : ""}>
+                  Schließen
+                </button>
+              </div>
+              ${this._centralExport.pending ? `<p class="critical">Ein Export wartet auf Wiederholung.
+              Das Ziel darf bis zum Abschluss nicht gewechselt werden.</p>` : ""}
+              <p class="note">${this._escapeProject(this._gitStatus)}</p>
+              ${this._lastExport ? `<p><strong>Export-ID:</strong> ${this._escapeProject(this._lastExport.export_id)}
+              <strong>Zielpfad:</strong> ${this._escapeProject(this._lastExport.path)}</p>
+              <a class="git-link" href="${this._lastExport.file_url}" target="_blank"
+                 rel="noopener noreferrer">Privaten Export öffnen</a>` : ""}
+            </section>
+          </div>` : ""}
         <p class="note">Während eines laufenden Tests wird der Status etwa alle 1,5 Sekunden aktualisiert. Im Leerlauf erfolgt keine regelmäßige Abfrage. Nach einem Home-Assistant-Neustart bleiben abgeschlossene Aufträge im begrenzten Verlauf abrufbar. Vorher laufende Testaufträge erscheinen als unterbrochen und werden nicht neu gestartet.</p>
       </main>
     `;
@@ -843,8 +931,11 @@ class DRAV2DevLabPanel extends HTMLElement {
     s.querySelector("#all")?.addEventListener("click", () => this._runSequence("full"));
     s.querySelector("#refresh")?.addEventListener("click", () => this._refresh());
     s.querySelector("#json-download")?.addEventListener("click", () => this._downloadJSON());
-    s.querySelector("#archive-save")?.addEventListener("click", () => this._setArchiveRepository(false));
-    s.querySelector("#archive-clear")?.addEventListener("click", () => this._setArchiveRepository(true));
+    s.querySelector("#git-dialog-open")?.addEventListener("click", () => this._openGitDialog());
+    s.querySelector("#git-dialog-close")?.addEventListener("click", () => this._closeGitDialog());
+    s.querySelector("#git-dialog-dismiss")?.addEventListener("click", () => this._closeGitDialog());
+    s.querySelector("#git-dialog-save")?.addEventListener("click", () => this._configureArchiveDialog());
+    s.querySelector("#git-dialog-clear")?.addEventListener("click", () => this._clearArchiveDialog());
     s.querySelector("#git-export")?.addEventListener("click", () => this._exportGit(false));
     s.querySelector("#git-retry")?.addEventListener("click", () => this._exportGit(true));
     s.querySelector("#settings-save")?.addEventListener("click", () => this._saveSettings());
@@ -871,6 +962,15 @@ class DRAV2DevLabPanel extends HTMLElement {
         button.textContent = "Speichern";
       });
     });
+    if (this._gitDialogOpen) {
+      const repoInput = s.querySelector("#git-dialog-repo");
+      const tokenInput = s.querySelector("#git-dialog-token");
+      if (repoInput && unsentRepository !== null) repoInput.value = unsentRepository;
+      if (tokenInput && unsentToken) tokenInput.value = unsentToken;
+      s.querySelector("#git-export-dialog")?.addEventListener("keydown", event => {
+        if (event.key === "Escape") this._closeGitDialog();
+      });
+    }
     this._syncCountdownTimer();
   }
 }
