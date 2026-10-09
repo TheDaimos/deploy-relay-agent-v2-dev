@@ -66,3 +66,31 @@ Der bisherige, für Diagnoseexporte verwendete Pfad \`.deploy-relay/diagnostics/
 - **JSON-Download:** Ein erfolgreich abgeschlossener Diagnose-Test kann unabhängig von GitHub als bereinigte JSON-Datei heruntergeladen werden. Die Datei enthält das vollständige verpflichtende Metadatenschema und eine einmalige Export-ID; kein Token, kein Upload, keine Warteschlange.
 - **Adminschutz:** Frei von GitHub-Konfiguration bedeutet nicht öffentlich für fremde Nutzer. Download und Einstellungen setzen eine HA-Administratorberechtigung voraus.
 - **Prüfung:** Künstliche Fälle für leeres Ziel, eigenständig funktionierenden Download, private Repositoryauswahl, unzulässige Namen, fehlende GitHub-Rechte, Archivkollision und unterbundenen Zielwechsel.
+
+
+## Erweiterung 0.1.16: Kompakter Exportdialog
+
+Die Diagnose-Hauptansicht zeigt nur noch „JSON herunterladen“ und „Git-Export“.
+Der Git-Export öffnet einen eigenen Dialog für die manuelle Auswahl eines privaten
+GitHub-Repositories, die einmalige Eingabe des dazugehörigen Tokens sowie
+Speichern, Prüfen, Exportieren, Wiederholen und Entfernen der Konfiguration.
+Es gibt weiterhin **kein vorbelegtes Repository**.
+
+Die GitHub-Zugangsdaten werden beim Einrichten über die authentifizierte
+Home-Assistant-WebSocket-Verbindung an den Server übertragen und dort in
+einem separaten privaten Home-Assistant-Speicher unter
+`deploy_relay_v2_dev.archive_credentials` hinterlegt. Sie werden nicht
+an die Oberfläche zurückgegeben. Die Eingabe ist maskiert und wird nach
+dem Absenden und beim Schließen gelöscht. Die HA-Verbindung sollte mit
+HTTPS/WSS geschützt sein; HA-`.storage` wird nicht automatisch verschlüsselt.
+
+Ein Wechsel des Repositories bei noch ausstehendem Export bleibt untersagt.
+Ein neuer Token für dasselbe Repository darf dagegen gesetzt werden, um
+die bestehende Exportkennung und das bisherige Ziel bei der Wiederholung
+zu erhalten. Fehlende Rechte oder fehlgeschlagene Verbindung erzeugen
+keinen öffentlichen Ersatzexport.
+
+Lokaler JSON-Download bleibt unabhängig von GitHub und dem eingerichteten
+Repository verfügbar. Alle technischen Anwendungsmetadaten bleiben erhalten.
+Die vorhandene serverseitige Umgebungsvariable bleibt als optionaler Altweg
+erhalten. Ein tatsächlicher HA-Realtest ist noch ausstehend.
