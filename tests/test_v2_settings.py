@@ -71,6 +71,115 @@ class SettingsTests(unittest.IsolatedAsyncioTestCase):
                 await self.settings.save(item)
         self.assertEqual(self.store.writes, 0)
 
+    async def test_startup_reduction_persists_and_warns_after_restart(self):
+        await self.settings.startup_check(12, probe=False)
+        await self.settings.save({
+            "mode": "controlled", "max_readonly_jobs": 3,
+            "max_worker_processes": 10
+        })
+        restarted = m.V2Settings(self.store)
+        await restarted.load()
+        await restarted.startup_check(2, probe=False)
+        self.assertEqual(restarted.snapshot()["max_worker_processes"], 2)
+        self.assertEqual(restarted.core_status()["available_cores"], 2)
+        warning = restarted.core_status()["warning"]
+        self.assertEqual(warning, {
+            "code": "cpu_limit_reduced", "previous_available": 12,
+            "available_cores": 2, "reduced_from": 10,
+        })
+        self.assertEqual(restarted.effective()["active_readonly_limit"], 1)
+        self.assertEqual(restarted.effective()["mutation_limit"], 0)
+        persisted = m.V2Settings(self.store)
+        await persisted.load()
+        self.assertEqual(persisted.core_status()["warning"], warning)
+        self.assertEqual(persisted.snapshot()["max_worker_processes"], 2)
+        after = self.store.writes
+        await persisted.startup_check(2, probe=False)
+        self.assertEqual(self.store.writes, after)
+
+    async def test_increase_is_silent_and_never_restores_earlier_preference(self):
+        await self.settings.startup_check(4, probe=False)
+        await self.settings.save({**m.DEFAULT, "max_worker_processes": 3})
+        await self.settings.startup_check(12, probe=False)
+        self.assertEqual(self.settings.core_status()["available_cores"], 12)
+        self.assertIsNone(self.settings.core_status()["warning"])
+        self.assertEqual(self.settings.snapshot()["max_worker_processes"], 3)
+
+    async def test_first_observation_clamps_without_false_previous_hardware(self):
+        await self.settings.startup_check(2, probe=False)
+        self.assertEqual(self.settings.snapshot()["max_worker_processes"], 2)
+        self.assertEqual(self.settings.core_status()["warning"]["previous_available"], None)
+        self.assertEqual(self.settings.core_status()["warning"]["reduced_from"], 4)
+
+    async def test_warning_can_be_acknowledged_without_new_reduction(self):
+        await self.settings.startup_check(2, probe=False)
+        await self.settings.acknowledge_warning()
+        self.assertIsNone(self.settings.core_status()["warning"])
+        await self.settings.startup_check(2, probe=False)
+        self.assertIsNone(self.settings.core_status()["warning"])
+        await self.settings.startup_check(12, probe=False)
+        self.assertIsNone(self.settings.core_status()["warning"])
+        self.assertEqual(self.settings.snapshot()["max_worker_processes"], 2)
+
+    async def test_warning_survives_cpu_growth_until_user_ack(self):
+        await self.settings.startup_check(2, probe=False)
+        before = self.settings.core_status()["warning"]
+        await self.settings.startup_check(12, probe=False)
+        self.assertEqual(self.settings.core_status()["warning"], before)
+        await self.settings.acknowledge_warning()
+        self.assertIsNone(self.settings.core_status()["warning"])
+
+    async def test_manual_save_cannot_exceed_available_cpu_count(self):
+        await self.settings.startup_check(3, probe=False)
+        before = self.store.writes
+        with self.assertRaises(m.SettingsError):
+            await self.settings.save({**self.settings.snapshot(), "max_worker_processes": 4})
+        self.assertEqual(self.store.writes, before)
+        self.assertEqual(self.settings.snapshot()["max_worker_processes"], 3)
+        await self.settings.save({**self.settings.snapshot(), "max_worker_processes": 1})
+        self.assertIsNone(self.settings.core_status()["warning"])
+
+    async def test_legacy_schema_migrates_without_loss_on_startup(self):
+        legacy = {"mode": "controlled", "max_readonly_jobs": 4, "max_worker_processes": 8}
+        old_store = Store({"schema": m.LEGACY_SCHEMA, "settings": legacy})
+        upgraded = m.V2Settings(old_store)
+        await upgraded.load()
+        self.assertEqual(upgraded.snapshot(), legacy)
+        self.assertEqual(old_store.writes, 0)
+        await upgraded.startup_check(12, probe=False)
+        self.assertEqual(old_store.value["schema"], m.SCHEMA)
+        self.assertEqual(old_store.value["settings"], legacy)
+        self.assertEqual(old_store.value["available_cores"], 12)
+
+    async def test_invalid_or_missing_detection_never_overwrites(self):
+        await self.settings.save({**m.DEFAULT, "max_worker_processes": 11})
+        before = self.store.writes
+        await self.settings.startup_check(None, probe=False)
+        self.assertEqual(self.store.writes, before)
+        self.assertEqual(self.settings.snapshot()["max_worker_processes"], 11)
+        for value in (0, -1, 4097, True, 2.5):
+            with self.assertRaises(m.SettingsError):
+                await self.settings.startup_check(value, probe=False)
+        self.assertEqual(self.store.writes, before)
+
+    async def test_failed_startup_persistence_is_fail_closed(self):
+        self.store.fail = True
+        with self.assertRaises(m.SettingsError):
+            await self.settings.startup_check(2, probe=False)
+        self.assertIsNone(self.settings.core_status()["available_cores"])
+        self.assertEqual(self.settings.snapshot()["max_worker_processes"], 4)
+
+    async def test_detect_affinity_is_narrower_than_host_count(self):
+        from unittest.mock import patch
+        with patch.object(m.os, "cpu_count", return_value=12):
+            with patch.object(m.os, "sched_getaffinity", create=True, return_value={0, 1}):
+                self.assertEqual(m.detect_available_cores(), 2)
+            with patch.object(m.os, "sched_getaffinity", create=True, side_effect=OSError):
+                self.assertEqual(m.detect_available_cores(), 12)
+        with patch.object(m.os, "cpu_count", return_value=None):
+            with patch.object(m.os, "sched_getaffinity", create=True, side_effect=OSError):
+                self.assertIsNone(m.detect_available_cores())
+
     async def test_bad_store_never_autoresets(self):
         for value in ({"schema": "old", "settings": dict(m.DEFAULT)},
                       {"schema": m.SCHEMA, "settings": {"mode": "controlled"}},
