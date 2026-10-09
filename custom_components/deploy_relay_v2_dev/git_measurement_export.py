@@ -561,6 +561,38 @@ class MeasurementGitExport:
                 raise GitMeasurementError("central archive permission not configured on server")
             return await self._upload_pending()
 
+    async def _ensure_private_repository(self, token: str) -> None:
+        """Fail closed if the fixed archive has become public or inaccessible."""
+        try:
+            async with asyncio.timeout(8):
+                async with self._session.get(
+                    f"https://api.github.com/repos/{REPOSITORY}",
+                    allow_redirects=False,
+                    headers={
+                        "Accept": "application/vnd.github+json",
+                        "Authorization": f"Bearer {token}",
+                        "User-Agent": "DRA-V2-Private-Central-Export",
+                        "X-GitHub-Api-Version": "2022-11-28",
+                    },
+                ) as response:
+                    if response.status != 200:
+                        raise GitMeasurementError(
+                            "central archive cannot verify private repository access"
+                        )
+                    payload = await response.content.read(8193)
+                    if len(payload) > 8192:
+                        raise GitMeasurementError("central archive repository response too large")
+                    metadata = json.loads(payload)
+        except GitMeasurementError:
+            raise
+        except Exception:
+            raise GitMeasurementError("central archive visibility unavailable") from None
+        if (type(metadata) is not dict or
+                metadata.get("full_name") != REPOSITORY or
+                metadata.get("private") is not True or
+                metadata.get("default_branch") != BRANCH):
+            raise GitMeasurementError("central archive is not confirmed private")
+
     async def _upload_pending(self) -> dict[str, str]:
         data = self._pending
         if data is None:
@@ -568,6 +600,7 @@ class MeasurementGitExport:
         token = self._token_provider()
         if type(token) is not str or not TOKEN_RE.fullmatch(token):
             raise GitMeasurementError("central archive permission not configured on server")
+        await self._ensure_private_repository(token)
         path = data["path"]
         url_path = "/".join(quote(piece, safe="") for piece in path.split("/"))
         url = f"https://api.github.com/repos/{REPOSITORY}/contents/{url_path}"
