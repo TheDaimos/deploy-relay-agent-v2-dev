@@ -75,3 +75,7 @@ Drei reale Speicher- und CPU-Messreihen mit V2 DEV 0.1.5 aus dem öffentlichen G
 ## V2-40-50 Mehrkern-Diagnose und Gesamttest (08.10.2026)
 
 In V2 DEV 0.1.7 wurde ein separater begrenzter 1/2/4-Prozesse-Vergleich und ein einziger 83-Schritte-Gesamttest vorbereitet. Ein vollständig geprüfter Bericht kann manuell als ein anonymisierter Git-Export veröffentlicht werden. Entwicklung und statische Abnahme sind vom HA-Echttest zu unterscheiden; Dokumentation: `docs/V2_40_MULTICORE_AND_SUITE_2026-10-08.md`. Keine V1-Änderung und keine Installationsfreigabe; V2-40-50 bleibt OFFEN.
+
+## V2-40-50 – Gesamttest auf HA-DEV nachgewiesen (09.10.2026)
+
+V2 DEV 0.1.7 ist durch einen echten anonymisierten öffentlichen `dra-v2-dev-git-suite.v1`-Export vom 09.10.2026 nachgewiesen: 40 Warteschritte, 40 Sekunden CPU-/RAM-Messung, anschließende erfolgreiche Mehrkernstufen 1/2/4, alles in einem Bericht. Die Durchsatzverhältnisse 2,11×/3,92× sind ausschließlich kurze synthetische Messungen, keine isolierte DRA-Leistung. Detailwerte und Sicherheitsbewertung unter `docs/V2_40_STATISCHE_ABNAHME_2026-10-08.md`. **V2-40-50 bleibt bis zur DRA-V1-Funktionsprüfung nach dem Versionswechsel und den weiteren Ressourcen-Gates offen**; keine V2-Schreibaktionen freigegeben.

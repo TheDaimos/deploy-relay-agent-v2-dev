@@ -190,3 +190,28 @@ Der Nutzer wünscht eine explizite Mehrkern-Diagnose (1, 2, 4 **separate** Arbei
 **Grenze:** höchstens vier Prozesse gleichzeitig, 4 Sekunden je Stufe, feste Testdaten ohne Projekt- oder Netzwerkzugriff, Kindprozesse bei Timeout/Abbruch konsequent beenden. Fehlende Messungen erscheinen als \`unavailable\`. Die 1/2/4-Prüfung beweist keine unabhängige CPU-Quote für DRA V1 oder V2.
 
 Details und verbindliche Negativtests: \`docs/V2_40_MULTICORE_AND_SUITE_2026-10-08.md\`. Vor HA-Installation weiterhin V1-Vorschau, CI-Prüfung und ausdrückliche Freigabe. **Noch keine HA-Realabnahme** dieses neuen Prüfpfads; V2-40-50 bleibt offen.
+
+
+### HA-Realtest V2 DEV 0.1.7 – Gesamttest und gemeinsamer Git-Export (09.10.2026)
+
+**Nachweis:** Das öffentliche Repository enthält unter `.deploy-relay/diagnostics/v2-dev/2026-10-09/20261009T054505Z-aeb0df4f.json` den über DRA V2 DEV 0.1.7 erzeugten, gemeinsamen Report `dra-v2-dev-git-suite.v1` (UTC 05:45:05; Git-Commit `2314bbbffaea72bd795218d123d4bd36b4ce5308`). Der Nutzer meldete den Export unmittelbar nach dem Gesamttest. **Der einzelne Bericht enthält alle vorgesehenen Teilresultate**; kein automatischer Git-Upload während der Tests nachgewiesen.
+
+| Metrik | Realwert |
+| --- | ---: |
+| Gesamttest-Modus | `full` |
+| Schreibgeschützter Wartetest | 40 Schritte (als abgeschlossene Gesamtauswertung dokumentiert) |
+| CPU-/Speichermessdauer | 40.057 ms |
+| Maximale Verzögerung | 1 ms |
+| Rechendurchläufe in der 20-s-Phase | 640 |
+| Prozess-CPU-Basis / Arbeit / Nachlauf | 733 / 1.235 / 718 ms |
+| HA-Prozess-RSS Start / Ende | 1.933.464 / 1.930.212 KiB |
+| HA-Prozess-RSS-Veränderung | −3.252 KiB, ungefähr −3,18 MiB |
+| Mehrkernstufe 1 | 1 Prozess, 400.000 Runden, 94 ms Wandzeit, 67 ms CPU |
+| Mehrkernstufe 2 | 2 Prozesse, 800.000 Runden, 89 ms Wandzeit, 138 ms CPU |
+| Mehrkernstufe 4 | 4 Prozesse, 1.600.000 Runden, 96 ms Wandzeit, 294 ms CPU |
+
+Alle drei Mehrkernstufen meldeten `ok`; `logical_cpus_visible = 12` und `affinity_cpus_visible = 12`. Der beobachtete **aggregierte Durchsatz** gegenüber 1 Prozess beträgt ungefähr **2,11×** (2 Prozesse) und **3,92×** (4 Prozesse). Die mehrfache synthetische Arbeit wurde parallel schneller verarbeitet; die Stufen laufen jedoch nur knapp 0,1 Sekunden und sind deshalb **kein langfristiger Mehrkern- oder Stabilitätsnachweis**. Start- und Verwaltungsaufwand ist in der Wandzeit enthalten; CPU-Zuordnung/Quoten und andere HA-Aktivitäten können die Ergebnisse beeinflussen.
+
+**Sicherheitsprüfung des öffentlichen JSON:** feste Schemaversion, nur CPU-/RAM-/Mehrkernzähler und harmlose Metadaten; keine Auftragskennung, kein Git-Token und keine Projektkonfiguration im veröffentlichten Report. DRA V1 und V2 sind weiterhin nicht unabhängig im Prozessspeicher messbar; `dra_v1_kib` / `dra_v2_kib` bleiben `null`.
+
+**Abnahmebewertung:** Gesamttest-Realpfad, alle drei Mehrkernstufen und gemeinsamer manueller Git-Export **PASS (ein erfolgreicher Lauf)**. V2-40-50 **noch nicht final geschlossen**, weil die anschließende DRA-V1-Funktionskontrolle, längerfristige Reproduzierbarkeit, HA-Reaktionszeit und E/A-Werte für die V2-0.1.7-Änderung nicht abschließend nachgewiesen sind. Der öffentliche Export belegt den Runtimebetrieb 0.1.7, aber nicht den genauen Installations- oder Neustartablauf. Keine neue HA-Installation, Neustartfreigabe, V2-PUB-Bereitstellung oder Merge hieraus ableiten.
