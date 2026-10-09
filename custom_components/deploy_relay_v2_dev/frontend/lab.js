@@ -23,6 +23,9 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._sourceBusy = false;
     this._sourceMessage = "";
     this._sourcePreview = null;
+    this._gitReadConfigured = false;
+    this._gitReadBusy = false;
+    this._gitReadMessage = "";
     this._v1Candidates = null;
     this._gitConfigured = false;
     this._gitAvailable = false;
@@ -154,6 +157,7 @@ class DRAV2DevLabPanel extends HTMLElement {
       this._settings = data.settings || this._settings;
       this._cpuStatus = data.cpu_status || this._cpuStatus;
       this._gitConfigured = data.git_configured === true;
+      this._gitReadConfigured = data.git_read_configured === true;
       this._gitAvailable = data.git_available === true;
       this._error = "";
     } catch (_error) {
@@ -331,6 +335,34 @@ class DRAV2DevLabPanel extends HTMLElement {
     }
   }
 
+
+
+  async _configureGitRead(clear=false) {
+    if (!this._hass || this._gitReadBusy) return;
+    const token = clear ? null : this.shadowRoot?.querySelector("#source-read-token")?.value?.trim();
+    if (!clear && (!token || token.length < 10 || token.length > 512)) {
+      this._gitReadMessage = "Bitte einen gültigen GitHub-Lesezugang eingeben.";
+      this._render();
+      return;
+    }
+    this._gitReadBusy = true;
+    try {
+      const result = await this._hass.callWS(clear ? {
+        type:"deploy_relay_v2_dev/git_read/clear",
+      } : {
+        type:"deploy_relay_v2_dev/git_read/configure", token,
+      });
+      this._gitReadConfigured = result.configured === true;
+      this._gitReadMessage = clear ?
+        "V2-Lesezugang entfernt. Private Quellen sind nicht mehr prüfbar." :
+        "Separater V2-GitHub-Lesezugang gespeichert.";
+    } catch (_error) {
+      this._gitReadMessage = "GitHub-Lesezugang konnte nicht geändert werden.";
+    } finally {
+      this._gitReadBusy = false;
+      if (this.isConnected) this._render();
+    }
+  }
 
   async _sourceCheck(button) {
     if (!button || !this._hass || this._sourceBusy) return;
@@ -644,12 +676,24 @@ class DRAV2DevLabPanel extends HTMLElement {
           <p class="note">${this._escapeProject(this._projectMessage)}</p>
           ${this._projects.length ? `<div class="table-wrap"><table><thead><tr><th>Projekt</th><th>Herkunft</th><th>Sicherungen behalten</th></tr></thead>
           <tbody>${projectRows}</tbody></table></div>` : `<p class="note">Noch keine Projekte in V2 hinterlegt.</p>`}
+          <p><strong>Privater GitHub-Lesezugang für V2</strong></p>
+          <p class="note">Optional für private Projekt-Repositories. Nur einen
+          eigenen GitHub-Token mit möglichst minimalem Leserecht auf die
+          benötigten Repositories verwenden. Niemals V1-Zugangsdaten oder
+          den separaten Git-Diagnoseexport-Zugang wiederverwenden.</p>
+          <label>V2-Lesetoken (wird nicht wieder angezeigt)
+            <input id="source-read-token" class="project-text" type="password"
+            autocomplete="new-password" placeholder="Separater GitHub-Token" /></label>
+          <button id="git-read-save" ${this._gitReadBusy ? "disabled" : ""}>Lesezugang speichern</button>
+          <button id="git-read-clear" ${!this._gitReadConfigured || this._gitReadBusy ? "disabled" : ""}>Lesezugang entfernen</button>
+          <p class="note">V2-Lesezugang: ${this._gitReadConfigured ? "eingerichtet" : "nicht eingerichtet"}.
+          ${this._escapeProject(this._gitReadMessage)}</p>
           <p><strong>GitHub-Quellprüfung (nur lesend)</strong></p>
           <label>Quellzweig (optional; leer = Standardzweig)
             <input id="source-ref" class="project-text" placeholder="deploy/dev" autocomplete="off" /></label>
           <p class="note">Über „Git-Quelle prüfen“ beim jeweiligen Projekt wird die
           öffentliche GitHub-Quelle geprüft. Keine V1-Zugangsdaten, keine Installation.
-          Private Repositories benötigen später einen separaten V2-Lesezugang.</p>
+          Private Repositories benötigen den separat eingerichteten V2-Lesezugang.</p>
           <p class="note">${this._escapeProject(this._sourceMessage)}</p>
           ${sourceReport ? `<div class="source-report"><strong>Prüfung: ${this._escapeProject(sourceReport.repository)}</strong>
             <p>Quellzweig: ${this._escapeProject(sourceReport.source_ref)}
@@ -714,6 +758,8 @@ class DRAV2DevLabPanel extends HTMLElement {
     }));
     s.querySelectorAll(".preselect-toggle")?.forEach(button => button.addEventListener("click", () => this._togglePreselect(button)));
     s.querySelectorAll(".source-check")?.forEach(button => button.addEventListener("click", () => this._sourceCheck(button)));
+    s.querySelector("#git-read-save")?.addEventListener("click", () => this._configureGitRead(false));
+    s.querySelector("#git-read-clear")?.addEventListener("click", () => this._configureGitRead(true));
     s.querySelector("#project-preview")?.addEventListener("click", () => this._projectAction("v1_preview"));
     s.querySelector("#project-import")?.addEventListener("click", () => this._projectAction("import_v1"));
     s.querySelector("#project-cancel")?.addEventListener("click", () => { this._v1Candidates = null; this._render(); });
