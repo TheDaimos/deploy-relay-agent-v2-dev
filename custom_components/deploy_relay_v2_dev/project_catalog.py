@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import re
+from collections.abc import Mapping
 from typing import Protocol
 
 SCHEMA = "dra-v2-dev-projects.v1"
@@ -100,13 +101,13 @@ def v1_proposals(config_entries: object) -> list[dict[str, object]]:
     records: dict[str, dict[str, object]] = {}
     for entry in v1_entries:
         subentries = getattr(entry, "subentries", None)
-        if not isinstance(subentries, dict):
+        if not isinstance(subentries, Mapping):
             continue
         for sub in subentries.values():
             if getattr(sub, "subentry_type", None) != "project":
                 continue
             data = getattr(sub, "data", None)
-            if not isinstance(data, dict):
+            if not isinstance(data, Mapping):
                 raise CatalogError("V1 project metadata unavailable")
             candidate = proposal(
                 data.get("repository"),
