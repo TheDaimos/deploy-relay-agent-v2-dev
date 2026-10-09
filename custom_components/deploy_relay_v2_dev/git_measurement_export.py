@@ -22,6 +22,7 @@ STANDARD_SCHEMA = "daimos-project-log-export-v1"
 QUEUE_SCHEMA = "dra-v2-dev-central-export-queue.v2"
 LEGACY_QUEUE_SCHEMA = "dra-v2-dev-central-export-queue.v1"
 SERVER_TOKEN_ENV = "DRA_V2_CENTRAL_EXPORT_TOKEN"
+CREDENTIAL_SCHEMA = "dra-v2-dev-archive-credentials.v1"
 BRANCH = "main"
 ROOT = "exports/deploy-relay-agent-v2"
 MEASUREMENT_SCHEMA = "dra-v2-dev-measurement.v2"
@@ -496,17 +497,21 @@ def _validate_pending(value: object) -> dict | None:
 class MeasurementGitExport:
     """Private opt-in archive export with no predefined destination repository.
 
-    GitHub secrets come only from the HA server environment. Neither stored
-    archive preferences nor exported JSON ever contain a GitHub credential.
+    Credentials may be entered once via authenticated HA websocket and are
+    immediately stored in an independent private HA server Store, or supplied
+    by the legacy environment variable. Neither queue nor exports contain keys.
     An unsent report is bound to its original repository and cannot be sent
     elsewhere by changing preferences.
     """
 
     def __init__(self, store: SecretStore, session: object, *,
-                 token_provider=None) -> None:
+                 token_provider=None, credential_store=None) -> None:
         self._store = store
         self._session = session
         self._token_provider = token_provider or (lambda: os.environ.get(SERVER_TOKEN_ENV))
+        self._credential_store = credential_store
+        self._credential_repository: str | None = None
+        self._credential_token: str | None = None
         self._lock = asyncio.Lock()
         self._ready = False
         self._repository: str | None = None
@@ -520,13 +525,21 @@ class MeasurementGitExport:
     def repository(self) -> str | None:
         return self._repository
 
-    @property
-    def server_token_available(self) -> bool:
+    def _current_token(self) -> str | None:
+        """Never reuse a saved token for a different repository."""
+        if self._credential_repository is not None:
+            if self._credential_repository != self._repository:
+                return None
+            return self._credential_token
         try:
             token = self._token_provider()
         except Exception:
-            return False
-        return type(token) is str and bool(TOKEN_RE.fullmatch(token))
+            return None
+        return token if type(token) is str and bool(TOKEN_RE.fullmatch(token)) else None
+
+    @property
+    def server_token_available(self) -> bool:
+        return self._current_token() is not None
 
     @property
     def configured(self) -> bool:
@@ -573,6 +586,25 @@ class MeasurementGitExport:
                 raise GitMeasurementError("central export target mismatch")
         else:
             raise GitMeasurementError("central export configuration schema invalid")
+        credential_repo = None
+        credential_token = None
+        if self._credential_store is not None:
+            try:
+                credentials = await self._credential_store.async_load()
+            except Exception:
+                raise GitMeasurementError("private archive credentials unavailable") from None
+            if credentials is not None:
+                if (type(credentials) is not dict or set(credentials) !=
+                        {"schema", "repository", "token"} or
+                        credentials["schema"] != CREDENTIAL_SCHEMA):
+                    raise GitMeasurementError("private archive credential schema invalid")
+                credential_repo = validate_archive_repository(credentials["repository"])
+                credential_token = credentials["token"]
+                if (type(credential_token) is not str or
+                        not TOKEN_RE.fullmatch(credential_token)):
+                    raise GitMeasurementError("private archive credential invalid")
+        self._credential_repository = credential_repo
+        self._credential_token = credential_token
         self._repository = repository
         self._pending = pending
         self._ready = True
@@ -594,6 +626,38 @@ class MeasurementGitExport:
         self._repository = repository
         self._pending = pending
 
+    async def configure_archive(self, repository: str, token: str) -> dict:
+        """Verify an explicitly entered private GitHub destination and secret.
+
+        The token is presented once by an HA admin over WebSocket, then only
+        stored server-side in the independent HA credential Store. Changes do
+        not affect an unfinished diagnostic. Failure cannot redirect a token
+        to a different previously configured repository.
+        """
+        selected = validate_archive_repository(repository)
+        if type(token) is not str or not TOKEN_RE.fullmatch(token):
+            raise GitMeasurementError("invalid GitHub archive credential")
+        async with self._lock:
+            if not self._ready or self._credential_store is None:
+                raise GitMeasurementError("private archive credentials unavailable")
+            if self._pending is not None:
+                raise GitMeasurementError("pending archive export must be resolved first")
+            # Establish privacy and read access before accepting configuration.
+            await self._ensure_private_repository(token, selected)
+            try:
+                await self._credential_store.async_save({
+                    "schema": CREDENTIAL_SCHEMA,
+                    "repository": selected,
+                    "token": token,
+                })
+            except Exception:
+                raise GitMeasurementError("private archive credential could not be saved") from None
+            self._credential_repository = selected
+            self._credential_token = token
+            if self._repository != selected:
+                await self._persist(selected, None)
+            return self.status()
+
     async def set_repository(self, repository: str) -> dict:
         """Explicit admin selection; cannot redirect a pending report."""
         selected = validate_archive_repository(repository)
@@ -612,6 +676,15 @@ class MeasurementGitExport:
                 raise GitMeasurementError("central archive unavailable")
             if self._pending is not None:
                 raise GitMeasurementError("finish pending export before changing archive")
+            # Revoke the saved credential first so an interrupted clear never
+            # leaves a reusable token paired with an unintended destination.
+            if self._credential_store is not None and self._credential_repository is not None:
+                try:
+                    await self._credential_store.async_save(None)
+                except Exception:
+                    raise GitMeasurementError("private archive credential could not be cleared") from None
+                self._credential_repository = None
+                self._credential_token = None
             if self._repository is not None:
                 await self._persist(None, None)
             return self.status()
@@ -710,8 +783,8 @@ class MeasurementGitExport:
         data = self._pending
         if data is None:
             raise GitMeasurementError("no local export awaiting upload")
-        token = self._token_provider()
-        if type(token) is not str or not TOKEN_RE.fullmatch(token):
+        token = self._current_token()
+        if token is None:
             raise GitMeasurementError("central archive permission not configured on server")
         repository = data["repository"]
         if self._repository != repository:
