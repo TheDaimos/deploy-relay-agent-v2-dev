@@ -56,10 +56,12 @@ def _local_inventory(config_root: Path, groups: list[dict], *, max_files: int, m
             raise PreflightError("unsafe local target")
         for directory, dirs, files in os.walk(target, topdown=True, followlinks=False):
             parent = Path(directory)
-            for d in dirs:
+            for d in dirs[:]:
                 info = (parent / d).lstat()
                 if not S_ISDIR(info.st_mode) or S_ISLNK(info.st_mode):
                     raise PreflightError("unsafe local directory")
+                if d == "__pycache__":
+                    dirs.remove(d)  # Only compiled Python cache: never part of a deploy plan.
             for filename in files:
                 item = parent / filename
                 suffix = item.relative_to(target).as_posix()
@@ -74,7 +76,10 @@ def _local_inventory(config_root: Path, groups: list[dict], *, max_files: int, m
                     raise PreflightError("local inventory exceeds allowed limits")
                 # O_NOFOLLOW also rejects a final-component symlink race.
                 flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
-                fd = os.open(item, flags)
+                try:
+                    fd = os.open(item, flags)
+                except OSError:
+                    raise PreflightError("unsafe or unreadable local file") from None
                 try:
                     opened = os.fstat(fd)
                     if (not S_ISREG(opened.st_mode) or opened.st_nlink != 1 or
@@ -159,6 +164,10 @@ async def inspect_public_repository(session, config_root: Path, repository: str,
         manifest_bytes = base64.b64decode(manifest_obj["content"], validate=False)
     except (ValueError, binascii.Error):
         raise PreflightError("manifest base64 invalid") from None
+    if (type(manifest_obj.get("size")) is not int or
+            manifest_obj["size"] != len(manifest_bytes) or
+            manifest_obj.get("sha") != git_blob_sha(manifest_bytes)):
+        raise PreflightError("manifest content integrity failed")
     manifest = parse_manifest(manifest_bytes, repository=repository)
     tree_obj = await _get(session, base + "/git/trees/" + tree_sha + "?recursive=1")
     if tree_obj.get("truncated") is not False or type(tree_obj.get("tree")) is not list:
