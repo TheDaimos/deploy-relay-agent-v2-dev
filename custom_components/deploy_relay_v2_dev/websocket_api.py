@@ -43,6 +43,7 @@ async def async_state(hass, connection, msg):
         "measurement": runtime.measurement.summary(),
         "suite": runtime.suite.summary(),
         "git_configured": runtime.git_export.configured,
+        "central_export": runtime.git_export.status(),
         "git_available": runtime.git_export.available,
         "git_read_configured": runtime.source_auth.configured,
         "projects": runtime.projects.list(),
@@ -182,32 +183,6 @@ async def async_get(hass, connection, msg):
 
 
 @websocket_api.websocket_command({
-    probatio.Required("type"): "deploy_relay_v2_dev/test/git_configure",
-    probatio.Required("clear"): bool,
-    probatio.Required("token"): str,
-})
-@websocket_api.require_admin
-@websocket_api.async_response
-async def async_git_configure(hass, connection, msg):
-    runtime = _runtime(hass)
-    if runtime is None:
-        connection.send_error(msg["id"], "not_ready", "Testlabor nicht gestartet")
-        return
-    try:
-        await runtime.git_export.configure(
-            token=msg["token"], clear=msg["clear"],
-        )
-    except GitMeasurementError:
-        connection.send_error(msg["id"], "invalid_export", "Git-Zugang konnte nicht gespeichert werden")
-        return
-    connection.send_result(msg["id"], {
-        "configured": runtime.git_export.configured,
-        "repository": "TheDaimos/deploy-relay-agent-v2-dev",
-        "branch": "main",
-    })
-
-
-@websocket_api.websocket_command({
     probatio.Required("type"): "deploy_relay_v2_dev/test/git_export",
 })
 @websocket_api.require_admin
@@ -237,11 +212,37 @@ async def async_git_export(hass, connection, msg):
     try:
         result = await runtime.git_export.export(summary, version=VERSION)
     except GitMeasurementError:
-        connection.send_error(msg["id"], "export_failed", "Git-Export nicht möglich; Zugang und Repository prüfen")
+        connection.send_error(
+            msg["id"], "archive_export_failed",
+            "Privater Zentralexport fehlgeschlagen. Zugang/Schreibrechte prüfen. "
+            "Ein vorbereiteter Export bleibt lokal für einen erneuten Versuch erhalten.",
+        )
         return
     connection.send_result(msg["id"], result)
 
 
+
+
+@websocket_api.websocket_command({
+    probatio.Required("type"): "deploy_relay_v2_dev/test/git_retry",
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def async_git_retry(hass, connection, msg):
+    """Explicitly retry a locally retained report; never fabricate new export ID."""
+    runtime = _runtime(hass)
+    if runtime is None:
+        connection.send_error(msg["id"], "not_ready", "Zentralexport nicht bereit")
+        return
+    try:
+        result = await runtime.git_export.retry_pending()
+    except GitMeasurementError:
+        connection.send_error(
+            msg["id"], "archive_retry_failed",
+            "Erneute private Übertragung fehlgeschlagen. Der lokale Export bleibt erhalten.",
+        )
+        return
+    connection.send_result(msg["id"], result)
 
 
 @websocket_api.websocket_command({
@@ -544,7 +545,7 @@ def async_register_commands(hass: HomeAssistant) -> None:
     if state.get("commands_registered"):
         return
     for handler in (async_state, async_start, async_measure, async_multicore,
-                    async_all, async_get, async_git_configure, async_git_export,
+                    async_all, async_get, async_git_export, async_git_retry,
                     async_projects_list, async_projects_v1_preview,
                     async_projects_import_v1, async_projects_add,
                     async_projects_retention, async_projects_preselect,

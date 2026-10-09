@@ -56,13 +56,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     except JournalError:
         return False
     git_export = MeasurementGitExport(
-        Store(hass, 1, "deploy_relay_v2_dev.git_auth"),
+        Store(hass, 1, "deploy_relay_v2_dev.archive_queue"),
         async_get_clientsession(hass),
     )
     try:
         await git_export.load()
     except GitMeasurementError:
-        # Git-only credentials must not block journal recovery or V1.
+        # Corrupt local export queue must never be silently overwritten or forwarded.
         # A damaged configuration is never silently overwritten.
         pass
     projects = ProjectCatalog(Store(hass, 1, "deploy_relay_v2_dev.projects"))
