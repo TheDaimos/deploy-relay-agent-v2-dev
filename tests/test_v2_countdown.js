@@ -179,19 +179,29 @@ panel._downloadJSON().then(() => {
   assert.equal(panel._downloadStatus, "JSON-Download gestartet: " + filename);
   assert.equal(panel._centralExport.repository, null);
 
+// Main Git button is disabled without configured credentials, even with diagnostics.
+panel._diagnosticsExportReady = true;
+panel._gitAvailable = true;
+panel._render();
+assert(/id="git-export"[^>]*disabled/.test(panel.shadowRoot.innerHTML));
+assert(panel.shadowRoot.innerHTML.includes('id="git-dialog-open"'));
 panel._openGitDialog();
 assert.equal(panel._gitDialogOpen, true);
 assert(panel.shadowRoot.innerHTML.includes('role="dialog"'));
-assert(panel.shadowRoot.innerHTML.includes("GitHub-Token (wird nicht wieder angezeigt)"));
-assert(panel.shadowRoot.innerHTML.includes("Zugang speichern und prüfen"));
+assert(panel.shadowRoot.innerHTML.includes("Es gibt kein Standardrepository."));
+assert(panel.shadowRoot.innerHTML.includes("GitHub-Token"));
+assert(panel.shadowRoot.innerHTML.includes("Speichern & prüfen"));
 assert(!panel.shadowRoot.innerHTML.includes("github_pat_SECRET"));
 panel.shadowRoot.token.value = "github_pat_SECRET";
+panel.shadowRoot.repo.value = undefined; // real input missing after DOM remount
 panel._render();
+assert(!panel.shadowRoot.innerHTML.includes('value="undefined"'),
+       "missing input must never overwrite remembered repository");
 assert.equal(panel.shadowRoot.token.value, "github_pat_SECRET",
-             "periodic HA refresh must not lose an unsent token");
+             "periodic HA refresh must preserve only transient unsent input");
 panel._closeGitDialog();
 assert.equal(panel._gitDialogOpen, false);
-assert.equal(panel.shadowRoot.token.value, "", "closing discards transient secret");
+assert.equal(panel.shadowRoot.token.value, "", "closing discards unsent secret");
 panel._openGitDialog();
 panel.shadowRoot.repo.value = "MyPrivate/Archive";
 panel.shadowRoot.token.value = "github_pat_FAKE_READ_WRITE";
@@ -205,19 +215,56 @@ panel._hass = {
     return {
       configured: true, repository_configured: true,
       server_token_available: true, pending: false,
-      repository: "MyPrivate/Archive",
+      repository: "MyPrivate/Archive", token_suffix: "WRITE",
     };
   },
 };
-Promise.resolve(panel._configureArchiveDialog()).then(() => {
+Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   assert.equal(credentialRequests, 1);
   assert.equal(panel.shadowRoot.token.value, "");
   assert.equal(panel._centralExport.repository, "MyPrivate/Archive");
+  assert.equal(panel._centralExport.token_suffix, "WRITE");
   assert.equal(panel._gitConfigured, true);
+  assert(panel.shadowRoot.innerHTML.includes("git-check-success"));
+  assert(panel.shadowRoot.innerHTML.includes("•••••WRITE"));
   assert(!panel.shadowRoot.innerHTML.includes("github_pat_FAKE_READ_WRITE"));
   panel._closeGitDialog();
   assert.equal(panel._gitDialogOpen, false);
-  console.log("DRA V2 archive popup and one-shot secret PASS");
+  panel._render();
+  assert(!/id="git-export"[^>]*disabled/.test(panel.shadowRoot.innerHTML),
+         "configured Git and completed diagnostic must enable export");
+  assert(panel.shadowRoot.innerHTML.includes("MyPrivate/Archive"));
+  assert(panel.shadowRoot.innerHTML.includes("•••••WRITE"));
+  // The saved token is reused after closing and reopening the dialog.
+  panel.shadowRoot.repo.value = undefined;
+  panel._openGitDialog();
+  assert(panel.shadowRoot.innerHTML.includes('value="MyPrivate/Archive"'));
+  panel.shadowRoot.repo.value = "MyPrivate/Archive";
+  panel.shadowRoot.token.value = "";
+  panel._hass = {
+    async callWS(msg) {
+      assert.equal(msg.type, "deploy_relay_v2_dev/archive_repository/check");
+      assert.equal(Object.hasOwn(msg, "token"), false);
+      return {
+        ...panel._centralExport, verified_private_read: true, branch: "main",
+        write_verified: false,
+      };
+    },
+  };
+  await panel._configureArchiveDialog();
+  assert(panel.shadowRoot.innerHTML.includes("✓ Zugang geprüft"));
+  assert(panel.shadowRoot.innerHTML.includes("git-check-success"));
+  // Failed verification must be explicit and red, keeping saved settings.
+  panel.shadowRoot.repo.value = "MyPrivate/Archive";
+  panel._hass = { async callWS() { throw new Error("synthetic 403"); } };
+  await panel._configureArchiveDialog();
+  assert(panel.shadowRoot.innerHTML.includes("git-check-error"));
+  assert(panel.shadowRoot.innerHTML.includes("Prüfung fehlgeschlagen"));
+  assert.equal(panel._centralExport.repository, "MyPrivate/Archive");
+  console.log("DRA V2 archive main action, stored suffix and dialog verify PASS");
+}).catch(error => {
+  console.error(error);
+  process.exitCode = 1;
 });
 
   console.log("DRA V2 JSON download without GitHub PASS");
