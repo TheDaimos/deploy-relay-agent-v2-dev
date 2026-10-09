@@ -28,6 +28,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._gitReadMessage = "";
     this._v1Candidates = null;
     this._gitConfigured = false;
+    this._centralExport = {configured:false,pending:false};
     this._gitAvailable = false;
     this._gitSetup = false;
     this._gitBusy = false;
@@ -157,6 +158,7 @@ class DRAV2DevLabPanel extends HTMLElement {
       this._settings = data.settings || this._settings;
       this._cpuStatus = data.cpu_status || this._cpuStatus;
       this._gitConfigured = data.git_configured === true;
+      this._centralExport = data.central_export || this._centralExport;
       this._gitReadConfigured = data.git_read_configured === true;
       this._gitAvailable = data.git_available === true;
       this._error = "";
@@ -238,54 +240,42 @@ class DRAV2DevLabPanel extends HTMLElement {
       this._schedule();
     }
   }
-  async _configureGit(clear = false) {
-    if (!this._hass || this._gitBusy || !this._gitAvailable) return;
-    const input = this.shadowRoot?.querySelector("#git-token");
-    const token = clear ? "" : String(input?.value || "").trim();
-    if (input) input.value = "";
-    if (!clear && !token) { this._gitStatus = "Bitte einen eigenen GitHub-Schreibtoken eingeben."; this._render(); return; }
+  async _exportGit(retry=false) {
+    if (!this._hass || this._gitBusy || this._busy || this._active()) return;
     this._gitBusy = true;
-    this._gitSetup = false;
-    this._gitStatus = "Git-Zugang wird gespeichert …";
+    this._gitStatus = retry ?
+      "Erneute private Übertragung des gespeicherten Exports läuft …" :
+      "Diagnosedaten werden ausschließlich ins private Zentralarchiv übertragen …";
+    this._lastExport = null;
     this._render();
     try {
-      const response = await this._hass.callWS({
-        type: "deploy_relay_v2_dev/test/git_configure", token, clear,
+      const result = await this._hass.callWS({
+        type: retry ? "deploy_relay_v2_dev/test/git_retry" : "deploy_relay_v2_dev/test/git_export"
       });
-      this._gitConfigured = response.configured === true;
-      this._gitStatus = clear ? "Git-Zugang entfernt." : "Git-Zugang eingerichtet.";
-      this._lastExport = null;
+      const path = String(result.path || "");
+      const eid = String(result.export_id || "");
+      const sha = String(result.commit_sha || "");
+      const expected = /^exports\/deploy-relay-agent-v2\/[0-9]{4}-[0-9]{2}\/diagnostics\/[0-9T-]+Z__deploy-relay-agent-v2__0\.1\.[0-9]{1,3}__diagnostics__[0-9a-f]{32}\.json$/;
+      if (result.repository !== "TheDaimos/Project-Log-And-Export" ||
+          result.branch !== "main" || !expected.test(path) ||
+          !/^[0-9a-f]{32}$/.test(eid) || !/^[0-9a-f]{40}$/.test(sha) ||
+          !path.endsWith("__" + eid + ".json")) {
+        throw new Error("invalid private archive confirmation");
+      }
+      this._lastExport = { file_url: result.file_url, path, export_id: eid, commit_sha: sha };
+      this._centralExport = {configured: this._gitConfigured, pending: false};
+      this._gitStatus = "Privater Export erfolgreich · Export-ID " + eid + " · " + path;
     } catch (_error) {
-      this._gitStatus = "Git-Zugang konnte nicht geändert werden."; 
+      this._gitStatus = retry ?
+        "Wiederholung fehlgeschlagen. Der bereinigte Export bleibt lokal erhalten; Schreibberechtigung und Netzwerk prüfen." :
+        "Privater Zentralexport fehlgeschlagen. Kein öffentliches Ersatzziel. Bei Übertragungsproblemen bleibt der vorbereitete Export lokal; erneut versuchen.";
+      this._centralExport = {...this._centralExport, pending: true};
     } finally {
       this._gitBusy = false;
       if (this.isConnected) this._render();
     }
   }
 
-  async _exportGit() {
-    if (!this._hass || this._gitBusy || this._busy || this._active()) return;
-    if (!this._gitConfigured) { this._gitSetup = true; this._render(); return; }
-    this._gitBusy = true;
-    this._gitStatus = "Messdaten werden nach Git exportiert …";
-    this._lastExport = null;
-    this._render();
-    try {
-      const result = await this._hass.callWS({ type: "deploy_relay_v2_dev/test/git_export" });
-      const url = String(result.file_url || "");
-      const sha = String(result.commit_sha || "");
-      if (!/^https:\/\/github\.com\/TheDaimos\/deploy-relay-agent-v2-dev\/blob\/main\/\.deploy-relay\/diagnostics\/v2-dev\/[0-9]{4}-[0-9]{2}-[0-9]{2}\/[0-9TZ-]+-[0-9a-f]{8}\.json$/.test(url) || !/^[0-9a-f]{40}$/.test(sha)) {
-        throw new Error("invalid confirmation");
-      }
-      this._lastExport = { file_url: url, commit_sha: sha };
-      this._gitStatus = "Export abgeschlossen · Commit " + sha.slice(0, 12);
-    } catch (_error) {
-      this._gitStatus = "Git-Export fehlgeschlagen. Zugang und Repository prüfen."; 
-    } finally {
-      this._gitBusy = false;
-      if (this.isConnected) this._render();
-    }
-  }
   _escapeProject(value) {
     return String(value ?? "").replace(/[&<>"\x27]/g, ch => ({
       "&": "&amp;", "<": "&lt;", ">": "&gt;",
@@ -721,19 +711,23 @@ class DRAV2DevLabPanel extends HTMLElement {
         </article>
 
         <article>
-          <strong>Messdaten nach Git exportieren</strong>
-          <p class="note">Wie bei DRA V1: separater GitHub-Schreibtoken und ein neues JSON-Dokument pro Export.
-          Das Zielrepository ist öffentlich. Übertragen werden ausschließlich anonyme Messzahlen, keine Projektdateien oder Auftragskennungen.</p>
-          <p>Git-Zugang: ${this._gitConfigured ? "Bereit" : "Nicht eingerichtet"}</p>
-          ${this._gitSetup ? `<label>Separater GitHub-Schreibtoken (nur V2-DEV-Repository)
-          <input class="git-token" id="git-token" type="password" autocomplete="off" spellcheck="false" placeholder="Fine-grained Token" /></label>
-          <button id="git-save" ${this._gitBusy ? "disabled" : ""}>Zugang speichern</button>
-          <button id="git-cancel">Abbrechen</button>` : ""}
-          <button id="git-setup" ${this._gitBusy || !this._gitAvailable ? "disabled" : ""}>Git-Export einrichten</button>
-          <button id="git-export" ${this._gitBusy || busy || (!valid && !validSuite) || op?.status !== "success" || !this._gitAvailable ? "disabled" : ""}>Messdaten nach Git exportieren</button>
-          ${this._gitConfigured ? `<button id="git-remove" ${this._gitBusy ? "disabled" : ""}>Git-Zugang entfernen</button>` : ""}
-          <p class="note">${this._gitStatus}</p>
-          ${this._lastExport ? `<a class="git-link" href="${this._lastExport.file_url}" target="_blank" rel="noopener noreferrer">Export in GitHub öffnen</a>` : ""}
+          <strong>Zentrales privates Diagnosearchiv</strong>
+          <p class="note">Verbindliches Ziel: TheDaimos/Project-Log-And-Export (privat).
+          Die technische Anwendungs-ID bleibt dauerhaft deploy-relay-agent-v2.
+          Der Übertragungszugang wird ausschließlich auf dem Home-Assistant-Server
+          über die Umgebungsvariable DRA_V2_CENTRAL_EXPORT_TOKEN bereitgestellt.
+          Es wird kein Token im Browser eingegeben oder angezeigt.</p>
+          <p>Serverseitige Berechtigung: ${this._gitConfigured ? "vorhanden" : "nicht eingerichtet"}.
+          ${this._centralExport.pending ? "Ein bereinigter Export wartet auf erneute Übertragung." : ""}</p>
+          <button id="git-export" ${this._gitBusy || this._centralExport.pending ||
+            busy || (!valid && !validSuite) || op?.status !== "success" ||
+            !this._gitAvailable || !this._gitConfigured ? "disabled" : ""}>Ins private Archiv exportieren</button>
+          <button id="git-retry" ${this._gitBusy || !this._centralExport.pending ||
+            !this._gitConfigured || !this._gitAvailable ? "disabled" : ""}>Gespeicherten Export erneut übertragen</button>
+          <p class="note">${this._escapeProject(this._gitStatus)}</p>
+          ${this._lastExport ? `<p><strong>Export-ID:</strong> ${this._escapeProject(this._lastExport.export_id)}
+          <strong>Zielpfad:</strong> ${this._escapeProject(this._lastExport.path)}</p>
+          <a class="git-link" href="${this._lastExport.file_url}" target="_blank" rel="noopener noreferrer">Privaten Export öffnen</a>` : ""}
         </article>
         <p class="note">Während eines laufenden Tests wird der Status etwa alle 1,5 Sekunden aktualisiert. Im Leerlauf erfolgt keine regelmäßige Abfrage. Nach einem Home-Assistant-Neustart bleiben abgeschlossene Aufträge im begrenzten Verlauf abrufbar. Vorher laufende Testaufträge erscheinen als unterbrochen und werden nicht neu gestartet.</p>
       </main>
@@ -743,11 +737,8 @@ class DRAV2DevLabPanel extends HTMLElement {
     s.querySelector("#multicore")?.addEventListener("click", () => this._runSequence("multicore"));
     s.querySelector("#all")?.addEventListener("click", () => this._runSequence("full"));
     s.querySelector("#refresh")?.addEventListener("click", () => this._refresh());
-    s.querySelector("#git-setup")?.addEventListener("click", () => { this._gitSetup = true; this._render(); });
-    s.querySelector("#git-save")?.addEventListener("click", () => this._configureGit(false));
-    s.querySelector("#git-remove")?.addEventListener("click", () => this._configureGit(true));
-    s.querySelector("#git-cancel")?.addEventListener("click", () => { this._gitSetup = false; this._render(); });
-    s.querySelector("#git-export")?.addEventListener("click", () => this._exportGit());
+    s.querySelector("#git-export")?.addEventListener("click", () => this._exportGit(false));
+    s.querySelector("#git-retry")?.addEventListener("click", () => this._exportGit(true));
     s.querySelector("#settings-save")?.addEventListener("click", () => this._saveSettings());
     s.querySelector("#cpu-warning-ack")?.addEventListener("click", () => this._ackCpuWarning());
     s.querySelector("#batch-preview")?.addEventListener("click", () => this._previewBatch());
