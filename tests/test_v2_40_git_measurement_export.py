@@ -146,6 +146,160 @@ class GitExportTests(unittest.IsolatedAsyncioTestCase):
         payload = base64.b64decode(request["json"]["content"])
         return url, request, json.loads(payload)
 
+    async def test_dialog_credentials_are_saved_only_in_private_server_store(self):
+        queue = FakeStore()
+        credentials = FakeStore()
+        writer = module.MeasurementGitExport(
+            queue, self.session, credential_store=credentials,
+            token_provider=lambda: None,
+        )
+        await writer.load()
+        self.assertFalse(writer.configured)
+        token = "github_pat_ONCE_ENTERED_ONLY_FOR_ARCHIVE"
+        result = await writer.configure_archive(
+            "TheDaimos/Project-Log-And-Export", token,
+        )
+        self.assertTrue(result["configured"])
+        self.assertEqual(result["repository"], "TheDaimos/Project-Log-And-Export")
+        self.assertEqual(credentials.data, {
+            "schema": module.CREDENTIAL_SCHEMA,
+            "repository": "TheDaimos/Project-Log-And-Export",
+            "token": token,
+        })
+        self.assertNotIn(token, str(queue.data))
+        self.assertNotIn(token, str(result))
+        self.assertEqual(len(self.session.requests), 0)
+        another = module.MeasurementGitExport(
+            queue, self.session, credential_store=credentials,
+            token_provider=lambda: None,
+        )
+        await another.load()
+        self.assertTrue(another.configured)
+        uploaded = await another.export(measurement(), version="0.1.16")
+        self.assertEqual(uploaded["repository"], "TheDaimos/Project-Log-And-Export")
+        self.assertNotIn(token, str(uploaded))
+        self.assertEqual(self.session.requests[0][1]["headers"]["Authorization"], "Bearer " + token)
+        await another.clear_repository()
+        self.assertFalse(another.configured)
+        self.assertIsNone(another.repository)
+        self.assertIsNone(credentials.data)
+
+    async def test_popup_setup_refuses_public_or_unreadable_repo(self):
+        queue, credentials = FakeStore(), FakeStore()
+        writer = module.MeasurementGitExport(
+            queue, self.session, credential_store=credentials,
+            token_provider=lambda: None,
+        )
+        await writer.load()
+        token = "github_pat_SYNTHETIC_NOT_REAL"
+        for status, data in (
+            (200, {"full_name":"TheDaimos/Project-Log-And-Export",
+                   "private": False, "default_branch": "main"}),
+            (403, {"message": "forbidden"}),
+            (404, {"message": "missing"}),
+        ):
+            with self.subTest(status=status):
+                self.session.repo_response = FakeResponse(status, data)
+                with self.assertRaises(module.GitMeasurementError):
+                    await writer.configure_archive(
+                        "TheDaimos/Project-Log-And-Export", token,
+                    )
+                self.assertFalse(writer.configured)
+                self.assertEqual(queue.writes, 0)
+                self.assertEqual(credentials.writes, 0)
+
+    async def test_invalid_token_rejected_before_storage(self):
+        queue, credentials = FakeStore(), FakeStore()
+        writer = module.MeasurementGitExport(
+            queue, self.session, credential_store=credentials,
+            token_provider=lambda: None,
+        )
+        await writer.load()
+        for token in ("", "short", "github_pat_BAD\\nSECOND_HEADER", None):
+            with self.subTest(token=token), self.assertRaises(module.GitMeasurementError):
+                await writer.configure_archive(
+                    "TheDaimos/Project-Log-And-Export", token,
+                )
+        self.assertEqual(self.session.visibility_requests, [])
+        self.assertEqual(credentials.writes, 0)
+
+    async def test_credential_store_failure_does_not_claim_success(self):
+        queue, credentials = FakeStore(), FakeStore()
+        credentials.fail_save = True
+        writer = module.MeasurementGitExport(
+            queue, self.session, credential_store=credentials,
+            token_provider=lambda: None,
+        )
+        await writer.load()
+        with self.assertRaises(module.GitMeasurementError):
+            await writer.configure_archive(
+                "TheDaimos/Project-Log-And-Export", "github_pat_FAKE_ONLY",
+            )
+        self.assertIsNone(writer.repository)
+        self.assertFalse(writer.configured)
+        self.assertEqual(queue.writes, 0)
+
+    async def test_partial_configuration_cannot_reuse_token_on_old_target(self):
+        queue = FakeStore()
+        credentials = FakeStore()
+        writer = module.MeasurementGitExport(
+            queue, self.session, credential_store=credentials,
+            token_provider=lambda: None,
+        )
+        await writer.load()
+        old_token = "github_pat_OLD_PRIVATE_REPOSITORY"
+        await writer.configure_archive("TheDaimos/Project-Log-And-Export", old_token)
+        queue.fail_save = True
+        self.session.repo_response = FakeResponse(200, {
+            "full_name": "AnotherOwner/Private-Archive",
+            "private": True, "default_branch": "main",
+        })
+        with self.assertRaises(module.GitMeasurementError):
+            await writer.configure_archive("AnotherOwner/Private-Archive",
+                                           "github_pat_NEW_PRIVATE_REPOSITORY")
+        self.assertEqual(writer.repository, "TheDaimos/Project-Log-And-Export")
+        self.assertFalse(writer.configured)
+        with self.assertRaises(module.GitMeasurementError):
+            await writer.export(measurement(), version="0.1.16")
+        self.assertEqual(self.session.requests, [])
+
+    async def test_pending_export_blocks_replacing_secret_and_repo(self):
+        queue = FakeStore()
+        credentials = FakeStore()
+        writer = module.MeasurementGitExport(
+            queue, self.session, credential_store=credentials,
+            token_provider=lambda: None,
+        )
+        await writer.load()
+        await writer.configure_archive("TheDaimos/Project-Log-And-Export",
+                                       "github_pat_OLD_PRIVATE_REPOSITORY")
+        self.session.response = FakeResponse(503)
+        with self.assertRaises(module.GitMeasurementError):
+            await writer.export(measurement(), version="0.1.16")
+        orig_queue = copy.deepcopy(queue.data)
+        orig_creds = copy.deepcopy(credentials.data)
+        with self.assertRaises(module.GitMeasurementError):
+            await writer.configure_archive("AnotherOwner/Private-Archive",
+                                           "github_pat_NEW_PRIVATE_REPOSITORY")
+        with self.assertRaises(module.GitMeasurementError):
+            await writer.clear_repository()
+        self.assertEqual(queue.data, orig_queue)
+        self.assertEqual(credentials.data, orig_creds)
+
+    async def test_unknown_credential_schema_aborts_before_export(self):
+        queue, credentials = FakeStore(), FakeStore({
+            "schema": "unknown", "repository": "TheDaimos/Project-Log-And-Export",
+            "token": "github_pat_SYNTHETIC_NOT_REAL",
+        })
+        writer = module.MeasurementGitExport(
+            queue, self.session, credential_store=credentials,
+            token_provider=lambda: None,
+        )
+        with self.assertRaises(module.GitMeasurementError):
+            await writer.load()
+        self.assertEqual(queue.writes, 0)
+        self.assertEqual(credentials.writes, 0)
+
     async def test_no_default_repository_and_download_without_github(self):
         store = FakeStore()
         writer = module.MeasurementGitExport(
