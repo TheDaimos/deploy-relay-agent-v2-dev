@@ -8,6 +8,13 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._measurement = null;
     this._suite = null;
     this._projects = [];
+    this._settings = {mode:"sequential",max_readonly_jobs:2,max_worker_processes:4};
+    this._settingsBusy = false;
+    this._settingsMessage = "";
+    this._batchSelection = null;
+    this._batchPreview = null;
+    this._batchBusy = false;
+    this._batchMessage = "";
     this._projectBusy = false;
     this._projectSaved = new Map();
     this._projectMessage = "";
@@ -139,6 +146,7 @@ class DRAV2DevLabPanel extends HTMLElement {
       this._measurement = data.measurement || null;
       this._suite = data.suite || null;
       this._projects = Array.isArray(data.projects) ? data.projects : [];
+      this._settings = data.settings || this._settings;
       this._gitConfigured = data.git_configured === true;
       this._gitAvailable = data.git_available === true;
       this._error = "";
@@ -289,6 +297,10 @@ class DRAV2DevLabPanel extends HTMLElement {
         this._projectMessage = this._v1Candidates.length + " Projekte gefunden. Übernahme ausdrücklich bestätigen."; 
       } else {
         this._projects = Array.isArray(result.projects) ? result.projects : [];
+        if (route === "preselect") {
+          const record = this._projects.find(p => p.repository === values.repository);
+          if (!record || record.batch_preselect !== values.enabled) throw new Error("Vorauswahl nicht bestätigt");
+        }
         if (route === "retention") {
           const saved = this._projects.find(project => project.repository === values.repository);
           if (!saved || saved.backup_retention !== values.backup_retention) {
@@ -297,7 +309,9 @@ class DRAV2DevLabPanel extends HTMLElement {
           this._projectSaved.set(saved.repository, saved.backup_retention);
         }
         this._v1Candidates = null;
-        this._projectMessage = route === "import_v1" ?
+        this._batchSelection = null;
+        this._batchPreview = null;
+        this._projectMessage = route === "preselect" ? "Sammelupdate-Vorauswahl gespeichert." : route === "import_v1" ?
           result.added + " Projekte übernommen, " + result.already_present + " bereits vorhanden." :
           route === "add" ? "Projekt separat in V2 vorgemerkt." : "Sicherungsrichtlinie gespeichert."; 
       }
@@ -327,9 +341,57 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._projectSaved.delete(repo);
     return this._projectAction("retention", { repository: repo, backup_retention: n });
   }
+  async _saveSettings() {
+    if (!this._hass || this._settingsBusy) return;
+    const root = this.shadowRoot;
+    const mode = root?.querySelector("#settings-mode")?.value;
+    const readonly = Number(root?.querySelector("#settings-readonly")?.value);
+    const workers = Number(root?.querySelector("#settings-workers")?.value);
+    if (!["sequential", "controlled"].includes(mode) || !Number.isInteger(readonly) ||
+        readonly < 1 || readonly > 4 || !Number.isInteger(workers) || workers < 1 || workers > 12) {
+      this._settingsMessage = "Eingaben prüfen: Aufträge 1–4, Arbeitsprozesse 1–12.";
+      this._render(); return;
+    }
+    this._settingsBusy = true;
+    try {
+      const result = await this._hass.callWS({type:"deploy_relay_v2_dev/settings/save",
+        mode, max_readonly_jobs:readonly, max_worker_processes:workers});
+      this._settings = result.settings;
+      this._settingsMessage = "Vorgaben gespeichert; Parallelbetrieb noch nicht freigegeben.";
+    } catch (_error) {
+      this._settingsMessage = "Vorgaben konnten nicht gespeichert werden.";
+    } finally { this._settingsBusy = false; if (this.isConnected) this._render(); }
+  }
+
+  _togglePreselect(button) {
+    return this._projectAction("preselect", {repository:button.dataset.repo,
+      enabled:button.dataset.enabled === "true"});
+  }
+
+  async _previewBatch() {
+    if (!this._hass || this._batchBusy) return;
+    const inputs = [...(this.shadowRoot?.querySelectorAll(".batch-choice") || [])];
+    const repositories = inputs.filter(x => x.checked).map(x => x.dataset.repo);
+    this._batchSelection = repositories;
+    this._batchBusy = true;
+    try {
+      const snapshot = await this._hass.callWS({type:"deploy_relay_v2_dev/batch/preview", repositories});
+      this._batchPreview = snapshot;
+      this._batchMessage = snapshot.count + " Projekte zur Leseprüfung vorgemerkt.";
+    } catch (_error) {
+      this._batchPreview = null;
+      this._batchMessage = "Auswahl ungültig; keine Aktion gestartet.";
+    } finally { this._batchBusy = false; if (this.isConnected) this._render(); }
+  }
   _render() {
     const s = this.shadowRoot;
-    const projectRows = this._projects.map(p => { const saved = this._projectSaved.get(p.repository) === p.backup_retention; return `<tr><td>${this._escapeProject(p.name)}<div class="note">${this._escapeProject(p.repository)}</div></td><td>${p.origin === "v1_import" ? "DRA V1" : "Manuell"}</td><td><input class="retention" type="number" min="3" max="100" value="${Number.isInteger(p.backup_retention) ? p.backup_retention : 10}" aria-label="Sicherungen" /><button class="retention-save ${saved ? "retention-saved" : ""}" data-repo="${this._escapeProject(p.repository)}" ${this._projectBusy ? "disabled" : ""}>${saved ? "Gespeichert" : "Speichern"}</button></td></tr>`; }).join("");
+    const projectRows = this._projects.map(p => { const saved = this._projectSaved.get(p.repository) === p.backup_retention; return `<tr><td>${this._escapeProject(p.name)}<div class="note">${this._escapeProject(p.repository)}</div></td><td>${p.origin === "v1_import" ? "DRA V1" : "Manuell"}</td><td><input class="retention" type="number" min="3" max="100" value="${Number.isInteger(p.backup_retention) ? p.backup_retention : 10}" aria-label="Sicherungen" /><button class="retention-save ${saved ? "retention-saved" : ""}" data-repo="${this._escapeProject(p.repository)}" ${this._projectBusy ? "disabled" : ""}>${saved ? "Gespeichert" : "Speichern"}</button><button class="preselect-toggle" data-repo="${this._escapeProject(p.repository)}" data-enabled="${p.batch_preselect === false}" ${this._projectBusy ? "disabled" : ""}>Sammelupdate: ${p.batch_preselect === false ? "Aus" : "Ein"}</button></td></tr>`; }).join("");
+    const batchRows = this._projects.map(p => {
+      const checked = this._batchSelection === null ? p.batch_preselect !== false : this._batchSelection.includes(p.repository);
+      return `<label class="batch-line"><input type="checkbox" class="batch-choice" data-repo="${this._escapeProject(p.repository)}" ${checked ? "checked" : ""} /> ${this._escapeProject(p.name)}</label>`;
+    }).join("");
+    const batchReport = Array.isArray(this._batchPreview?.selected) ?
+      this._batchPreview.selected.map(p => `<li>${this._escapeProject(p.name)}: Quellstand nicht geprüft</li>`).join("") : "";
     const previewRows = Array.isArray(this._v1Candidates) ? this._v1Candidates.map(p => `<li>${this._escapeProject(p.name)} – ${this._escapeProject(p.repository)}</li>`).join("") : "";
     const op = this._operation;
     const busy = this._busy || this._active() || this._gitBusy;
@@ -437,6 +499,8 @@ class DRAV2DevLabPanel extends HTMLElement {
         th, td { padding:8px; border-bottom:1px solid var(--divider-color,#555); text-align:left; white-space:nowrap; }
 
         input.retention { width:64px; margin-right:6px; }
+        .batch-line { display:block; padding:8px 0; border-bottom:1px solid var(--divider-color,#555); }
+        .batch-line input { min-width:20px; min-height:20px; }
         button.retention-saved { background:#247d42; color:#fff; }
         input.project-text { box-sizing:border-box; width:100%; min-height:40px; background:var(--primary-background-color,#151515); color:inherit; border:1px solid var(--divider-color,#555); border-radius:8px; padding:8px; margin:5px 0; }
         input.git-token { box-sizing:border-box; width:100%; min-height:40px; background:var(--primary-background-color,#151515); color:inherit; border:1px solid var(--divider-color,#555); border-radius:8px; padding:8px; }
