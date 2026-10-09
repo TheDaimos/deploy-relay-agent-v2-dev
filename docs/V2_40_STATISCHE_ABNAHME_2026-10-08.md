@@ -234,3 +234,15 @@ DRA V1 meldet `Keine ausgewählten Projekte benötigen eine Installation.`, `✓
 **Abnahme:** DRA-V1-Sammelprüfung im V1/V2-Parallelbetrieb nach V2-0.1.7-Wechsel **PASS (schreibgeschützte Funktion)**. Die fünf Projekte inklusive V2-DEV werden korrekt erfasst, Quellversionen dargestellt und ohne Änderungen geprüft. Dieser Screenshot belegt **keine vollständige V1-Schreibinstallation**, keine Prozess-/Leistungsisolierung und keine weiteren V2-Sicherheits-Grenzfälle.
 
 **V2-40-50 weiterhin OFFEN:** Der V1-Schutz-Nachweis ist erfüllt; für die endgültige quantitative Ressourcenabnahme bleiben nachvollziehbare HA-Reaktionszeiten, Datenträger-E/A und ggf. ein wiederholter zeitlich vergleichbarer Belastungslauf ausständig. Kein Neustart, V1-Code-Eingriff, V2-PUB-Release oder Merge von Draft-PR #2 abgeleitet.
+
+
+### Proxmox-VM 109 – Beobachtung Disk I/O (09.10.2026)
+
+**Nutzerbeleg:** Screenshot der Proxmox-Diagrammansicht „Disk IO“ zur bestätigten HA-DEV-VM 109. Sichtbarer Zeitraum ungefähr **09.10.2026, 06:54–08:03 Uhr** (Diagrammbeschriftung; eine abweichende Zeitzonenanzeige ist nicht gesondert belegt). Darstellung: `diskread` grün, `diskwrite` blau.
+
+- **Schreiben:** überwiegend kleinere, schwankende Grundaktivität mit mehreren kurzen Ausschlägen, deren Spitzen bei etwa **3,1 bis 3,4 M** auf der Diagrammskala liegen. Aus dem Screenshot können weder ein zuverlässiger Mittelwert noch die Gesamtzahl geschriebener Bytes berechnet werden.
+- **Lesen:** überwiegend sehr geringe Anzeige; vereinzelt kleinere Ausschläge.
+- **Einheiten beachten:** Die Grafik zeigt nur `M` und `k` als Achsenkürzel, keine explizite eindeutige Einheit. **Keine erfundenen MB/s, IOPS oder kumulativen Transfervolumina.** Proxmox-Gesamtwerte sind keine nach Prozess/DRA V1/DRA V2 getrennten Messungen.
+- **Ursachengrenze:** Schreibspitzen lassen sich aus der Darstellung weder DRA V2 noch der HA-Datenbank oder dem Recorder konkret zuweisen. Ohne synchronisierte gleich lange Zeitfenster mit/ohne V2, Proxmox-Rohwerte und HA-Latenzmessung kann das Diagramm einen isolierten zusätzlichen V2-I/O-Verbrauch **nicht** belegen.
+- **Teilstatus:** I/O-Sichtbarkeit und qualitative Beobachtung **DOKUMENTIERT**, aber **keine quantitative I/O-Delta-Abnahme**. CPU-/Speicher- und 0.1.7-Gesamttest-Nachweise sowie V1-Sammelprüfung bleiben bestanden; V2-40-50 **OFFEN** (mindestens reproduzierbare HA-Reaktionszeit, zeitgleiche Belastungs- und Leerlaufvergleichswerte für I/O).
+- **Keine Aktion an HA-DEV**: kein Installationsauftrag, kein Neustart, keine Änderung an DRA V1/V2-PUB und keine Aufhebung des globalen Schreib-Locks.
