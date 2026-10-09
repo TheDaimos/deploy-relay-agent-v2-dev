@@ -626,6 +626,26 @@ class MeasurementGitExport:
         self._repository = repository
         self._pending = pending
 
+    async def check_archive(self) -> dict:
+        """Recheck the saved private destination using its server-side token.
+
+        A private/readability check does not guarantee Git Contents write
+        permission. No diagnostic is uploaded and no browser token is needed.
+        """
+        async with self._lock:
+            if not self._ready or not self.configured or self._repository is None:
+                raise GitMeasurementError("private archive connection not configured")
+            token = self._current_token()
+            if token is None:
+                raise GitMeasurementError("private archive credentials unavailable")
+            branch = await self._ensure_private_repository(token, self._repository)
+            return {
+                **self.status(),
+                "verified_private_read": True,
+                "branch": branch,
+                "write_verified": False,
+            }
+
     async def configure_archive(self, repository: str, token: str) -> dict:
         """Verify an explicitly entered private GitHub destination and secret.
 
