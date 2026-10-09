@@ -309,8 +309,10 @@ class DRAV2DevLabPanel extends HTMLElement {
           this._projectSaved.set(saved.repository, saved.backup_retention);
         }
         this._v1Candidates = null;
-        this._batchSelection = null;
-        this._batchPreview = null;
+        if (route === "import_v1" || route === "add") {
+          this._batchSelection = null;
+          this._batchPreview = null;
+        }
         this._projectMessage = route === "preselect" ? "Sammelupdate-Vorauswahl gespeichert." : route === "import_v1" ?
           result.added + " Projekte übernommen, " + result.already_present + " bereits vorhanden." :
           route === "add" ? "Projekt separat in V2 vorgemerkt." : "Sicherungsrichtlinie gespeichert."; 
@@ -614,6 +616,11 @@ class DRAV2DevLabPanel extends HTMLElement {
     s.querySelector("#git-export")?.addEventListener("click", () => this._exportGit());
     s.querySelector("#settings-save")?.addEventListener("click", () => this._saveSettings());
     s.querySelector("#batch-preview")?.addEventListener("click", () => this._previewBatch());
+    s.querySelectorAll(".batch-choice")?.forEach(input => input.addEventListener("change", () => {
+      this._batchSelection = [...s.querySelectorAll(".batch-choice")].filter(x => x.checked).map(x => x.dataset.repo);
+      this._batchPreview = null;
+      this._batchMessage = "Auswahl geändert – Vorschau erneut prüfen.";
+    }));
     s.querySelectorAll(".preselect-toggle")?.forEach(button => button.addEventListener("click", () => this._togglePreselect(button)));
     s.querySelector("#project-preview")?.addEventListener("click", () => this._projectAction("v1_preview"));
     s.querySelector("#project-import")?.addEventListener("click", () => this._projectAction("import_v1"));
