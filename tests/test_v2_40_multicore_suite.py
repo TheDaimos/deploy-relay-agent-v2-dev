@@ -113,6 +113,27 @@ class SuiteTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(kwargs["env"], {"PYTHONHASHSEED": "0"})
             self.assertTrue(kwargs["close_fds"])
 
+    async def test_twelve_workers_are_separate_and_bounded(self):
+        calls = []
+        class Child:
+            returncode = None
+            def __init__(self): self.returncode = None
+            async def communicate(self):
+                self.returncode = 0
+                return (b'{"wall_ms":250,"cpu_ms":90,"iterations":400000}', b"")
+            async def wait(self): return 0
+            def kill(self): self.returncode = -9
+        async def spawn(*args, **kwargs):
+            calls.append((args, kwargs))
+            return Child()
+        with patch.object(m.asyncio, "create_subprocess_exec", spawn):
+            result = await m._single_multicore_stage(12)
+        self.assertEqual(result["status"], "ok")
+        self.assertEqual(result["iterations_total"], 4800000)
+        self.assertEqual(len(calls), 12)
+        self.assertTrue(all(args[1:4] == ("-I", "-S", "-c") for args, _ in calls))
+        self.assertTrue(all(kw["env"] == {"PYTHONHASHSEED": "0"} for _, kw in calls))
+
     async def test_kill_and_reap_children_if_subprocess_fails(self):
         killed = []
         class Child:
