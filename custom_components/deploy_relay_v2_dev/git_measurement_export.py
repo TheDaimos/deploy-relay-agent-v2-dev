@@ -1,7 +1,7 @@
 """Server-only private central archive export of sanitized V2 DEV measurements.
 
 The writer never touches V1 configuration, project files or the operation
-journal. Each upload is administrator-triggered and targets one fixed path.
+journal. Each upload is administrator-triggered and targets an explicitly selected private repository.
 """
 from __future__ import annotations
 
@@ -15,16 +15,15 @@ from datetime import datetime, timezone
 from typing import Protocol
 from urllib.parse import quote
 
-REPOSITORY = "TheDaimos/Project-Log-And-Export"
 SOURCE_REPOSITORY = "TheDaimos/deploy-relay-agent-v2-dev"
 APPLICATION_ID = "deploy-relay-agent-v2"
 APPLICATION_NAME = "Deploy Relay Agent V2"
 STANDARD_SCHEMA = "daimos-project-log-export-v1"
-QUEUE_SCHEMA = "dra-v2-dev-central-export-queue.v1"
+QUEUE_SCHEMA = "dra-v2-dev-central-export-queue.v2"
+LEGACY_QUEUE_SCHEMA = "dra-v2-dev-central-export-queue.v1"
 SERVER_TOKEN_ENV = "DRA_V2_CENTRAL_EXPORT_TOKEN"
 BRANCH = "main"
 ROOT = "exports/deploy-relay-agent-v2"
-AUTH_SCHEMA = "deprecated-public-writer-do-not-use"
 MEASUREMENT_SCHEMA = "dra-v2-dev-measurement.v2"
 EXPORT_SCHEMA = "dra-v2-dev-git-measurement.v2"
 SCOPE = "HA_PROCESS_WIDE_CPU_NOT_DRA_ONLY"
@@ -32,6 +31,8 @@ MAX_EXPORT_BYTES = 8192
 TOKEN_RE = re.compile(r"[^\s\x00-\x1f\x7f]{10,256}\Z", re.ASCII)
 HEX_RE = re.compile(r"[0-9a-f]{32}\Z")
 COMMIT_RE = re.compile(r"[0-9a-f]{40}\Z")
+REPO_RE = re.compile(r"[A-Za-z0-9-]{1,39}/[A-Za-z0-9_.-]{1,100}\Z")
+BRANCH_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.\/-]{0,99}\Z")
 COUNTERS = {
     "base_process_cpu_ms": 3600000,
     "work_process_cpu_ms": 3600000,
@@ -419,11 +420,32 @@ def _validated_snapshot(value: object) -> tuple[dict, str]:
     }, test_id
 
 
+def validate_archive_repository(repository: object) -> str:
+    """Explicit GitHub owner/repo only, never a URL, preset or arbitrary host."""
+    if type(repository) is not str or not REPO_RE.fullmatch(repository):
+        raise GitMeasurementError("invalid archive repository")
+    owner, name = repository.split("/", 1)
+    if owner.startswith("-") or owner.endswith("-") or name in (".", ".."):
+        raise GitMeasurementError("invalid archive repository")
+    if name.startswith(".") or name.endswith("."):
+        raise GitMeasurementError("invalid archive repository")
+    return repository
+
+
+def validate_archive_branch(branch: object) -> str:
+    if (type(branch) is not str or not BRANCH_RE.fullmatch(branch)
+            or branch.endswith((".", "/", ".lock")) or ".." in branch
+            or "//" in branch or "/." in branch or "@{" in branch):
+        raise GitMeasurementError("invalid private archive default branch")
+    return branch
+
+
 def _validate_pending(value: object) -> dict | None:
     if value is None:
         return None
-    if type(value) is not dict or set(value) != {"path", "export_id", "raw"}:
+    if type(value) is not dict or set(value) != {"path", "export_id", "raw", "repository"}:
         raise GitMeasurementError("invalid central export recovery data")
+    validate_archive_repository(value["repository"])
     raw = value["raw"]
     if type(raw) is not str or len(raw.encode("utf-8")) > MAX_EXPORT_BYTES:
         raise GitMeasurementError("invalid central export recovery payload")
@@ -472,11 +494,12 @@ def _validate_pending(value: object) -> dict | None:
 
 
 class MeasurementGitExport:
-    """One append-only private archive writer, never writes to source repository.
+    """Private opt-in archive export with no predefined destination repository.
 
-    Credentials must be provisioned to the Home Assistant server environment.
-    The previous browser-entered public-export credential is never read or used.
-    An unfinished sanitized report is persisted for explicit retry after failure.
+    GitHub secrets come only from the HA server environment. Neither stored
+    archive preferences nor exported JSON ever contain a GitHub credential.
+    An unsent report is bound to its original repository and cannot be sent
+    elsewhere by changing preferences.
     """
 
     def __init__(self, store: SecretStore, session: object, *,
@@ -486,6 +509,7 @@ class MeasurementGitExport:
         self._token_provider = token_provider or (lambda: os.environ.get(SERVER_TOKEN_ENV))
         self._lock = asyncio.Lock()
         self._ready = False
+        self._repository: str | None = None
         self._pending: dict | None = None
 
     @property
@@ -493,12 +517,20 @@ class MeasurementGitExport:
         return self._ready
 
     @property
-    def configured(self) -> bool:
+    def repository(self) -> str | None:
+        return self._repository
+
+    @property
+    def server_token_available(self) -> bool:
         try:
             token = self._token_provider()
         except Exception:
             return False
         return type(token) is str and bool(TOKEN_RE.fullmatch(token))
+
+    @property
+    def configured(self) -> bool:
+        return self._repository is not None and self.server_token_available
 
     @property
     def pending(self) -> bool:
@@ -507,32 +539,85 @@ class MeasurementGitExport:
     def status(self) -> dict:
         return {
             "configured": self.configured,
+            "repository_configured": self._repository is not None,
+            "server_token_available": self.server_token_available,
             "pending": self.pending,
-            "repository": REPOSITORY,
+            "repository": self._repository,
         }
 
     async def load(self) -> None:
         try:
             value = await self._store.async_load()
         except Exception:
-            raise GitMeasurementError("central export queue unavailable") from None
+            raise GitMeasurementError("central export configuration unavailable") from None
         if value is None:
-            self._pending = None
-        elif type(value) is dict and set(value) == {"schema", "pending"} and value["schema"] == QUEUE_SCHEMA:
-            self._pending = _validate_pending(value["pending"])
+            # No user or vendor repository is ever configured by default.
+            repository = None
+            pending = None
+        elif (type(value) is dict and set(value) == {"schema", "pending"}
+              and value["schema"] == LEGACY_QUEUE_SCHEMA):
+            # Safe migration only of an EMPTY old queue. Previous records
+            # lacked target binding, so silently redirecting them is forbidden.
+            if value["pending"] is not None:
+                raise GitMeasurementError("legacy archive pending item requires review")
+            repository = None
+            pending = None
+        elif (type(value) is dict and set(value) == {"schema", "repository", "pending"}
+              and value["schema"] == QUEUE_SCHEMA):
+            repository = value["repository"]
+            if repository is not None:
+                repository = validate_archive_repository(repository)
+            pending = _validate_pending(value["pending"])
+            if pending is not None and (repository is None or
+                                        pending["repository"] != repository):
+                raise GitMeasurementError("central export target mismatch")
         else:
-            raise GitMeasurementError("central export recovery schema invalid")
+            raise GitMeasurementError("central export configuration schema invalid")
+        self._repository = repository
+        self._pending = pending
         self._ready = True
 
-    async def _persist(self, pending: dict | None) -> None:
+    async def _persist(self, repository: str | None, pending: dict | None) -> None:
+        if repository is not None:
+            validate_archive_repository(repository)
+        if pending is not None:
+            pending = _validate_pending(pending)
+            if repository != pending["repository"]:
+                raise GitMeasurementError("central export target mismatch")
         try:
-            await self._store.async_save({"schema": QUEUE_SCHEMA, "pending": pending})
+            await self._store.async_save({
+                "schema": QUEUE_SCHEMA, "repository": repository,
+                "pending": pending,
+            })
         except Exception:
-            raise GitMeasurementError("central export cannot be saved locally") from None
+            raise GitMeasurementError("central archive configuration could not be saved") from None
+        self._repository = repository
         self._pending = pending
 
+    async def set_repository(self, repository: str) -> dict:
+        """Explicit admin selection; cannot redirect a pending report."""
+        selected = validate_archive_repository(repository)
+        async with self._lock:
+            if not self._ready:
+                raise GitMeasurementError("central archive unavailable")
+            if self._pending is not None:
+                raise GitMeasurementError("finish pending export before changing archive")
+            if self._repository != selected:
+                await self._persist(selected, None)
+            return self.status()
+
+    async def clear_repository(self) -> dict:
+        async with self._lock:
+            if not self._ready:
+                raise GitMeasurementError("central archive unavailable")
+            if self._pending is not None:
+                raise GitMeasurementError("finish pending export before changing archive")
+            if self._repository is not None:
+                await self._persist(None, None)
+            return self.status()
+
     async def configure(self, *, token: str = "", clear: bool = False) -> None:
-        """Legacy browser token route deliberately disabled; no browser secrets."""
+        """Never accept browser-entered GitHub credentials."""
         raise GitMeasurementError("central export access must be configured on the server")
 
     async def export(self, summary: object, *, version: str,
@@ -540,9 +625,11 @@ class MeasurementGitExport:
                      source_commit: str | None = None) -> dict[str, str]:
         async with self._lock:
             if not self._ready:
-                raise GitMeasurementError("central export unavailable")
-            if not self.configured:
-                raise GitMeasurementError("central archive permission not configured on server")
+                raise GitMeasurementError("central archive unavailable")
+            if self._repository is None:
+                raise GitMeasurementError("configure a private destination repository first")
+            if not self.server_token_available:
+                raise GitMeasurementError("central archive server permission not configured")
             if self._pending is not None:
                 raise GitMeasurementError("unsent central export pending; retry it first")
             now = datetime.now(timezone.utc)
@@ -550,7 +637,8 @@ class MeasurementGitExport:
                 summary, version, now, secrets.token_hex(16),
                 display_name, source_commit,
             )
-            await self._persist(data)
+            data["repository"] = self._repository
+            await self._persist(self._repository, data)
             return await self._upload_pending()
 
     async def retry_pending(self) -> dict[str, str]:
@@ -558,15 +646,17 @@ class MeasurementGitExport:
             if not self._ready or self._pending is None:
                 raise GitMeasurementError("no local export awaiting upload")
             if not self.configured:
-                raise GitMeasurementError("central archive permission not configured on server")
+                raise GitMeasurementError("central archive target or permission not configured")
             return await self._upload_pending()
 
-    async def _ensure_private_repository(self, token: str) -> None:
-        """Fail closed if the fixed archive has become public or inaccessible."""
+    async def _ensure_private_repository(self, token: str, repository: str) -> str:
+        """Verify explicitly selected target is private before EVERY upload."""
+        repository = validate_archive_repository(repository)
+        url = f"https://api.github.com/repos/{repository}"
         try:
             async with asyncio.timeout(8):
                 async with self._session.get(
-                    f"https://api.github.com/repos/{REPOSITORY}",
+                    url,
                     allow_redirects=False,
                     headers={
                         "Accept": "application/vnd.github+json",
@@ -588,10 +678,10 @@ class MeasurementGitExport:
         except Exception:
             raise GitMeasurementError("central archive visibility unavailable") from None
         if (type(metadata) is not dict or
-                metadata.get("full_name") != REPOSITORY or
-                metadata.get("private") is not True or
-                metadata.get("default_branch") != BRANCH):
+                metadata.get("full_name") != repository or
+                metadata.get("private") is not True):
             raise GitMeasurementError("central archive is not confirmed private")
+        return validate_archive_branch(metadata.get("default_branch"))
 
     async def _upload_pending(self) -> dict[str, str]:
         data = self._pending
@@ -600,10 +690,13 @@ class MeasurementGitExport:
         token = self._token_provider()
         if type(token) is not str or not TOKEN_RE.fullmatch(token):
             raise GitMeasurementError("central archive permission not configured on server")
-        await self._ensure_private_repository(token)
+        repository = data["repository"]
+        if self._repository != repository:
+            raise GitMeasurementError("central archive pending target mismatch")
+        branch = await self._ensure_private_repository(token, repository)
         path = data["path"]
         url_path = "/".join(quote(piece, safe="") for piece in path.split("/"))
-        url = f"https://api.github.com/repos/{REPOSITORY}/contents/{url_path}"
+        url = f"https://api.github.com/repos/{repository}/contents/{url_path}"
         content = base64.b64encode(data["raw"].encode("utf-8")).decode("ascii")
         try:
             async with asyncio.timeout(12):
@@ -618,26 +711,27 @@ class MeasurementGitExport:
                     },
                     json={
                         "message": "chore(archive): new DRA V2 diagnostic [skip ci]",
-                        "content": content, "branch": BRANCH,
-                        # ABSENT sha: GitHub can CREATE, never UPDATE existing file.
+                        "content": content, "branch": branch,
+                        # No 'sha': GitHub CREATE only, never overwrites a file.
                     },
                 ) as response:
                     if response.status != 201:
                         raise GitMeasurementError(
-                            "central archive upload rejected (check permission, path or collision)"
+                            "private archive upload rejected (check permission or collision)"
                         )
                     result = await response.json()
         except GitMeasurementError:
             raise
         except Exception:
-            raise GitMeasurementError("central archive upload failed; local report retained") from None
+            raise GitMeasurementError("private archive upload failed; local report retained") from None
         commit = result.get("commit") if type(result) is dict else None
         sha = commit.get("sha") if type(commit) is dict else None
         if type(sha) is not str or not COMMIT_RE.fullmatch(sha):
-            raise GitMeasurementError("central archive confirmation invalid; local report retained")
-        await self._persist(None)
+            raise GitMeasurementError("archive confirmation invalid; local report retained")
+        await self._persist(repository, None)
+        url_branch = quote(branch, safe="/")
         return {
-            "repository": REPOSITORY, "branch": BRANCH, "path": path,
+            "repository": repository, "branch": branch, "path": path,
             "export_id": data["export_id"], "commit_sha": sha,
-            "file_url": f"https://github.com/{REPOSITORY}/blob/{BRANCH}/{path}",
+            "file_url": f"https://github.com/{repository}/blob/{url_branch}/{path}",
         }
