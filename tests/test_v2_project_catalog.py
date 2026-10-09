@@ -74,6 +74,21 @@ class V2ProjectCatalogTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.store.writes, 0)
         self.assertNotIn("ghp_", str(preview))
 
+    async def test_v1_readonly_mapping_views_are_accepted(self):
+        from types import MappingProxyType
+        v1 = v1_projects(("TheDaimos/aurora", "Aurora", 10))
+        class FrozenEntries:
+            def async_entries(self, domain):
+                entries = v1.async_entries(domain)
+                for entry in entries:
+                    entry.subentries = MappingProxyType(entry.subentries)
+                    for sub in entry.subentries.values():
+                        sub.data = MappingProxyType(sub.data)
+                return entries
+        rows = m.v1_proposals(FrozenEntries())
+        self.assertEqual(len(rows), 1)
+        self.assertNotIn("PRIVATE", str(rows))
+
     async def test_explicit_import_is_independent_idempotent_and_reloads(self):
         v1 = v1_projects(
             ("TheDaimos/weather-router-dev", "WeatherRouter", 17),
