@@ -11,6 +11,8 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._settings = {mode:"sequential",max_readonly_jobs:2,max_worker_processes:4};
     this._settingsBusy = false;
     this._settingsMessage = "";
+    this._cpuStatus = {available_cores:null,warning:null};
+    this._cpuBusy = false;
     this._batchSelection = null;
     this._batchPreview = null;
     this._batchBusy = false;
@@ -147,6 +149,7 @@ class DRAV2DevLabPanel extends HTMLElement {
       this._suite = data.suite || null;
       this._projects = Array.isArray(data.projects) ? data.projects : [];
       this._settings = data.settings || this._settings;
+      this._cpuStatus = data.cpu_status || this._cpuStatus;
       this._gitConfigured = data.git_configured === true;
       this._gitAvailable = data.git_available === true;
       this._error = "";
@@ -359,10 +362,28 @@ class DRAV2DevLabPanel extends HTMLElement {
       const result = await this._hass.callWS({type:"deploy_relay_v2_dev/settings/save",
         mode, max_readonly_jobs:readonly, max_worker_processes:workers});
       this._settings = result.settings;
+      this._cpuStatus = result.cpu_status || this._cpuStatus;
       this._settingsMessage = "Vorgaben gespeichert; Parallelbetrieb noch nicht freigegeben.";
     } catch (_error) {
       this._settingsMessage = "Vorgaben konnten nicht gespeichert werden.";
     } finally { this._settingsBusy = false; if (this.isConnected) this._render(); }
+  }
+
+  async _ackCpuWarning() {
+    if (!this._hass || this._cpuBusy) return;
+    this._cpuBusy = true;
+    try {
+      const result = await this._hass.callWS({
+        type:"deploy_relay_v2_dev/settings/ack_cpu_warning",
+      });
+      this._cpuStatus = result.cpu_status;
+      this._settingsMessage = "Hinweis bestätigt. Neue Reduzierungen werden weiterhin gemeldet.";
+    } catch (_error) {
+      this._settingsMessage = "CPU-Hinweis konnte nicht bestätigt werden.";
+    } finally {
+      this._cpuBusy = false;
+      if (this.isConnected) this._render();
+    }
   }
 
   _togglePreselect(button) {
@@ -501,6 +522,8 @@ class DRAV2DevLabPanel extends HTMLElement {
         th, td { padding:8px; border-bottom:1px solid var(--divider-color,#555); text-align:left; white-space:nowrap; }
 
         input.retention { width:64px; margin-right:6px; }
+        .warning-cpu { border:2px solid var(--warning-color,#d6a13a); border-radius:10px; padding:12px; margin:12px 0; }
+        .warning-cpu p { margin:8px 0; }
         .batch-line { display:block; padding:8px 0; border-bottom:1px solid var(--divider-color,#555); }
         .batch-line input { min-width:20px; min-height:20px; }
         button.retention-saved { background:#247d42; color:#fff; }
@@ -550,6 +573,19 @@ class DRAV2DevLabPanel extends HTMLElement {
           <label>DRA-Arbeitsprozesse (spätere Obergrenze 1–12)
             <input id="settings-workers" class="project-text" type="number" min="1" max="12" value="${this._settings.max_worker_processes}" />
           </label>
+          <p class="note"><strong>Beim Start erkannte Prozessorkerne:</strong>
+          ${Number.isInteger(this._cpuStatus.available_cores) ? this._cpuStatus.available_cores : "Nicht ermittelbar"}.
+          <strong>Verwendete Kerne (Vorgabe):</strong> ${this._settings.max_worker_processes}.
+          Die Zahl beschreibt sichtbare logische Kerne, keine garantierte CPU-Quote.</p>
+          ${this._cpuStatus.warning?.code === "cpu_limit_reduced" ? `
+            <div class="warning-cpu" role="alert">
+              <strong>${this._cpuStatus.warning.previous_available !== null ? "Änderung der verfügbaren Prozessorkerne erkannt!" : "Weniger Prozessorkerne als eingestellt verfügbar!"}</strong>
+              <p>Die Einstellung „Verwendete Kerne“ wurde von
+              ${this._cpuStatus.warning.reduced_from} auf
+              ${this._cpuStatus.warning.available_cores} reduziert.
+              Bitte die DRA-Einstellungen kontrollieren.</p>
+              <button id="cpu-warning-ack" ${this._cpuBusy ? "disabled" : ""}>Hinweis bestätigen</button>
+            </div>` : ""}
           <button id="settings-save" ${this._settingsBusy ? "disabled" : ""}>Vorgaben speichern</button>
           <p class="note">${this._escapeProject(this._settingsMessage)}</p>
           <p class="note">Die separate feste Mehrkern-Diagnose bleibt unverändert. Kein
@@ -615,6 +651,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     s.querySelector("#git-cancel")?.addEventListener("click", () => { this._gitSetup = false; this._render(); });
     s.querySelector("#git-export")?.addEventListener("click", () => this._exportGit());
     s.querySelector("#settings-save")?.addEventListener("click", () => this._saveSettings());
+    s.querySelector("#cpu-warning-ack")?.addEventListener("click", () => this._ackCpuWarning());
     s.querySelector("#batch-preview")?.addEventListener("click", () => this._previewBatch());
     s.querySelectorAll(".batch-choice")?.forEach(input => input.addEventListener("change", () => {
       this._batchSelection = [...s.querySelectorAll(".batch-choice")].filter(x => x.checked).map(x => x.dataset.repo);
