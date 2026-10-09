@@ -10,11 +10,16 @@ const callbacks = new Map();
 const cancelled = [];
 const shadow = () => {
   const remaining = { textContent: "" };
+  const repo = { value: "", focus() {} };
+  const token = { value: "" };
   return {
-    remaining,
+    remaining, repo, token,
     innerHTML: "",
     querySelector(selector) {
-      return selector === "#remaining" ? remaining : null;
+      if (selector === "#remaining") return remaining;
+      if (selector === "#git-dialog-repo") return repo;
+      if (selector === "#git-dialog-token") return token;
+      return null;
     },
     querySelectorAll() { return []; },
   };
@@ -165,7 +170,7 @@ panel._hass = {
 };
 panel._render();
 assert(panel.shadowRoot.innerHTML.includes("JSON-Datei herunterladen"));
-assert(panel.shadowRoot.innerHTML.includes("Es gibt ausdrücklich kein vorbelegtes Repository."));
+assert(panel.shadowRoot.innerHTML.includes("Es gibt kein Standardrepository."));
 panel._downloadJSON().then(() => {
   assert.equal(downloads.length, 1);
   assert.equal(downloads[0].filename, filename);
@@ -173,6 +178,48 @@ panel._downloadJSON().then(() => {
   assert.equal(urls.length, 1);
   assert.equal(panel._downloadStatus, "JSON-Download gestartet: " + filename);
   assert.equal(panel._centralExport.repository, null);
+
+panel._openGitDialog();
+assert.equal(panel._gitDialogOpen, true);
+assert(panel.shadowRoot.innerHTML.includes('role="dialog"'));
+assert(panel.shadowRoot.innerHTML.includes("GitHub-Token (wird nicht wieder angezeigt)"));
+assert(panel.shadowRoot.innerHTML.includes("Zugang speichern und prüfen"));
+assert(!panel.shadowRoot.innerHTML.includes("github_pat_SECRET"));
+panel.shadowRoot.token.value = "github_pat_SECRET";
+panel._render();
+assert.equal(panel.shadowRoot.token.value, "github_pat_SECRET",
+             "periodic HA refresh must not lose an unsent token");
+panel._closeGitDialog();
+assert.equal(panel._gitDialogOpen, false);
+assert.equal(panel.shadowRoot.token.value, "", "closing discards transient secret");
+panel._openGitDialog();
+panel.shadowRoot.repo.value = "MyPrivate/Archive";
+panel.shadowRoot.token.value = "github_pat_FAKE_READ_WRITE";
+let credentialRequests = 0;
+panel._hass = {
+  async callWS(msg) {
+    credentialRequests++;
+    assert.equal(msg.type, "deploy_relay_v2_dev/archive_repository/configure");
+    assert.equal(msg.repository, "MyPrivate/Archive");
+    assert.equal(msg.token, "github_pat_FAKE_READ_WRITE");
+    return {
+      configured: true, repository_configured: true,
+      server_token_available: true, pending: false,
+      repository: "MyPrivate/Archive",
+    };
+  },
+};
+Promise.resolve(panel._configureArchiveDialog()).then(() => {
+  assert.equal(credentialRequests, 1);
+  assert.equal(panel.shadowRoot.token.value, "");
+  assert.equal(panel._centralExport.repository, "MyPrivate/Archive");
+  assert.equal(panel._gitConfigured, true);
+  assert(!panel.shadowRoot.innerHTML.includes("github_pat_FAKE_READ_WRITE"));
+  panel._closeGitDialog();
+  assert.equal(panel._gitDialogOpen, false);
+  console.log("DRA V2 archive popup and one-shot secret PASS");
+});
+
   console.log("DRA V2 JSON download without GitHub PASS");
 }).catch(error => {
   console.error(error);
