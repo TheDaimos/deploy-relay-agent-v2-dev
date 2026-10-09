@@ -87,3 +87,8 @@ Die DRA-V1-Sammelaktualisierung zeigt fünf Projekte einschließlich DRA V2 DEV 
 ## Vorgemerkter Funktionsentwurf: konfigurierbare Auftragsparallelität und CPU-Budget (09.10.2026)
 
 Der Nutzer wünscht auswählbare sequenzielle/gesteuert parallele/ressourcenabhängige Auftragsplanung sowie die getrennte Konfiguration der Zahl gleichzeitiger Aufträge und der CPU-Arbeitsprozesse. Der Iststand V2 DEV 0.1.7 bleibt unverändert: ein aktiver synthetischer Auftrag, Mehrkernstufen 1/2/4 nacheinander. Die bestehende Sperre **maximal eine globale Mutation** ist ausdrücklich nicht aufgehoben. Verbindlicher Sicherheits- und Abnahmeentwurf: `docs/V2_PARALLELISM_AND_CPU_BUDGET_DESIGN_2026-10-09.md`. Umsetzung erst nach Abschluss der aktuellen V2-40-50-Ressourcenprüfung und gesondertem Freigabeschritt.
+
+
+## Mehrkern-Probe 1/2/4/6/8/10/12 – V2 DEV 0.1.8 (09.10.2026)
+
+Auf ausdrücklichen Nutzerwunsch wurde die feste schreibgeschützte Diagnosereihe auf sieben Stufen erweitert; Gesamttest 87 Schritte, versionierter strikter Git-Export v2. Die Stufen laufen nacheinander und starten maximal 12 kurzlebige Arbeitsprozesse gleichzeitig. Bestehende V1-Gesamtexporte bleiben lesbar. Keine produktive Schreibparallelisierung, keine Änderung an DRA V1 oder V2-PUB. Realabnahme 0.1.8 und V2-40-50 weiter offen; Details `docs/V2_40_MULTICORE_AND_SUITE_2026-10-08.md`.

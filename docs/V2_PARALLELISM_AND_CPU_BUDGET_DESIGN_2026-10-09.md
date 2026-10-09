@@ -46,3 +46,8 @@ Der Nutzer fragte, ob Jobs nacheinander oder parallel verarbeitet werden, ob der
 5. Bedienoberfläche im V2-Testlabor und später im produktiven DRA V2, mit kleinem und mobil lesbarem Auftragsmonitor, Warnung beim hohen Kernbudget und separat freigegebenen Profilen.
 
 **Entscheidungsstatus:** Konfiguration gewünscht; konkrete Voreinstellung und Kernbereich sind **Empfehlungen**, keine vom Nutzer bereits bestätigten Werte. Kein Auftrag zu HA-Installation/Neustart oder zur Freigabe produktiver Schreibparallelität.
+
+
+## Feste Mehrkern-Diagnose ist keine Auftragskonfiguration (09.10.2026)
+
+Die V2-DEV-0.1.8-Diagnose unterstützt jetzt sieben fest vorgegebene, nacheinander auszuführende Stufen bis zwölf Arbeitsprozessen. Eine frei wählbare Kernzahl oder parallele produktive Auftragsausführung ist **weiterhin nicht implementiert oder freigegeben**. Diese erfordert die gesonderte Architektur- und HA-Abnahme des vorliegenden Entwurfs.

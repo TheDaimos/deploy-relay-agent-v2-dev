@@ -71,3 +71,14 @@ Alle drei Mehrkernstufen meldeten `ok`; `logical_cpus_visible = 12` und `affinit
 ## V1-Funktionskontrolle nach dem ersten Gesamttest (09.10.2026)
 
 Der Nutzer hat die DRA-V1-Sammelaktualisierung nach dem V2-0.1.7-Wechsel erneut geprüft. Fünf Projekte einschließlich V2 DEV werden als `Aktuell` mit `0 Änderung(en)` angezeigt, Schreibzugriff und Installation sind nicht freigegeben, Prüfung abgeschlossen. **V1 schreibgeschützt PASS.** Siehe `docs/V2_40_STATISCHE_ABNAHME_2026-10-08.md`. Quantitative Ressourcenabnahme V2-40-50 weiter offen.
+
+
+## V2 DEV 0.1.8 – Sieben feste Mehrkernstufen (09.10.2026)
+
+Auf ausdrücklichen Nutzerwunsch erweitert sich die **synthetische, schreibgeschützte** Mehrkern-Diagnose auf **1 → 2 → 4 → 6 → 8 → 10 → 12 Arbeitsprozesse**. Die Stufen starten streng **nacheinander**; nur innerhalb der jeweiligen Stufe arbeiten die Prozesse parallel. Maximal zwölf kurzlebige Python-Unterprozesse werden gestartet, kein dauerhafter Prozesspool und kein zusätzlicher Leerlaufverbrauch. Es gelten weiterhin 400.000 PBKDF2-Runden je Kind und eine Wartezeitgrenze von vier Sekunden je Stufe. Wird eine CPU-Affinität von weniger als der geforderten Anzahl erkannt oder läuft eine Stufe in ein Ressourcenproblem, erscheint sie als `unavailable`; es werden keine Zahlen erfunden. Bei Fehlern und Abbruch werden gestartete Kindprozesse beendet und eingesammelt. CPU-Kernzahlen beziehen sich auf die Sicht des HA-Prozesses und sind keine Garantie einer entsprechenden CPU-Quote.
+
+Der Gesamttest umfasst **40 Auftrags-/Warteschritte + 40 CPU-/RAM-Schritte + 7 Mehrkernstufen = 87 Fortschrittsschritte**. Die sieben abschließenden Schritte sind zeitlich variabel; die Oberfläche zeigt dort `Mehrkernprüfung läuft`, nicht einen erfundenen Sekunden-Countdown. Jeder Einzeldurchlauf und der Gesamttest belegen weiterhin nur **einen** administrativ gestarteten V2-Leseauftrag. V1, V2-PUB und produktive Installations-/Restore-/Neustartpfade bleiben unangetastet.
+
+**Öffentliche Git-Berichte:** Neue Versionen `dra-v2-dev-git-suite.v2`, `dra-v2-dev-suite.v2` und `dra-v2-dev-multicore.v2` akzeptieren ausschließlich die genaue siebenstufige Liste in fester Reihenfolge. Frühere `v1`-Gesamtexporte mit drei Stufen bleiben unverändert und werden vom öffentlichen Schutztest weiterhin anhand des `v1`-Schemas validiert. Ein Bericht muss weiterhin vollständig anonymisiert und höchstens 4096 Byte groß sein; Versand nur per gesondertem Klick.
+
+**Abnahmegrenze:** Quellcode-/CI-Abnahme getrennt von der noch offenen HA-DEV-Realprüfung für 0.1.8. Eine Installation benötigt weiterhin eine DRA-V1-Vorschau und die ausdrückliche Nutzerfreigabe; eine HA-Neustartfreigabe ist separat. V2-40-50 bleibt offen. Die sieben festen Teststufen sind **keine** frei konfigurierbare produktive Auftragsparallelisierung und keine Erlaubnis für zwölf simultane Installationen.
