@@ -170,7 +170,7 @@ panel._hass = {
 };
 panel._render();
 assert(panel.shadowRoot.innerHTML.includes("JSON herunterladen"));
-assert(panel.shadowRoot.innerHTML.includes("Es gibt kein Standardrepository."));
+assert(panel.shadowRoot.innerHTML.includes("Git-Export"));
 panel._downloadJSON().then(() => {
   assert.equal(downloads.length, 1);
   assert.equal(downloads[0].filename, filename);
