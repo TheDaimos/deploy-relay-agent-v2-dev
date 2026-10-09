@@ -9,6 +9,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._suite = null;
     this._projects = [];
     this._projectBusy = false;
+    this._projectSaved = new Map();
     this._projectMessage = "";
     this._v1Candidates = null;
     this._gitConfigured = false;
@@ -288,6 +289,13 @@ class DRAV2DevLabPanel extends HTMLElement {
         this._projectMessage = this._v1Candidates.length + " Projekte gefunden. Übernahme ausdrücklich bestätigen."; 
       } else {
         this._projects = Array.isArray(result.projects) ? result.projects : [];
+        if (route === "retention") {
+          const saved = this._projects.find(project => project.repository === values.repository);
+          if (!saved || saved.backup_retention !== values.backup_retention) {
+            throw new Error("Sicherungsrichtlinie wurde nicht bestätigt");
+          }
+          this._projectSaved.set(saved.repository, saved.backup_retention);
+        }
         this._v1Candidates = null;
         this._projectMessage = route === "import_v1" ?
           result.added + " Projekte übernommen, " + result.already_present + " bereits vorhanden." :
@@ -316,11 +324,12 @@ class DRAV2DevLabPanel extends HTMLElement {
       this._render();
       return;
     }
+    this._projectSaved.delete(repo);
     return this._projectAction("retention", { repository: repo, backup_retention: n });
   }
   _render() {
     const s = this.shadowRoot;
-    const projectRows = this._projects.map(p => `<tr><td>${this._escapeProject(p.name)}<div class="note">${this._escapeProject(p.repository)}</div></td><td>${p.origin === "v1_import" ? "Aus V1" : "Manuell"}</td><td><input class="retention" type="number" min="3" max="100" value="${Number.isInteger(p.backup_retention) ? p.backup_retention : 10}" aria-label="Sicherungen" /><button class="retention-save" data-repo="${this._escapeProject(p.repository)}" ${this._projectBusy ? "disabled" : ""}>Speichern</button></td></tr>`).join("");
+    const projectRows = this._projects.map(p => { const saved = this._projectSaved.get(p.repository) === p.backup_retention; return `<tr><td>${this._escapeProject(p.name)}<div class="note">${this._escapeProject(p.repository)}</div></td><td>${p.origin === "v1_import" ? "DRA V1" : "Manuell"}</td><td><input class="retention" type="number" min="3" max="100" value="${Number.isInteger(p.backup_retention) ? p.backup_retention : 10}" aria-label="Sicherungen" /><button class="retention-save ${saved ? "retention-saved" : ""}" data-repo="${this._escapeProject(p.repository)}" ${this._projectBusy ? "disabled" : ""}>${saved ? "Gespeichert" : "Speichern"}</button></td></tr>`; }).join("");
     const previewRows = Array.isArray(this._v1Candidates) ? this._v1Candidates.map(p => `<li>${this._escapeProject(p.name)} – ${this._escapeProject(p.repository)}</li>`).join("") : "";
     const op = this._operation;
     const busy = this._busy || this._active() || this._gitBusy;
@@ -428,6 +437,7 @@ class DRAV2DevLabPanel extends HTMLElement {
         th, td { padding:8px; border-bottom:1px solid var(--divider-color,#555); text-align:left; white-space:nowrap; }
 
         input.retention { width:64px; margin-right:6px; }
+        button.retention-saved { background:#247d42; color:#fff; }
         input.project-text { box-sizing:border-box; width:100%; min-height:40px; background:var(--primary-background-color,#151515); color:inherit; border:1px solid var(--divider-color,#555); border-radius:8px; padding:8px; margin:5px 0; }
         input.git-token { box-sizing:border-box; width:100%; min-height:40px; background:var(--primary-background-color,#151515); color:inherit; border:1px solid var(--divider-color,#555); border-radius:8px; padding:8px; }
         .git-link { display:inline-block; padding:12px 0; color:var(--primary-color,#65b4d2); overflow-wrap:anywhere; }
@@ -508,7 +518,14 @@ class DRAV2DevLabPanel extends HTMLElement {
     s.querySelector("#project-import")?.addEventListener("click", () => this._projectAction("import_v1"));
     s.querySelector("#project-cancel")?.addEventListener("click", () => { this._v1Candidates = null; this._render(); });
     s.querySelector("#project-add")?.addEventListener("click", () => this._addProject());
-    s.querySelectorAll(".retention-save")?.forEach(button => button.addEventListener("click", () => this._retention(button)));
+    s.querySelectorAll(".retention-save")?.forEach(button => {
+      button.addEventListener("click", () => this._retention(button));
+      button.closest("tr")?.querySelector("input.retention")?.addEventListener("input", () => {
+        this._projectSaved.delete(button.dataset.repo);
+        button.classList.remove("retention-saved");
+        button.textContent = "Speichern";
+      });
+    });
     this._syncCountdownTimer();
   }
 }
