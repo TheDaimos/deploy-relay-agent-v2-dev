@@ -346,6 +346,79 @@ def _archive_payload(summary, version: str, now: datetime,
     return {"path": path, "export_id": export_id, "raw": raw}
 
 
+def _validated_measurement_snapshot(value: object) -> dict:
+    """Recheck persisted sanitized measurements without private operation IDs."""
+    keys = {"scope", "base_seconds", "work_seconds", "after_seconds",
+            "memory", *COUNTERS.keys()}
+    if type(value) is not dict or set(value) != keys:
+        raise GitMeasurementError("invalid archived measurement")
+    if (value["scope"] != SCOPE or
+            (value["base_seconds"], value["work_seconds"], value["after_seconds"])
+            != (10, 20, 10)):
+        raise GitMeasurementError("invalid archived measurement timing")
+    metrics = {}
+    for key, maximum in COUNTERS.items():
+        n = value[key]
+        if type(n) is not int or not 0 <= n <= maximum:
+            raise GitMeasurementError("invalid archived measurement counters")
+        metrics[key] = n
+    return {
+        "scope": SCOPE, "base_seconds": 10, "work_seconds": 20,
+        "after_seconds": 10, **metrics,
+        "memory": sanitized_memory(value["memory"]),
+    }
+
+
+def _validated_snapshot(value: object) -> tuple[dict, str]:
+    """Rebuild only known diagnostic content, stripping no unknown fields."""
+    if type(value) is not dict:
+        raise GitMeasurementError("invalid archived snapshot")
+    if set(value) == {
+        "schema", "created_at", "component", "version", "mode", "suite", "note",
+    } and value["schema"] == SUITE_EXPORT_SCHEMA:
+        report = value["suite"]
+        if type(report) is not dict or set(report) != {
+            "schema", "mode", "readonly_steps", "measurement", "multicore",
+        } or report["schema"] != SUITE_SCHEMA or report["mode"] not in ("full", "multicore"):
+            raise GitMeasurementError("invalid archived suite")
+        if type(report["mode"]) is not str or type(report["readonly_steps"]) is not int:
+            raise GitMeasurementError("invalid archived suite mode")
+        if report["readonly_steps"] != (40 if report["mode"] == "full" else 0):
+            raise GitMeasurementError("invalid archived suite steps")
+        if report["mode"] == "full":
+            measurement = _validated_measurement_snapshot(report["measurement"])
+        else:
+            if report["measurement"] is not None:
+                raise GitMeasurementError("invalid archived multicore-only suite")
+            measurement = None
+        sanitized = {
+            "schema": SUITE_SCHEMA, "mode": report["mode"],
+            "readonly_steps": report["readonly_steps"],
+            "measurement": measurement,
+            "multicore": sanitized_multicore(report["multicore"]),
+        }
+        expected_note = "Synthetic subprocess comparison, not individual DRA CPU attribution."
+        test_id = "V2-READONLY-FULL" if report["mode"] == "full" else "V2-MULTICORE"
+        key = "suite"
+    elif set(value) == {
+        "schema", "created_at", "component", "version", "mode", "measurement", "note",
+    } and value["schema"] == EXPORT_SCHEMA:
+        sanitized = _validated_measurement_snapshot(value["measurement"])
+        expected_note = "Synthetic workload. CPU measured across the whole HA process, not DRA alone."
+        test_id = "V2-CPU-RAM"
+        key = "measurement"
+    else:
+        raise GitMeasurementError("unknown archived diagnostic")
+    if (value["component"] != "deploy_relay_v2_dev" or value["mode"] != "READ_ONLY_TEST"
+            or value["note"] != expected_note):
+        raise GitMeasurementError("invalid archived measurement provenance")
+    return {
+        "schema": value["schema"], "created_at": value["created_at"],
+        "component": "deploy_relay_v2_dev", "version": value["version"],
+        "mode": "READ_ONLY_TEST", key: sanitized, "note": expected_note,
+    }, test_id
+
+
 def _validate_pending(value: object) -> dict | None:
     if value is None:
         return None
@@ -376,6 +449,18 @@ def _validate_pending(value: object) -> dict | None:
                 or snap["created_at"] != exp["capturedAt"]
                 or value["export_id"] != exp["exportId"]
                 or value["path"] != archive_path(document)):
+            raise ValueError()
+        if (document["exportSchema"] != STANDARD_SCHEMA or
+                type(app["name"]) is not str or not 1 <= len(app["name"]) <= 80 or
+                any(ord(char) < 32 or ord(char) > 126 for char in app["name"])):
+            raise ValueError()
+        commit = source["commit"]
+        if commit is not None and (type(commit) is not str or not COMMIT_RE.fullmatch(commit)):
+            raise ValueError()
+        rebuilt, expected_test = _validated_snapshot(snap)
+        if (rebuilt != snap or test["id"] != expected_test or
+                type(test["id"]) is not str or
+                json.dumps(document, sort_keys=True, separators=(",", ":"), ensure_ascii=True) + "\n" != raw):
             raise ValueError()
         if any(secret in raw.casefold() for secret in (
                 "github_pat_", "ghp_", "gho_", "password", "authorization:", "access_token",
