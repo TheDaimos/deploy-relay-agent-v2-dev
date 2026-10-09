@@ -17,7 +17,7 @@ m = importlib.import_module(f"{PKG}.readonly_benchmark")
 
 def multicore():
     return {
-        "schema": "dra-v2-dev-multicore.v1",
+        "schema": "dra-v2-dev-multicore.v2",
         "method": "BOUNDED_CHILD_PROCESSES",
         "logical_cpus_visible": 12,
         "affinity_cpus_visible": 12,
@@ -25,7 +25,7 @@ def multicore():
             {"workers": n, "status": "ok", "wall_ms": 200,
              "aggregate_worker_cpu_ms": n * 120,
              "iterations_total": n * 400000}
-            for n in (1, 2, 4)
+            for n in (1, 2, 4, 6, 8, 10, 12)
         ],
     }
 
@@ -46,7 +46,7 @@ class SuiteTests(unittest.IsolatedAsyncioTestCase):
             await asyncio.sleep(0)
             return sample if fn is m.snapshot_memory else 2
         async def cpu(progress):
-            for i in (1, 2, 3):
+            for i in range(1, 8):
                 await progress(i)
             return multicore()
         async def progress(phase, index, total):
@@ -56,25 +56,25 @@ class SuiteTests(unittest.IsolatedAsyncioTestCase):
               patch.object(m, "to_thread", thread),
               patch.object(m, "_multiprocess_diagnostics", cpu)):
             await suite.run_all(progress)
-        self.assertEqual(records, [(i, 83) for i in range(1, 84)])
+        self.assertEqual(records, [(i, 87) for i in range(1, 88)])
         report = suite.summary()
         self.assertEqual(report["operation_id"], "a" * 32)
         self.assertEqual(report["mode"], "full")
         self.assertEqual(report["readonly_steps"], 40)
         self.assertEqual(report["measurement"]["memory"]["snapshots"]["end"], sample)
-        self.assertEqual([r["workers"] for r in report["multicore"]["levels"]], [1, 2, 4])
+        self.assertEqual([r["workers"] for r in report["multicore"]["levels"]], [1, 2, 4, 6, 8, 10, 12])
 
-    async def test_multicore_only_is_sequential_three_steps(self):
+    async def test_multicore_only_is_sequential_seven_steps(self):
         suite = m.ReadOnlySuite(m.ReadOnlyMeasurement())
         suite.claim("b" * 32)
         steps = []
         async def cpu(progress):
-            for i in (1, 2, 3): await progress(i)
+            for i in range(1, 8): await progress(i)
             return multicore()
         async def progress(_phase, index, total): steps.append((index, total))
         with patch.object(m, "_multiprocess_diagnostics", cpu):
             await suite.run_multicore(progress)
-        self.assertEqual(steps, [(1, 3), (2, 3), (3, 3)])
+        self.assertEqual(steps, [(i, 7) for i in range(1, 8)])
         self.assertIsNone(suite.summary()["measurement"])
         self.assertEqual(suite.summary()["mode"], "multicore")
 
@@ -136,9 +136,9 @@ class SuiteTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(level["iterations_total"], 400000)
         self.assertGreaterEqual(level["aggregate_worker_cpu_ms"], 1)
 
-    async def test_no_more_than_four_workers_allowed(self):
+    async def test_no_more_than_twelve_workers_allowed(self):
         with self.assertRaises(ValueError):
-            await m._single_multicore_stage(12)
+            await m._single_multicore_stage(14)
 
 
 if __name__ == "__main__":

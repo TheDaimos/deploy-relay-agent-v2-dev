@@ -71,7 +71,7 @@ def combined_suite(mode="full"):
                 {"workers": workers, "status": "ok", "wall_ms": 260,
                  "aggregate_worker_cpu_ms": workers * 120,
                  "iterations_total": workers * 400000}
-                for workers in (1, 2, 4)
+                for workers in (1, 2, 4, 6, 8, 10, 12)
             ],
         },
     }
@@ -281,7 +281,7 @@ class GitExportTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_one_export_contains_all_suite_results_without_operation_id(self):
         await self.writer.configure(token=self.token)
-        result = await self.writer.export(combined_suite(), version="0.1.7")
+        result = await self.writer.export(combined_suite(), version="0.1.8")
         self.assertEqual(len(self.session.requests), 1)
         data = self.session.requests[0][1]["json"]["content"]
         decoded = base64.b64decode(data).decode("utf-8")
@@ -294,7 +294,7 @@ class GitExportTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(report["mode"], "full")
         self.assertEqual(report["readonly_steps"], 40)
         self.assertEqual(report["measurement"]["memory"]["snapshots"]["start"]["total_kib"], 7340032)
-        self.assertEqual([x["workers"] for x in report["multicore"]["levels"]], [1, 2, 4])
+        self.assertEqual([x["workers"] for x in report["multicore"]["levels"]], [1, 2, 4, 6, 8, 10, 12])
         self.assertEqual(result["repository"], module.REPOSITORY)
 
     async def test_multicore_only_export_with_unavailable_stage(self):
@@ -304,7 +304,7 @@ class GitExportTests(unittest.IsolatedAsyncioTestCase):
             "status": "unavailable", "wall_ms": None,
             "aggregate_worker_cpu_ms": None, "iterations_total": None,
         })
-        await self.writer.export(report, version="0.1.7")
+        await self.writer.export(report, version="0.1.8")
         encoded = self.session.requests[0][1]["json"]["content"]
         payload = json.loads(base64.b64decode(encoded))
         self.assertIsNone(payload["snapshot"]["suite"]["measurement"])
@@ -322,7 +322,7 @@ class GitExportTests(unittest.IsolatedAsyncioTestCase):
         for value in variants:
             with self.subTest(value=value["mode"]):
                 with self.assertRaises(module.GitMeasurementError):
-                    await self.writer.export(value, version="0.1.7")
+                    await self.writer.export(value, version="0.1.8")
         self.assertEqual(self.session.requests, [])
 
     def test_fixed_public_target_and_utc_document(self):
