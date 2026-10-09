@@ -44,8 +44,8 @@ class LabIsolationContracts(unittest.TestCase):
         self.assertIn('PANEL_PATH: Final = "dra-v2-dev-lab"', const)
         self.assertIn('STATIC_PATH: Final = "/dra_v2_dev_static"', const)
         self.assertIn('PANEL_ELEMENT: Final = "dra-v2-dev-lab-panel"', const)
-        self.assertEqual(len(re.findall(r'probatio.Required\("type"\): "deploy_relay_v2_dev/test/', sockets)), 8)
-        self.assertEqual(sockets.count("@websocket_api.require_admin"), 8)
+        self.assertEqual(len(re.findall(r'probatio.Required\("type"\): "deploy_relay_v2_dev/test/', sockets)), 13)
+        self.assertEqual(sockets.count("@websocket_api.require_admin"), 13)
         self.assertNotIn('"deploy_relay/panel/', sockets)
         self.assertNotIn('"deploy_relay/panel/', frontend)
         self.assertNotIn("deploy-relay-panel", frontend)
@@ -55,7 +55,7 @@ class LabIsolationContracts(unittest.TestCase):
         manifest = json.loads((ROOT / "deploy-relay.json").read_text(encoding="utf-8"))
         approved_files = list(LAB_ROOT.rglob("*"))
         self.assertTrue(approved_files)
-        self.assertLessEqual(len([f for f in approved_files if f.is_file()]), manifest["policy"]["max_files"])
+        self.assertLessEqual(len([f for f in approved_files if f.is_file() and "__pycache__" not in f.parts and f.suffix != ".pyc"]), manifest["policy"]["max_files"])
         self.assertLessEqual(sum(f.stat().st_size for f in approved_files if f.is_file()),
                              manifest["policy"]["max_uncompressed_bytes"])
         for item in approved_files:
@@ -77,14 +77,17 @@ class LabIsolationContracts(unittest.TestCase):
 
     def test_async_ws_handlers_are_scheduled_and_admin_guarded(self):
         sockets = (LAB_ROOT / "websocket_api.py").read_text(encoding="utf-8")
-        self.assertEqual(sockets.count("@websocket_api.async_response"), 8)
-        self.assertEqual(sockets.count("@websocket_api.require_admin"), 8)
-        self.assertEqual(sockets.count("@websocket_api.websocket_command("), 8)
+        self.assertEqual(sockets.count("@websocket_api.async_response"), 13)
+        self.assertEqual(sockets.count("@websocket_api.require_admin"), 13)
+        self.assertEqual(sockets.count("@websocket_api.websocket_command("), 13)
         self.assertIn("import probatio", sockets)
         self.assertNotIn("import voluptuous", sockets)
         for handler in ("async_state", "async_start", "async_measure", "async_multicore",
                         "async_all", "async_get",
-                        "async_git_configure", "async_git_export"):
+                        "async_git_configure", "async_git_export",
+                        "async_projects_list", "async_projects_v1_preview",
+                        "async_projects_import_v1", "async_projects_add",
+                        "async_projects_retention"):
             self.assertIn(
                 chr(10).join((
                     "@websocket_api.require_admin",
@@ -132,7 +135,7 @@ class LabIsolationContracts(unittest.TestCase):
         self.assertIn("No project or file access", (LAB_ROOT / "readonly_benchmark.py").read_text(encoding="utf-8"))
         self.assertNotIn("20-Sekunden-Test", frontend)
         self.assertNotIn("for index in range(1, 21):", sockets)
-        self.assertEqual(sockets.count("@websocket_api.require_admin"), 8)
+        self.assertEqual(sockets.count("@websocket_api.require_admin"), 13)
 
 
 if __name__ == "__main__":

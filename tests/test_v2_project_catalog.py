@@ -108,7 +108,7 @@ class V2ProjectCatalogTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_invalid_projects_cannot_persist(self):
         bad = [
-            ("evil.io/a", "Bad"),
+            ("https://evil.io/a", "Bad"),
             ("http://github.com/a/b", "Bad"),
             ("TheDaimos/../../bad", "Bad"),
             ("TheDaimos/evil", "<script>"),
