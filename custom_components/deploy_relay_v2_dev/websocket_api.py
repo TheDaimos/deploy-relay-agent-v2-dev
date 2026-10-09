@@ -8,7 +8,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from pathlib import Path
 
-from .remote_source import inspect_public_repository
+from .remote_source import inspect_public_repository, GitReadAuthError
 from .source_preflight import PreflightError
 
 from .const import DOMAIN, VERSION, READONLY_TEST_STEPS
@@ -44,6 +44,7 @@ async def async_state(hass, connection, msg):
         "suite": runtime.suite.summary(),
         "git_configured": runtime.git_export.configured,
         "git_available": runtime.git_export.available,
+        "git_read_configured": runtime.source_auth.configured,
         "projects": runtime.projects.list(),
         "settings": runtime.settings.snapshot(),
         "settings_effective": runtime.settings.effective(),
@@ -485,7 +486,7 @@ async def async_projects_source_preview(hass, connection, msg):
                     async_get_clientsession(hass),
                     Path(hass.config.path()),
                     repo,
-                    msg["ref"],
+                    msg["ref"], token=runtime.source_auth.token,
                 ),
                 timeout=45,
             )
@@ -498,6 +499,46 @@ async def async_projects_source_preview(hass, connection, msg):
     connection.send_result(msg["id"], report)
 
 
+
+@websocket_api.websocket_command({
+    probatio.Required("type"): "deploy_relay_v2_dev/git_read/configure",
+    probatio.Required("token"): str,
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def async_git_read_configure(hass, connection, msg):
+    runtime = _runtime(hass)
+    if runtime is None:
+        connection.send_error(msg["id"], "not_ready", "V2-GitHub-Lesezugang nicht bereit")
+        return
+    try:
+        await runtime.source_auth.configure(msg["token"])
+    except GitReadAuthError:
+        connection.send_error(msg["id"], "invalid_credential", "Lesezugang nicht gespeichert")
+        return
+    connection.send_result(msg["id"], {
+        "configured": runtime.source_auth.configured
+    })
+
+
+@websocket_api.websocket_command({
+    probatio.Required("type"): "deploy_relay_v2_dev/git_read/clear",
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def async_git_read_clear(hass, connection, msg):
+    runtime = _runtime(hass)
+    if runtime is None:
+        connection.send_error(msg["id"], "not_ready", "V2-GitHub-Lesezugang nicht bereit")
+        return
+    try:
+        await runtime.source_auth.clear()
+    except GitReadAuthError:
+        connection.send_error(msg["id"], "credential_error", "Lesezugang nicht zurückgesetzt")
+        return
+    connection.send_result(msg["id"], {"configured": False})
+
+
 def async_register_commands(hass: HomeAssistant) -> None:
     state = hass.data.setdefault(DOMAIN, {})
     if state.get("commands_registered"):
@@ -508,6 +549,7 @@ def async_register_commands(hass: HomeAssistant) -> None:
                     async_projects_import_v1, async_projects_add,
                     async_projects_retention, async_projects_preselect,
                     async_settings_get, async_settings_save, async_settings_ack_cpu_warning,
-                    async_batch_preview, async_projects_source_preview):
+                    async_batch_preview, async_projects_source_preview,
+                    async_git_read_configure, async_git_read_clear):
         websocket_api.async_register_command(hass, handler)
     state["commands_registered"] = True

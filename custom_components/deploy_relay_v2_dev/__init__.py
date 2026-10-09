@@ -21,6 +21,7 @@ from .operation_journal import JournalError, OperationJournal
 from .git_measurement_export import GitMeasurementError, MeasurementGitExport
 from .project_catalog import CatalogError, ProjectCatalog
 from .settings import SettingsError, V2Settings
+from .remote_source import GitReadAuth, GitReadAuthError
 from .readonly_task_supervisor import ReadOnlyTaskSupervisor
 from .readonly_benchmark import ReadOnlyMeasurement, ReadOnlySuite
 from .ha_preview_task_factory import PreviewTaskFactory
@@ -39,6 +40,7 @@ class LabRuntime:
     projects: ProjectCatalog
     settings: V2Settings
     source_scan_lock: asyncio.Lock
+    source_auth: GitReadAuth
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -75,6 +77,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await settings.startup_check()
     except SettingsError:
         return False
+    source_auth = GitReadAuth(Store(hass, 1, "deploy_relay_v2_dev.git_read_auth"))
+    try:
+        await source_auth.load()
+    except GitReadAuthError:
+        # Do not silently overwrite damaged credentials.
+        return False
     measurement = ReadOnlyMeasurement()
     suite = ReadOnlySuite(measurement)
     registry = OperationRegistry(max_completed=12, max_readonly=1)
@@ -87,7 +95,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     runtime = LabRuntime(registry=registry, supervisor=supervisor, journal=journal,
                          measurement=measurement, suite=suite, git_export=git_export,
                          projects=projects, settings=settings,
-                         source_scan_lock=asyncio.Lock())
+                         source_scan_lock=asyncio.Lock(), source_auth=source_auth)
     store["runtime"] = runtime
     try:
         async_register_commands(hass)
