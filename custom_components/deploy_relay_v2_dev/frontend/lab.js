@@ -69,7 +69,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     if (op.status !== "running") return;
     const step = Number.isInteger(op.current_index) &&
       op.current_index >= 0 && op.current_index <= op.total_count &&
-      (op.total_count === 40 || op.total_count === 83) ? op.current_index : 0;
+      (op.total_count === 40 || op.total_count === 87) ? op.current_index : 0;
     if (step !== this._countdownStep) {
       this._countdownStep = step;
       this._countdownAt = Date.now();
@@ -84,16 +84,16 @@ class DRAV2DevLabPanel extends HTMLElement {
       return "Start wird vorbereitet";
     }
     if (op.status !== "running") return "Auftrag beendet";
-    if (op.total_count === 3) return "Mehrkernprüfung läuft";
-    if (op.total_count !== 40 && op.total_count !== 83) return "Fortschritt wird abgerufen";
-    if (op.total_count === 83 && op.current_index >= 80) return "Mehrkernprüfung läuft";
+    if (op.total_count === 7) return "Mehrkernprüfung läuft";
+    if (op.total_count !== 40 && op.total_count !== 87) return "Fortschritt wird abgerufen";
+    if (op.total_count === 87 && op.current_index >= 80) return "Mehrkernprüfung läuft";
     const step = Number.isInteger(op.current_index) &&
       op.current_index >= 0 && op.current_index <= op.total_count ?
       op.current_index : 0;
-    if (this._countdownAt === null) return "Noch ca. " + (op.total_count === 83 ? 80 : 40) + " Sekunden";
+    if (this._countdownAt === null) return "Noch ca. " + (op.total_count === 87 ? 80 : 40) + " Sekunden";
     const elapsed = Math.floor(Math.max(0, Date.now() - this._countdownAt) / 1000);
     // Never claim 0 while the backend still reports "running".
-    const predicted = Math.max(1, (op.total_count === 83 ? 80 : 40) - step - elapsed);
+    const predicted = Math.max(1, (op.total_count === 87 ? 80 : 40) - step - elapsed);
     // Do not jump backwards on delayed progress messages.
     this._countdownShown = Number.isInteger(this._countdownShown) ?
       Math.min(this._countdownShown, predicted) : predicted;
@@ -273,10 +273,10 @@ class DRAV2DevLabPanel extends HTMLElement {
       ["base_process_cpu_ms", "work_process_cpu_ms", "after_process_cpu_ms",
        "max_wakeup_delay_ms", "elapsed_ms", "synthetic_hashes"]
         .every(k => Number.isInteger(data[k]) && data[k] >= 0);
-    const validSuite = suite?.schema === "dra-v2-dev-suite.v1" &&
+    const validSuite = suite?.schema === "dra-v2-dev-suite.v2" &&
       ["full", "multicore"].includes(suite.mode) &&
-      suite.multicore?.schema === "dra-v2-dev-multicore.v1" &&
-      Array.isArray(suite.multicore.levels) && suite.multicore.levels.length === 3;
+      suite.multicore?.schema === "dra-v2-dev-multicore.v2" &&
+      Array.isArray(suite.multicore.levels) && suite.multicore.levels.length === 7;
     const processRate = (cpuMs, duration) =>
       (100 * cpuMs / (1000 * duration)).toFixed(2) + " % eines CPU-Kerns";
     const memory = valid ? data.memory : null;
@@ -298,7 +298,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     const baselineRate = baseline?.status === "ok" && Number.isInteger(baseline.wall_ms) && baseline.wall_ms > 0 &&
       Number.isInteger(baseline.iterations_total) ? baseline.iterations_total / baseline.wall_ms : null;
     const multiRows = validSuite ? suite.multicore.levels.map(level => {
-      const workers = [1, 2, 4].includes(level.workers) ? level.workers : "—";
+      const workers = [1, 2, 4, 6, 8, 10, 12].includes(level.workers) ? level.workers : "—";
       const ok = level.status === "ok";
       const millis = ok && Number.isInteger(level.wall_ms) ? level.wall_ms + " ms" : "Nicht verfügbar";
       const cpuTime = ok && Number.isInteger(level.aggregate_worker_cpu_ms) ?
@@ -322,8 +322,8 @@ class DRAV2DevLabPanel extends HTMLElement {
       }</p>
       <div class="table-wrap"><table><thead><tr><th>Arbeitsprozesse</th><th>Status</th><th>Gesamtdauer</th><th>CPU-Zeit</th><th>Rechenschritte</th><th>Durchsatz</th><th>Vergleich</th></tr></thead>
       <tbody>${multiRows}</tbody></table></div>
-      <p class="note">Die 1-, 2- und 4-Prozesse-Prüfungen laufen nacheinander.
-      Es laufen nie mehr als vier Arbeitsprozesse gleichzeitig. Die Werte enthalten
+      <p class="note">Die sieben Stufen 1, 2, 4, 6, 8, 10 und 12 laufen nacheinander.
+      Es laufen nie mehr als zwölf kurzlebige Arbeitsprozesse gleichzeitig. Die Werte enthalten
       auch Start- und Verwaltungsaufwand. Das Verhältnis bezieht sich auf den
       Durchsatz des Ein-Prozess-Laufs, nicht auf die Kernzahl oder den isolierten
       Verbrauch einzelner HA-Integrationen.</p>
@@ -387,10 +387,10 @@ class DRAV2DevLabPanel extends HTMLElement {
           ${this._error ? `<p class="error">${this._error}</p>` : ""}
           <button id="start" ${busy ? "disabled" : ""}>Testauftrag starten</button>
           <button id="measure" ${busy ? "disabled" : ""}>Messlauf starten (40 s)</button>
-          <button id="multicore" ${busy ? "disabled" : ""}>Mehrkern-Diagnose (1 / 2 / 4)</button>
+          <button id="multicore" ${busy ? "disabled" : ""}>Mehrkern-Diagnose (1 / 2 / 4 / 6 / 8 / 10 / 12)</button>
           <button id="all" ${busy ? "disabled" : ""}>Alle Tests nacheinander starten</button>
           <p class="note">Gesamttest: erst 40 Sekunden Auftragsprüfung, dann 40 Sekunden CPU-/Speichermessung,
-          anschließend nacheinander 1, 2 und 4 getrennte Arbeitsprozesse. Ein Auftrag, ein Git-Export.</p>
+          anschließend nacheinander 1, 2, 4, 6, 8, 10 und 12 getrennte Arbeitsprozesse. Ein Auftrag, ein Git-Export.</p>
           <p class="note">Messlauf: 10 Sekunden Basis, 20 Sekunden begrenzte Rechenarbeit
           außerhalb der HA-Ereignisschleife, 10 Sekunden Nachlauf. Maximal ein Auftrag gleichzeitig.</p>
           ${report}
