@@ -119,245 +119,242 @@ class FakeSession:
 
 class GitExportTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
-        self.token = "github_pat_A_TEST_TOKEN_FOR_TEST_ONLY"
+        self.token = "github_pat_SYNTHETIC_TEST_NEVER_REAL"
         self.store = FakeStore()
         self.session = FakeSession()
-        self.writer = module.MeasurementGitExport(self.store, self.session)
+        self.writer = module.MeasurementGitExport(
+            self.store, self.session, token_provider=lambda: self.token,
+        )
         await self.writer.load()
 
-    async def test_explicit_upload_is_public_minimal_and_isolated(self):
-        self.assertFalse(self.writer.configured)
-        await self.writer.configure(token=self.token)
-        self.assertTrue(self.writer.configured)
-        result = await self.writer.export(measurement(), version="0.1.5")
-        self.assertEqual(self.store.writes, 1)
+    def uploaded(self, n=0):
+        url, request = self.session.requests[n]
+        payload = base64.b64decode(request["json"]["content"])
+        return url, request, json.loads(payload)
+
+    async def test_private_export_metadaten_and_correct_month(self):
+        result = await self.writer.export(measurement(), version="0.1.14")
         self.assertEqual(len(self.session.requests), 1)
-        url, request = self.session.requests[0]
-        self.assertTrue(url.startswith(
-            "https://api.github.com/repos/TheDaimos/deploy-relay-agent-v2-dev/"
-            "contents/.deploy-relay/diagnostics/v2-dev/"
-        ))
+        url, request, body = self.uploaded()
+        self.assertIn("/repos/TheDaimos/Project-Log-And-Export/contents/exports/", url)
+        self.assertNotIn("/deploy-relay-agent-v2-dev/contents/", url)
+        self.assertIn("/exports/deploy-relay-agent-v2/", url)
+        self.assertTrue(url.startswith("https://api.github.com/"))
+        self.assertIs(request["allow_redirects"], False)
+        self.assertNotIn("sha", request["json"], "Must CREATE, never overwrite")
         self.assertEqual(request["json"]["branch"], "main")
-        self.assertIn("[skip ci]", request["json"]["message"])
-        self.assertNotIn("sha", request["json"])
-        self.assertEqual(request["headers"]["Authorization"], f"Bearer {self.token}")
-        payload = base64.b64decode(request["json"]["content"]).decode("utf-8")
-        self.assertLessEqual(len(payload), module.MAX_EXPORT_BYTES)
-        for forbidden in (self.token, "operation_id", "aaaaaaaaaa",
-                          "subentry", "username", "/config/", "github_pat_"):
-            self.assertNotIn(forbidden, payload)
-        blob = json.loads(payload)
-        self.assertEqual(blob["repository"], module.REPOSITORY)
-        self.assertEqual(blob["branch"], "main")
-        self.assertEqual(blob["snapshot"]["measurement"]["synthetic_hashes"], 46)
-        self.assertEqual(blob["snapshot"]["measurement"]["scope"], module.SCOPE)
-        memory = blob["snapshot"]["measurement"]["memory"]
-        self.assertEqual(memory["snapshots"]["start"]["free_kib"], 2097152)
-        self.assertIsNone(memory["component_memory"]["dra_v1_kib"])
-        self.assertIsNone(memory["component_memory"]["dra_v2_kib"])
-        self.assertEqual(blob["schema"], "dra-v2-dev-git-measurement.v2")
-        self.assertNotIn("operation_id", blob["snapshot"]["measurement"])
-        self.assertTrue(result["file_url"].startswith(
-            "https://github.com/TheDaimos/deploy-relay-agent-v2-dev/blob/main/"
-            ".deploy-relay/diagnostics/v2-dev/"
-        ))
-        self.assertEqual(result["commit_sha"], "b" * 40)
+        self.assertEqual(request["headers"]["Authorization"], "Bearer " + self.token)
+        self.assertEqual(body["exportSchema"], module.STANDARD_SCHEMA)
+        self.assertEqual(body["application"], {
+            "id": "deploy-relay-agent-v2", "name": "Deploy Relay Agent V2",
+            "version": "0.1.14",
+        })
+        self.assertEqual(body["export"]["type"], "diagnostics")
+        self.assertRegex(body["export"]["capturedAt"], r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$")
+        self.assertRegex(body["export"]["exportId"], r"^[0-9a-f]{32}$")
+        self.assertEqual(body["source"], {
+            "repository": module.SOURCE_REPOSITORY, "commit": None,
+        })
+        self.assertEqual(body["test"]["id"], "V2-CPU-RAM")
+        self.assertIsNone(body["test"]["capabilityUiNumber"])
+        self.assertEqual(body["snapshot"]["schema"], module.EXPORT_SCHEMA)
+        self.assertEqual(body["snapshot"]["measurement"]["synthetic_hashes"], 46)
+        self.assertEqual(result["export_id"], body["export"]["exportId"])
+        self.assertEqual(result["path"], module.archive_path(body))
+        self.assertEqual(result["repository"], "TheDaimos/Project-Log-And-Export")
+        self.assertIn("/" + body["export"]["capturedAt"][:7] + "/diagnostics/", result["path"])
+        self.assertFalse(self.writer.pending)
+        self.assertNotIn(self.token, str(body))
 
-    async def test_no_upload_before_explicit_configuration(self):
-        with self.assertRaises(module.GitMeasurementError):
-            await self.writer.export(measurement(), version="0.1.5")
-        self.assertEqual(self.session.requests, [])
+    async def test_two_exports_are_distinct_even_same_second(self):
+        a = await self.writer.export(measurement(), version="0.1.14")
+        b = await self.writer.export(measurement(), version="0.1.14")
+        self.assertNotEqual(a["export_id"], b["export_id"])
+        self.assertNotEqual(a["path"], b["path"])
+        self.assertEqual(len(self.session.requests), 2)
+        self.assertTrue(all("sha" not in x[1]["json"] for x in self.session.requests))
 
-    async def test_secret_store_kept_separate_and_reloaded(self):
-        await self.writer.configure(token=self.token)
-        another = module.MeasurementGitExport(self.store, self.session)
-        await another.load()
-        self.assertTrue(another.configured)
-        await another.configure(clear=True)
-        self.assertFalse(another.configured)
-        self.assertIsNone(self.store.data["token"])
-        with self.assertRaises(module.GitMeasurementError):
-            await another.export(measurement(), version="0.1.5")
+    def test_display_name_change_never_changes_immutable_id_or_folder(self):
+        stamp = datetime(2026, 10, 9, 10, 0, tzinfo=timezone.utc)
+        first = module.archive_document(
+            measurement(), version="0.1.14", now=stamp,
+            export_id="a"*32, display_name="Deploy Relay Agent V2",
+        )
+        renamed = module.archive_document(
+            measurement(), version="0.1.14", now=stamp,
+            export_id="a"*32, display_name="DRA Zukunft",
+        )
+        self.assertEqual(first["application"]["id"], renamed["application"]["id"])
+        self.assertEqual(module.archive_path(first), module.archive_path(renamed))
+        self.assertEqual(renamed["application"]["name"], "DRA Zukunft")
 
-    async def test_corrupt_store_refused_without_overwriting(self):
-        for invalid in (
-            {"schema": "other", "token": self.token},
-            {"schema": module.AUTH_SCHEMA, "token": self.token, "private": "SECRET"},
-            {"schema": module.AUTH_SCHEMA, "token": 55},
+    def test_missing_or_lying_metadata_rejected(self):
+        stamp = datetime(2026, 10, 9, 10, 0, tzinfo=timezone.utc)
+        for kwargs in (
+            {"export_id": ""}, {"export_id": "wrong"},
+            {"display_name": ""}, {"display_name": "\nSECRET"},
+            {"source_commit": "wrong"}, {"version": ""},
         ):
-            store = FakeStore(invalid)
-            writer = module.MeasurementGitExport(store, self.session)
-            with self.assertRaises(module.GitMeasurementError):
-                await writer.load()
-            self.assertFalse(writer.available)
-            self.assertEqual(store.writes, 0)
+            params = {
+                "version": "0.1.14", "now": stamp, "export_id": "a"*32,
+            }
+            params.update(kwargs)
+            with self.subTest(params=params), self.assertRaises(module.GitMeasurementError):
+                module.archive_document(measurement(), **params)
+        with self.assertRaises(module.GitMeasurementError):
+            module.archive_document(measurement(), version="0.1.14",
+                                    now=stamp.replace(tzinfo=None), export_id="a"*32)
+        valid = module.archive_document(measurement(), version="0.1.14", now=stamp, export_id="a"*32)
+        valid["application"]["id"] = "other-app"
+        with self.assertRaises(module.GitMeasurementError):
+            module.archive_path(valid)
 
-    async def test_write_failure_keeps_old_token_and_hides_exception(self):
-        await self.writer.configure(token=self.token)
-        self.store.fail_save = True
-        with self.assertRaises(module.GitMeasurementError) as error:
-            await self.writer.configure(token="github_pat_ANOTHER_TEST_TOKEN")
-        self.assertNotIn("PRIVATE TOKEN", str(error.exception))
-        self.assertEqual(self.store.data["token"], self.token)
-        self.assertTrue(self.writer.configured)
-
-    async def test_reject_unknown_secret_fields_and_invalid_metrics(self):
-        await self.writer.configure(token=self.token)
-        for update in (
-            {"password": "SECRET"},
-            {"synthetic_hashes": -1},
-            {"base_seconds": 11},
-            {"base_process_cpu_ms": True},
-            {"scope": "HA_DEV_PRIVATE_PATH"},
-            {"operation_id": "not valid"},
-            {"memory": {"token": self.token}},
+    async def test_strict_anonymization_rejects_added_secrets(self):
+        for change in (
+            {"authorization": self.token}, {"password": self.token},
+            {"scope": "ghp_SECRET_PRIVATE"}, {"operation_id": "x"*64},
+            {"memory": {"api_key": self.token}}, {"synthetic_hashes": -100},
         ):
             sample = measurement()
-            sample.update(update)
-            with self.subTest(update=update):
-                with self.assertRaises(module.GitMeasurementError):
-                    await self.writer.export(sample, version="0.1.5")
+            sample.update(change)
+            with self.subTest(change=change), self.assertRaises(module.GitMeasurementError):
+                await self.writer.export(sample, version="0.1.14")
         self.assertEqual(self.session.requests, [])
+        self.assertEqual(self.store.writes, 0)
 
-    async def test_git_error_does_not_leak_token_or_response(self):
-        await self.writer.configure(token=self.token)
-        self.session.response = FakeResponse(status=403,
-            payload={"raw_secret": self.token})
-        with self.assertRaises(module.GitMeasurementError) as error:
-            await self.writer.export(measurement(), version="0.1.5")
-        self.assertNotIn(self.token, str(error.exception))
-        self.assertNotIn("raw_secret", str(error.exception))
-
-    async def test_invalid_confirmation_is_not_success(self):
-        await self.writer.configure(token=self.token)
-        self.session.response = FakeResponse(payload={"commit": {"sha": "wrong"}})
-        with self.assertRaises(module.GitMeasurementError):
-            await self.writer.export(measurement(), version="0.1.5")
-
-
-    async def test_memory_forgery_or_private_data_rejected_before_upload(self):
-        await self.writer.configure(token=self.token)
-        variants = []
-        wrong = measurement()
-        wrong["memory"]["snapshots"]["work_end"]["private_path"] = "/config/secret"
-        variants.append(wrong)
-        wrong = measurement()
-        wrong["memory"]["component_memory"]["dra_v1_kib"] = 123
-        variants.append(wrong)
-        wrong = measurement()
-        wrong["memory"]["component_memory"]["reason"] = "isolated"
-        variants.append(wrong)
-        wrong = measurement()
-        wrong["memory"]["snapshots"]["end"]["free_kib"] = 8000000
-        variants.append(wrong)
-        wrong = measurement()
-        wrong["memory"]["snapshots"]["end"]["used_effective_kib"] = -1
-        variants.append(wrong)
-        wrong = measurement()
-        wrong["memory"]["snapshots"]["end"]["used_effective_kib"] = 0
-        variants.append(wrong)
-        wrong = measurement()
-        wrong["memory"]["snapshots"]["end"]["ha_process_rss_kib"] = True
-        variants.append(wrong)
-        for sample in variants:
-            with self.subTest(sample=sample["memory"]):
-                with self.assertRaises(module.GitMeasurementError):
-                    await self.writer.export(sample, version="0.1.5")
-        self.assertEqual(self.session.requests, [])
-
-    async def test_missing_linux_probe_memory_remains_public_safe(self):
-        await self.writer.configure(token=self.token)
-        sample = measurement()
-        for snap in sample["memory"]["snapshots"].values():
-            for key in ("total_kib", "used_effective_kib", "free_kib",
-                        "available_kib", "ha_process_rss_kib"):
-                snap[key] = None
-        await self.writer.export(sample, version="0.1.5")
-        body = self.session.requests[0][1]["json"]["content"]
-        decoded = json.loads(base64.b64decode(body))
-        self.assertIsNone(decoded["snapshot"]["measurement"]["memory"]
-                          ["snapshots"]["work_end"]["total_kib"])
-
-
-    async def test_one_export_contains_all_suite_results_without_operation_id(self):
-        await self.writer.configure(token=self.token)
-        result = await self.writer.export(combined_suite(), version="0.1.8")
-        self.assertEqual(len(self.session.requests), 1)
-        data = self.session.requests[0][1]["json"]["content"]
-        decoded = base64.b64decode(data).decode("utf-8")
-        self.assertLessEqual(len(decoded.encode("utf-8")), 4096)
-        self.assertNotIn("operation_id", decoded)
-        self.assertNotIn(self.token, decoded)
-        obj = json.loads(decoded)
-        self.assertEqual(obj["schema"], module.SUITE_EXPORT_SCHEMA)
-        report = obj["snapshot"]["suite"]
-        self.assertEqual(report["mode"], "full")
-        self.assertEqual(report["readonly_steps"], 40)
-        self.assertEqual(report["measurement"]["memory"]["snapshots"]["start"]["total_kib"], 7340032)
-        self.assertEqual([x["workers"] for x in report["multicore"]["levels"]], [1, 2, 4, 6, 8, 10, 12])
+    async def test_full_suite_snapshot_remains_compatible(self):
+        result = await self.writer.export(combined_suite(), version="0.1.14")
+        url, kwargs, obj = self.uploaded()
+        self.assertEqual(obj["test"]["id"], "V2-READONLY-FULL")
+        self.assertEqual(obj["snapshot"]["schema"], module.SUITE_EXPORT_SCHEMA)
+        self.assertEqual(obj["snapshot"]["suite"]["readonly_steps"], 40)
+        self.assertEqual(
+            [x["workers"] for x in obj["snapshot"]["suite"]["multicore"]["levels"]],
+            [1, 2, 4, 6, 8, 10, 12],
+        )
+        self.assertNotIn("operation_id", json.dumps(obj))
         self.assertEqual(result["repository"], module.REPOSITORY)
 
-    async def test_seven_stages_strict_no_missing_or_reordered_workers(self):
-        await self.writer.configure(token=self.token)
-        cases = []
-        missing = combined_suite()
-        missing["multicore"]["levels"] = missing["multicore"]["levels"][:-1]
-        cases.append(missing)
-        extra = combined_suite()
-        extra["multicore"]["levels"].append({
-            "workers": 14, "status": "ok", "wall_ms": 200,
-            "aggregate_worker_cpu_ms": 300, "iterations_total": 5600000,
-        })
-        cases.append(extra)
-        reordered = combined_suite()
-        reordered["multicore"]["levels"][5], reordered["multicore"]["levels"][6] = (
-            reordered["multicore"]["levels"][6], reordered["multicore"]["levels"][5]
-        )
-        cases.append(reordered)
-        legacy = combined_suite()
-        legacy["multicore"]["schema"] = "dra-v2-dev-multicore.v1"
-        cases.append(legacy)
-        for case in cases:
-            with self.subTest(levels=case["multicore"]["levels"]):
-                with self.assertRaises(module.GitMeasurementError):
-                    await self.writer.export(case, version="0.1.8")
-        self.assertEqual(self.session.requests, [])
-
-    async def test_multicore_only_export_with_unavailable_stage(self):
-        await self.writer.configure(token=self.token)
+    async def test_multicore_only_and_unavailable_are_kept(self):
         report = combined_suite("multicore")
         report["multicore"]["levels"][2].update({
             "status": "unavailable", "wall_ms": None,
             "aggregate_worker_cpu_ms": None, "iterations_total": None,
         })
-        await self.writer.export(report, version="0.1.8")
-        encoded = self.session.requests[0][1]["json"]["content"]
-        payload = json.loads(base64.b64decode(encoded))
-        self.assertIsNone(payload["snapshot"]["suite"]["measurement"])
-        self.assertEqual(payload["snapshot"]["suite"]["multicore"]["levels"][2]["status"], "unavailable")
+        await self.writer.export(report, version="0.1.14")
+        _, _, obj = self.uploaded()
+        self.assertEqual(obj["test"]["id"], "V2-MULTICORE")
+        self.assertIsNone(obj["snapshot"]["suite"]["measurement"])
+        self.assertEqual(obj["snapshot"]["suite"]["multicore"]["levels"][2]["status"], "unavailable")
 
-    async def test_forged_multicore_data_never_uploaded(self):
-        await self.writer.configure(token=self.token)
-        variants = []
-        x = combined_suite(); x["multicore"]["password"] = self.token; variants.append(x)
-        x = combined_suite(); x["multicore"]["levels"][1]["workers"] = 9; variants.append(x)
-        x = combined_suite(); x["multicore"]["levels"][1]["iterations_total"] = 999999; variants.append(x)
-        x = combined_suite(); x["measurement"]["operation_id"] = "b"*32; variants.append(x)
-        x = combined_suite(); x["multicore"]["levels"][2]["status"] = "unavailable"; variants.append(x)
-        x = combined_suite(); x["mode"] = "invalid"; variants.append(x)
-        for value in variants:
-            with self.subTest(value=value["mode"]):
-                with self.assertRaises(module.GitMeasurementError):
-                    await self.writer.export(value, version="0.1.8")
+    async def test_untrusted_suite_is_rejected(self):
+        malformed = combined_suite()
+        malformed["multicore"]["password"] = self.token
+        for sample in (malformed, {**combined_suite(), "mode": "root"}):
+            with self.assertRaises(module.GitMeasurementError):
+                await self.writer.export(sample, version="0.1.14")
         self.assertEqual(self.session.requests, [])
 
-    def test_fixed_public_target_and_utc_document(self):
-        self.assertEqual(module.REPOSITORY, "TheDaimos/deploy-relay-agent-v2-dev")
-        self.assertEqual(module.ROOT, ".deploy-relay/diagnostics/v2-dev")
-        now = datetime(2026, 10, 8, 18, 30, tzinfo=timezone.utc)
-        doc = module.public_export_document(measurement(), version="0.1.5", now=now)
-        self.assertEqual(doc["created_at"], "2026-10-08T18:30:00Z")
-        self.assertEqual(doc["schema"], module.EXPORT_SCHEMA)
+    async def test_403_rejected_and_original_kept_locally(self):
+        self.session.response = FakeResponse(403, {"raw_token": self.token})
+        with self.assertRaises(module.GitMeasurementError) as caught:
+            await self.writer.export(measurement(), version="0.1.14")
+        self.assertNotIn(self.token, str(caught.exception))
+        self.assertEqual(self.store.data["schema"], module.QUEUE_SCHEMA)
+        self.assertTrue(self.writer.pending)
+        self.assertNotIn(self.token, self.store.data["pending"]["raw"])
+        self.assertEqual(len(self.session.requests), 1)
+
+    async def test_network_failure_retry_same_id_then_clear(self):
+        self.session.response = FakeResponse(503)
+        with self.assertRaises(module.GitMeasurementError):
+            await self.writer.export(measurement(), version="0.1.14")
+        first = copy.deepcopy(self.store.data["pending"])
+        previous_writer = module.MeasurementGitExport(
+            self.store, self.session, token_provider=lambda: self.token,
+        )
+        await previous_writer.load()
+        self.assertTrue(previous_writer.pending)
+        with self.assertRaises(module.GitMeasurementError):
+            await previous_writer.export(measurement(), version="0.1.14")
+        self.session.response = FakeResponse(201)
+        result = await previous_writer.retry_pending()
+        self.assertEqual(result["export_id"], first["export_id"])
+        self.assertEqual(result["path"], first["path"])
+        self.assertFalse(previous_writer.pending)
+        self.assertIsNone(self.store.data["pending"])
+        self.assertEqual(len(self.session.requests), 2)
+
+    async def test_collision_422_never_updates_existing_file(self):
+        self.session.response = FakeResponse(422)
+        with self.assertRaises(module.GitMeasurementError):
+            await self.writer.export(measurement(), version="0.1.14")
+        before = copy.deepcopy(self.store.data["pending"])
+        with self.assertRaises(module.GitMeasurementError):
+            await self.writer.retry_pending()
+        self.assertEqual(self.store.data["pending"], before)
+        self.assertEqual(len(self.session.requests), 2)
+        self.assertTrue(all("sha" not in args["json"] for _, args in self.session.requests))
+
+    async def test_no_token_on_server_no_network_or_queue(self):
+        writer = module.MeasurementGitExport(
+            self.store, self.session, token_provider=lambda: None,
+        )
+        await writer.load()
+        self.assertFalse(writer.configured)
+        with self.assertRaises(module.GitMeasurementError):
+            await writer.export(measurement(), version="0.1.14")
+        self.assertEqual(self.session.requests, [])
+        self.assertEqual(self.store.writes, 0)
+
+    async def test_browser_token_configuration_is_disabled(self):
+        with self.assertRaises(module.GitMeasurementError):
+            await self.writer.configure(token=self.token)
+        self.assertEqual(self.store.writes, 0)
+
+    async def test_corrupted_pending_queue_never_silently_overwritten(self):
+        for bad in (
+            {"schema": "unknown", "pending": None},
+            {"schema": module.QUEUE_SCHEMA, "pending": {"path": "public"}},
+            {"schema": module.QUEUE_SCHEMA, "pending": {
+                "path": "exports/deploy-relay-agent-v2/evil",
+                "export_id": "a"*32, "raw": '{"password":"SECRET"}',
+            }},
+        ):
+            store = FakeStore(bad)
+            writer = module.MeasurementGitExport(
+                store, self.session, token_provider=lambda: self.token,
+            )
+            with self.assertRaises(module.GitMeasurementError):
+                await writer.load()
+            self.assertEqual(store.writes, 0)
+
+    async def test_local_queue_save_failure_uploads_nothing(self):
+        self.store.fail_save = True
+        with self.assertRaises(module.GitMeasurementError) as caught:
+            await self.writer.export(measurement(), version="0.1.14")
+        self.assertNotIn("PRIVATE TOKEN", str(caught.exception))
+        self.assertEqual(self.session.requests, [])
+
+    async def test_invalid_remote_commit_confirmation_keeps_pending(self):
+        self.session.response = FakeResponse(201, {"commit": {"sha": "INVALID"}})
+        with self.assertRaises(module.GitMeasurementError):
+            await self.writer.export(measurement(), version="0.1.14")
+        self.assertTrue(self.writer.pending)
+
+    def test_archive_path_example_and_version(self):
+        now = datetime(2026, 10, 9, 11, 0, tzinfo=timezone.utc)
+        doc = module.archive_document(
+            measurement(), version="0.1.14", now=now,
+            export_id="f"*32, source_commit="b"*40,
+        )
+        path = module.archive_path(doc)
+        self.assertEqual(path, (
+            "exports/deploy-relay-agent-v2/2026-10/diagnostics/"
+            "2026-10-09T11-00-00Z__deploy-relay-agent-v2__0.1.14__diagnostics__"
+            + "f"*32 + ".json"
+        ))
+        self.assertEqual(doc["source"]["commit"], "b"*40)
 
 
 if __name__ == "__main__":
