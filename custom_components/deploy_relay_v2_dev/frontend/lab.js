@@ -31,6 +31,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._centralExport = {configured:false,repository_configured:false,server_token_available:false,pending:false,repository:null};
     this._archiveBusy = false;
     this._gitDialogOpen = false;
+    this._diagnosticsExportReady = false;
     this._archiveMessage = "";
     this._archiveCheckState = "idle";
     this._downloadBusy = false;
@@ -165,6 +166,7 @@ class DRAV2DevLabPanel extends HTMLElement {
       this._cpuStatus = data.cpu_status || this._cpuStatus;
       this._gitConfigured = data.git_configured === true;
       this._centralExport = data.central_export || this._centralExport;
+      this._diagnosticsExportReady = data.diagnostics_export_ready === true;
       if (this._archiveCheckState === "idle" && this._centralExport.configured) {
         // Stored on HA, but not necessarily reverified this browser session.
         this._archiveCheckState = "stored";
@@ -409,7 +411,14 @@ class DRAV2DevLabPanel extends HTMLElement {
       this._gitStatus = retry ?
         "Wiederholung fehlgeschlagen. Der bereinigte Export bleibt lokal erhalten." :
         "GitHub-Export fehlgeschlagen. Kein öffentliches Ersatzziel. JSON kann unabhängig heruntergeladen werden.";
-      this._centralExport = {...this._centralExport, pending:true};
+      // A failed request does not necessarily mean an export was queued.
+      // The server status is the authority; never create a fictional pending flag.
+      try {
+        const status = await this._hass.callWS({type:"deploy_relay_v2_dev/test/state"});
+        this._centralExport = status.central_export || this._centralExport;
+        this._gitConfigured = this._centralExport.configured === true;
+        this._diagnosticsExportReady = status.diagnostics_export_ready === true;
+      } catch (_ignored) { /* Keep last known status, show error above. */ }
     } finally {
       this._gitBusy = false;
       if (this.isConnected) this._render();
@@ -737,6 +746,8 @@ class DRAV2DevLabPanel extends HTMLElement {
         button.retention-saved { background:#247d42; color:#fff; }
         input.project-text { box-sizing:border-box; width:100%; min-height:40px; background:var(--primary-background-color,#151515); color:inherit; border:1px solid var(--divider-color,#555); border-radius:8px; padding:8px; margin:5px 0; }
         input.git-token { box-sizing:border-box; width:100%; min-height:40px; background:var(--primary-background-color,#151515); color:inherit; border:1px solid var(--divider-color,#555); border-radius:8px; padding:8px; }
+        .git-main-actions { display:flex; flex-wrap:wrap; align-items:center; gap:5px; }
+        .git-main-actions button { margin-right:0; }
         .git-dialog-backdrop { position:fixed; inset:0; z-index:2147483644; display:flex;
           align-items:center; justify-content:center; padding:12px; box-sizing:border-box;
           background:rgba(0,0,0,.78); }
@@ -883,21 +894,41 @@ class DRAV2DevLabPanel extends HTMLElement {
 
         <article>
           <strong>Diagnoseexport</strong>
-          <p class="note">Bereinigte Messdaten mit Anwendungs-ID und Exportkennung.
-          Download ohne GitHub möglich; private GitHub-Ablage optional.</p>
-          <button id="json-download" ${this._downloadBusy || busy ||
-            (!valid && !validSuite) || op?.status !== "success" ? "disabled" : ""}>
-            JSON herunterladen
-          </button>
-          <button id="git-dialog-open">Git-Export</button>
+          <p class="note">Lokale JSON-Datei oder Export in dein selbst eingerichtetes privates GitHub-Repository.</p>
+          <div class="git-main-actions">
+            <button id="json-download" ${this._downloadBusy || busy ||
+              !this._diagnosticsExportReady ? "disabled" : ""}>JSON herunterladen</button>
+            <button id="git-export" ${this._gitBusy || busy ||
+              !this._gitAvailable || !this._gitConfigured ||
+              this._centralExport.pending || !this._diagnosticsExportReady ? "disabled" : ""}>
+              Git-Export
+            </button>
+            <button id="git-dialog-open">Export-Einstellungen</button>
+          </div>
+          <p class="note"><strong>Repository:</strong>
+            ${this._centralExport.repository ?
+              this._escapeProject(this._centralExport.repository) : "Nicht eingerichtet"}
+            · <strong>Token:</strong>
+            ${this._centralExport.token_suffix &&
+              /^[A-Za-z0-9_-]{5}$/.test(this._centralExport.token_suffix) ?
+              "•••••" + this._escapeProject(this._centralExport.token_suffix) :
+              this._centralExport.server_token_available ? "Serverseitig vorhanden" : "Nicht eingerichtet"}
+          </p>
+          ${!this._diagnosticsExportReady ? `<p class="note">Für den Export zuerst einen
+          CPU/RAM- oder Mehrkern-Diagnosetest erfolgreich abschließen.</p>` : ""}
+          ${this._centralExport.pending ? `<p class="note">Ein Export wartet auf Wiederholung –
+          unter „Export-Einstellungen“ fortsetzen.</p>` : ""}
           ${this._downloadStatus ? `<p class="note">${this._escapeProject(this._downloadStatus)}</p>` : ""}
+          ${this._gitStatus ? `<p class="note">${this._escapeProject(this._gitStatus)}</p>` : ""}
+          ${this._lastExport ? `<p><strong>Export-ID:</strong> ${this._escapeProject(this._lastExport.export_id)}
+            · <strong>Zielpfad:</strong> ${this._escapeProject(this._lastExport.path)}</p>` : ""}
         </article>
         ${this._gitDialogOpen ? `
           <div class="git-dialog-backdrop">
             <section class="git-dialog" id="git-export-dialog"
                      role="dialog" aria-modal="true" aria-labelledby="git-dialog-title">
               <header>
-                <h2 id="git-dialog-title">Privater Git-Export</h2>
+                <h2 id="git-dialog-title">Git-Export-Einstellungen</h2>
                 <button id="git-dialog-close" aria-label="Schließen"
                         ${this._archiveBusy || this._gitBusy ? "disabled" : ""}>✕</button>
               </header>
@@ -935,10 +966,12 @@ class DRAV2DevLabPanel extends HTMLElement {
                   Zugang entfernen
                 </button>
               </div>
-              <p class="note"><strong>Repository:</strong>
+              <p class="note"><strong>Gespeichertes Repository:</strong>
                 ${this._centralExport.repository ? this._escapeProject(this._centralExport.repository) : "Nicht eingerichtet"}.
-                <strong>Serverzugang:</strong>
-                ${this._centralExport.server_token_available ? "Vorhanden" : "Fehlt"}.
+                <strong>Token-Endung:</strong>
+                ${this._centralExport.token_suffix && /^[A-Za-z0-9_-]{5}$/.test(this._centralExport.token_suffix) ?
+                  "•••••" + this._escapeProject(this._centralExport.token_suffix) :
+                  this._centralExport.server_token_available ? "Serverseitig eingerichtet" : "Nicht eingerichtet"}.
               </p>
               <p class="git-check-feedback ${["success", "stored"].includes(this._archiveCheckState) ? "success" :
                  this._archiveCheckState === "error" ? "error" :
@@ -949,11 +982,6 @@ class DRAV2DevLabPanel extends HTMLElement {
                    "Noch kein GitHub-Zugang eingerichtet."))}
               </p>
               <div class="dialog-actions">
-                <button id="git-export" ${this._gitBusy || this._centralExport.pending ||
-                  busy || (!valid && !validSuite) || op?.status !== "success" ||
-                  !this._gitAvailable || !this._gitConfigured ? "disabled" : ""}>
-                  Jetzt exportieren
-                </button>
                 <button id="git-retry" ${this._gitBusy || !this._centralExport.pending ||
                   !this._gitConfigured || !this._gitAvailable ? "disabled" : ""}>
                   Übertragung wiederholen
@@ -964,9 +992,6 @@ class DRAV2DevLabPanel extends HTMLElement {
               </div>
               ${this._centralExport.pending ? `<p class="critical">Ein Export wartet auf Wiederholung.
               Das Ziel darf nicht gewechselt werden; der Token kann für einen erneuten Versuch aktualisiert werden.</p>` : ""}
-              ${this._gitConfigured && (!valid && !validSuite || op?.status !== "success") ?
-                `<p class="note">Der Zugang ist gespeichert. Für „Jetzt exportieren“ zuerst einen
-                CPU/RAM- oder Gesamtdiagnosetest erfolgreich abschließen.</p>` : ""}
               <p class="note">${this._escapeProject(this._gitStatus)}</p>
               ${this._lastExport ? `<p><strong>Export-ID:</strong> ${this._escapeProject(this._lastExport.export_id)}
               <strong>Zielpfad:</strong> ${this._escapeProject(this._lastExport.path)}</p>
@@ -984,11 +1009,11 @@ class DRAV2DevLabPanel extends HTMLElement {
     s.querySelector("#refresh")?.addEventListener("click", () => this._refresh());
     s.querySelector("#json-download")?.addEventListener("click", () => this._downloadJSON());
     s.querySelector("#git-dialog-open")?.addEventListener("click", () => this._openGitDialog());
+    s.querySelector("#git-export")?.addEventListener("click", () => this._exportGit(false));
     s.querySelector("#git-dialog-close")?.addEventListener("click", () => this._closeGitDialog());
     s.querySelector("#git-dialog-dismiss")?.addEventListener("click", () => this._closeGitDialog());
     s.querySelector("#git-dialog-save")?.addEventListener("click", () => this._configureArchiveDialog());
     s.querySelector("#git-dialog-clear")?.addEventListener("click", () => this._clearArchiveDialog());
-    s.querySelector("#git-export")?.addEventListener("click", () => this._exportGit(false));
     s.querySelector("#git-retry")?.addEventListener("click", () => this._exportGit(true));
     s.querySelector("#settings-save")?.addEventListener("click", () => this._saveSettings());
     s.querySelector("#cpu-warning-ack")?.addEventListener("click", () => this._ackCpuWarning());
