@@ -122,6 +122,20 @@ class SourceRemoteTests(unittest.IsolatedAsyncioTestCase):
         report = await m.inspect_public_repository(session, self.root, REPO)
         self.assertEqual(report["add"], ["custom_components/safe_project/one.py"])
 
+    async def test_generated_python_cache_is_not_a_project_update(self):
+        cache = self.root / "custom_components" / "safe_project" / "__pycache__"
+        cache.mkdir()
+        (cache / "one.cpython-313.pyc").write_bytes(b"cache")
+        report = await m.inspect_public_repository(Session(payloads()), self.root, REPO)
+        self.assertEqual(report["add"], ["custom_components/safe_project/one.py"])
+        self.assertEqual(report["remove"], [])
+
+    async def test_manifest_blob_must_match_its_git_identity(self):
+        replies = payloads()
+        replies[2]["sha"] = "0" * 40
+        with self.assertRaises(p.PreflightError):
+            await m.inspect_public_repository(Session(replies), self.root, REPO)
+
     async def test_explicit_branch_name_is_encoded_but_pinned(self):
         session = Session(payloads())
         report = await m.inspect_public_repository(session, self.root, REPO, "feature/dev")

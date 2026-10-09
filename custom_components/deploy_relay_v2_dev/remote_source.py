@@ -54,7 +54,11 @@ def _local_inventory(config_root: Path, groups: list[dict], *, max_files: int, m
             continue
         if not target.is_dir() or target.is_symlink() or not target.resolve().is_relative_to(root):
             raise PreflightError("unsafe local target")
-        for directory, dirs, files in os.walk(target, topdown=True, followlinks=False):
+        def _walk_failed(_error):
+            raise PreflightError("local inventory cannot be fully inspected")
+        for directory, dirs, files in os.walk(
+            target, topdown=True, followlinks=False, onerror=_walk_failed
+        ):
             parent = Path(directory)
             for d in dirs[:]:
                 info = (parent / d).lstat()
@@ -122,7 +126,9 @@ async def _get(session, url: str) -> dict:
         obj = json.loads(raw.decode("utf-8"))
     except PreflightError:
         raise
-    except (TimeoutError, OSError, ValueError, UnicodeError, TypeError, AttributeError):
+    except Exception:
+        # Includes transport-specific aiohttp exceptions, but excludes task
+        # cancellation (asyncio.CancelledError is a BaseException).
         raise PreflightError("GitHub response could not be verified") from None
     if type(obj) is not dict:
         raise PreflightError("invalid GitHub JSON")
