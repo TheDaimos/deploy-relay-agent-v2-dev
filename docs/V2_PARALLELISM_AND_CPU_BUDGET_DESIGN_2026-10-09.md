@@ -51,3 +51,7 @@ Der Nutzer fragte, ob Jobs nacheinander oder parallel verarbeitet werden, ob der
 ## Feste Mehrkern-Diagnose ist keine Auftragskonfiguration (09.10.2026)
 
 Die V2-DEV-0.1.8-Diagnose unterstützt jetzt sieben fest vorgegebene, nacheinander auszuführende Stufen bis zwölf Arbeitsprozessen. Eine frei wählbare Kernzahl oder parallele produktive Auftragsausführung ist **weiterhin nicht implementiert oder freigegeben**. Diese erfordert die gesonderte Architektur- und HA-Abnahme des vorliegenden Entwurfs.
+
+## Teilimplementierung V2 DEV 0.1.11 (09.10.2026)
+
+Admin-Vorgaben `mode=sequential|controlled`, `max_readonly_jobs=1..4`, `max_worker_processes=1..12` werden in `deploy_relay_v2_dev.settings` getrennt von V1 gespeichert. `automatic` bleibt gesperrt. Der Server meldet die **aktuell wirksame** Grenze unverändert 1 Leseauftrag, 0 Schreibaufträge und `worker_budget_enforced=false`. Die Vorgabe ist **kein CPU-Pinning** und aktiviert **keine** neue Parallelität. Echte Scheduler-/Ressourcenvergabe erst nach weiteren statischen und HA-Gates. Dokumentiert unter `docs/V2_0_1_11_SETTINGS_BATCH_2026-10-09.md`.

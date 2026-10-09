@@ -42,3 +42,7 @@ In der späteren V2-Sammelansicht kennt der Browser eine gespeicherte Vorauswahl
 9. Keine Änderung des bisherigen V1-Sammelupdate-Verhaltens.
 
 **Umsetzungsgate:** Projekt-Optionen/UI innerhalb der V2-Oberflächenstufe; Auswahlvertrag und Einfrieren der Liste spätestens bei V2-90/V2-100 (Backend-Sammelaufträge). Vorher nicht unkontrolliert in die V1-Runtime einhängen. V1-/V2-PUB-Repositories bleiben unverändert.
+
+## Teilimplementierung in V2 DEV 0.1.11 (09.10.2026)
+
+Der gespeicherte Schalter `batch_preselect` pro V2-Projekt ist mit abwärtskompatiblem Standard `true` implementiert. Die Sammelansicht übernimmt Häkchen zunächst aus den Projektstandards, erlaubt manuelle Auswahl nur für den Vorgang und erzeugt über die Admin-API eine unveränderliche, nur lesende Vorschau. **Keine** Git-Quellversionsprüfung und **keine** Installation; jedes Projekt wird ausdrücklich `not_checked` angezeigt. Die restlichen Backend-/Schreibgates dieses Dokuments sind noch offen.
