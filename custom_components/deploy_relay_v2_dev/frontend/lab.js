@@ -7,6 +7,10 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._operation = null;
     this._measurement = null;
     this._suite = null;
+    this._projects = [];
+    this._projectBusy = false;
+    this._projectMessage = "";
+    this._v1Candidates = null;
     this._gitConfigured = false;
     this._gitAvailable = false;
     this._gitSetup = false;
@@ -133,6 +137,7 @@ class DRAV2DevLabPanel extends HTMLElement {
       this._observeCountdown(this._operation);
       this._measurement = data.measurement || null;
       this._suite = data.suite || null;
+      this._projects = Array.isArray(data.projects) ? data.projects : [];
       this._gitConfigured = data.git_configured === true;
       this._gitAvailable = data.git_available === true;
       this._error = "";
@@ -262,8 +267,61 @@ class DRAV2DevLabPanel extends HTMLElement {
       if (this.isConnected) this._render();
     }
   }
+  _escapeProject(value) {
+    return String(value ?? "").replace(/[&<>"\x27]/g, ch => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;",
+      "\"": "&quot;", "\x27": "&#39;",
+    })[ch]);
+  }
+
+  async _projectAction(route, values = {}) {
+    if (!this._hass || this._projectBusy) return;
+    this._projectBusy = true;
+    this._projectMessage = "Projektverwaltung wird aktualisiert …";
+    this._render();
+    try {
+      const result = await this._hass.callWS({
+        type: "deploy_relay_v2_dev/projects/" + route, ...values,
+      });
+      if (route === "v1_preview") {
+        this._v1Candidates = Array.isArray(result.candidates) ? result.candidates : [];
+        this._projectMessage = this._v1Candidates.length + " Projekte gefunden. Übernahme ausdrücklich bestätigen."; 
+      } else {
+        this._projects = Array.isArray(result.projects) ? result.projects : [];
+        this._v1Candidates = null;
+        this._projectMessage = route === "import_v1" ?
+          result.added + " Projekte übernommen, " + result.already_present + " bereits vorhanden." :
+          route === "add" ? "Projekt separat in V2 vorgemerkt." : "Sicherungsrichtlinie gespeichert."; 
+      }
+    } catch (_error) {
+      this._projectMessage = "Aktion nicht möglich; Eingaben und Berechtigung prüfen."; 
+    } finally {
+      this._projectBusy = false;
+      if (this.isConnected) this._render();
+    }
+  }
+
+  _addProject() {
+    const repo = this.shadowRoot?.querySelector("#project-repo")?.value || "";
+    const name = this.shadowRoot?.querySelector("#project-name")?.value || "";
+    return this._projectAction("add", { repository: repo, name });
+  }
+
+  _retention(button) {
+    const repo = button?.dataset?.repo;
+    const input = button?.closest("tr")?.querySelector("input");
+    const n = Number(input?.value);
+    if (!Number.isInteger(n) || n < 3 || n > 100) {
+      this._projectMessage = "Sicherungen: erlaubt sind 3 bis 100 je Projekt.";
+      this._render();
+      return;
+    }
+    return this._projectAction("retention", { repository: repo, backup_retention: n });
+  }
   _render() {
     const s = this.shadowRoot;
+    const projectRows = this._projects.map(p => `<tr><td>${this._escapeProject(p.name)}<div class="note">${this._escapeProject(p.repository)}</div></td><td>${p.origin === "v1_import" ? "Aus V1" : "Manuell"}</td><td><input class="retention" type="number" min="3" max="100" value="${Number.isInteger(p.backup_retention) ? p.backup_retention : 10}" aria-label="Sicherungen" /><button class="retention-save" data-repo="${this._escapeProject(p.repository)}" ${this._projectBusy ? "disabled" : ""}>Speichern</button></td></tr>`).join("");
+    const previewRows = Array.isArray(this._v1Candidates) ? this._v1Candidates.map(p => `<li>${this._escapeProject(p.name)} – ${this._escapeProject(p.repository)}</li>`).join("") : "";
     const op = this._operation;
     const busy = this._busy || this._active() || this._gitBusy;
     const suite = this._suite && op && this._suite.operation_id === op.operation_id ? this._suite : null;
@@ -369,6 +427,8 @@ class DRAV2DevLabPanel extends HTMLElement {
         table { border-collapse:collapse; width:100%; font-size:12px; }
         th, td { padding:8px; border-bottom:1px solid var(--divider-color,#555); text-align:left; white-space:nowrap; }
 
+        input.retention { width:64px; margin-right:6px; }
+        input.project-text { box-sizing:border-box; width:100%; min-height:40px; background:var(--primary-background-color,#151515); color:inherit; border:1px solid var(--divider-color,#555); border-radius:8px; padding:8px; margin:5px 0; }
         input.git-token { box-sizing:border-box; width:100%; min-height:40px; background:var(--primary-background-color,#151515); color:inherit; border:1px solid var(--divider-color,#555); border-radius:8px; padding:8px; }
         .git-link { display:inline-block; padding:12px 0; color:var(--primary-color,#65b4d2); overflow-wrap:anywhere; }
         .countdown { font-size:19px; font-weight:700; font-variant-numeric:tabular-nums; }
@@ -398,6 +458,25 @@ class DRAV2DevLabPanel extends HTMLElement {
           <button id="refresh" ${this._busy ? "disabled" : ""}>Status aktualisieren</button>
         </article>
         <article>
+          <strong>Meine Projekte · V2-Entwicklung</strong>
+          <p class="note">Projektmetadaten getrennt von DRA V1 verwalten. V1 bleibt unverändert.
+          Übernahme kopiert weder Git-Zugangsdaten noch Installationsstände oder Sicherungsdateien.</p>
+          <button id="project-preview" ${this._projectBusy ? "disabled" : ""}>V1-Projekte ansehen</button>
+          ${this._v1Candidates !== null ? `<p>${this._v1Candidates.length} V1-Projekte gefunden:</p><ul>${previewRows}</ul>
+          <button id="project-import" ${this._projectBusy || this._v1Candidates.length === 0 ? "disabled" : ""}>Diese Projekte in V2 übernehmen</button>
+          <button id="project-cancel">Übernahme abbrechen</button>` : ""}
+          <p><strong>Neues Projekt hinterlegen</strong></p>
+          <label>GitHub-Repository (Eigentümer/Repository)<input id="project-repo" class="project-text" placeholder="TheDaimos/projekt-dev" autocomplete="off" /></label>
+          <label>Anzeigename (optional)<input id="project-name" class="project-text" placeholder="Mein Projekt" autocomplete="off" /></label>
+          <button id="project-add" ${this._projectBusy ? "disabled" : ""}>Projekt vormerken</button>
+          <p class="note">${this._escapeProject(this._projectMessage)}</p>
+          ${this._projects.length ? `<div class="table-wrap"><table><thead><tr><th>Projekt</th><th>Herkunft</th><th>Sicherungen behalten</th></tr></thead>
+          <tbody>${projectRows}</tbody></table></div>` : `<p class="note">Noch keine Projekte in V2 hinterlegt.</p>`}
+          <p class="note"><strong>Backup-Richtlinie:</strong> 10 gesicherte Stände je Projekt, individuell 3–100.
+          Neue Einträge sind zunächst ungeprüft. Installation, tatsächliche Sicherung,
+          Rotation und Wiederherstellung bleiben bis zur separaten Transaktionsabnahme gesperrt.</p>
+        </article>
+        <article>
           <strong>Messdaten nach Git exportieren</strong>
           <p class="note">Wie bei DRA V1: separater GitHub-Schreibtoken und ein neues JSON-Dokument pro Export.
           Das Zielrepository ist öffentlich. Übertragen werden ausschließlich anonyme Messzahlen, keine Projektdateien oder Auftragskennungen.</p>
@@ -425,6 +504,11 @@ class DRAV2DevLabPanel extends HTMLElement {
     s.querySelector("#git-remove")?.addEventListener("click", () => this._configureGit(true));
     s.querySelector("#git-cancel")?.addEventListener("click", () => { this._gitSetup = false; this._render(); });
     s.querySelector("#git-export")?.addEventListener("click", () => this._exportGit());
+    s.querySelector("#project-preview")?.addEventListener("click", () => this._projectAction("v1_preview"));
+    s.querySelector("#project-import")?.addEventListener("click", () => this._projectAction("import_v1"));
+    s.querySelector("#project-cancel")?.addEventListener("click", () => { this._v1Candidates = null; this._render(); });
+    s.querySelector("#project-add")?.addEventListener("click", () => this._addProject());
+    s.querySelectorAll(".retention-save")?.forEach(button => button.addEventListener("click", () => this._retention(button)));
     this._syncCountdownTimer();
   }
 }
