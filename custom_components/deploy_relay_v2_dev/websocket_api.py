@@ -6,9 +6,10 @@ import probatio
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from pathlib import Path
 
 from .remote_source import inspect_public_repository
-from .source_preflight import PreflightError, safe_path
+from .source_preflight import PreflightError
 
 from .const import DOMAIN, VERSION, READONLY_TEST_STEPS
 from .operation_model import OperationContractError, OperationPhase
@@ -482,7 +483,7 @@ async def async_projects_source_preview(hass, connection, msg):
             report = await asyncio.wait_for(
                 inspect_public_repository(
                     async_get_clientsession(hass),
-                    hass.config.path(),
+                    Path(hass.config.path()),
                     repo,
                     msg["ref"],
                 ),
