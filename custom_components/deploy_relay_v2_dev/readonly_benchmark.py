@@ -163,8 +163,8 @@ class ReadOnlyMeasurement:
 
 
 # Explicitly triggered synthetic multiprocess check; no HA or project imports
-# occur in the short-lived children. At most four processes at any instant.
-MULTICORE_WORKERS = (1, 2, 4)
+# occur in the short-lived children. At most twelve processes at any instant.
+MULTICORE_WORKERS = (1, 2, 4, 6, 8, 10, 12)
 MULTICORE_ITERATIONS = 400000
 MULTICORE_TIMEOUT_SECONDS = 4
 SUITE_TOTAL_STEPS = 40 + 40 + len(MULTICORE_WORKERS)
@@ -259,7 +259,7 @@ async def _multiprocess_diagnostics(
         pass
     levels = []
     for index, workers in enumerate(MULTICORE_WORKERS, 1):
-        # A <4 core affinity is documented as unavailable, not a scaling failure.
+        # If affinity is below this stage, report unavailable, never overload.
         if affinity_visible is not None and affinity_visible < workers:
             result = {
                 "workers": workers, "status": "unavailable", "wall_ms": None,
@@ -270,7 +270,7 @@ async def _multiprocess_diagnostics(
         levels.append(result)
         await progress(index)
     return {
-        "schema": "dra-v2-dev-multicore.v1",
+        "schema": "dra-v2-dev-multicore.v2",
         "method": "BOUNDED_CHILD_PROCESSES",
         "logical_cpus_visible": cpu_visible,
         "affinity_cpus_visible": affinity_visible,
@@ -296,7 +296,7 @@ class ReadOnlySuite:
         return self._summary.copy() if self._summary is not None else None
 
     async def run_all(self, progress: Callable[[OperationPhase, int, int], Awaitable[None]]) -> None:
-        """40 second harmless preview, 40 second memory/CPU run, then 1/2/4."""
+        """40s preview, 40s CPU/RAM run, then 1/2/4/6/8/10/12."""
         self._summary = None
         self._measurement.claim(str(self._operation_id))
         for index in range(1, 41):
@@ -314,7 +314,7 @@ class ReadOnlySuite:
         if result is None:
             raise ValueError("measurement result missing")
         self._summary = {
-            "schema": "dra-v2-dev-suite.v1",
+            "schema": "dra-v2-dev-suite.v2",
             "operation_id": self._operation_id,
             "mode": "full",
             "readonly_steps": 40,
@@ -325,13 +325,13 @@ class ReadOnlySuite:
     async def run_multicore(
         self, progress: Callable[[OperationPhase, int, int], Awaitable[None]],
     ) -> None:
-        """Dedicated 1/2/4 process diagnostics, no preceding 80s wait."""
+        """Dedicated 1/2/4/6/8/10/12 diagnostics, without prior wait."""
         self._summary = None
         async def multicore_progress(index):
-            await progress(OperationPhase.INVENTORY, index, 3)
+            await progress(OperationPhase.INVENTORY, index, len(MULTICORE_WORKERS))
         multicore = await _multiprocess_diagnostics(multicore_progress)
         self._summary = {
-            "schema": "dra-v2-dev-suite.v1",
+            "schema": "dra-v2-dev-suite.v2",
             "operation_id": self._operation_id,
             "mode": "multicore",
             "readonly_steps": 0,
