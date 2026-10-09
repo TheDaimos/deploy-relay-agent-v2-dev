@@ -32,6 +32,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._archiveBusy = false;
     this._gitDialogOpen = false;
     this._archiveMessage = "";
+    this._archiveCheckState = "idle";
     this._downloadBusy = false;
     this._downloadStatus = "";
     this._gitAvailable = false;
@@ -247,6 +248,7 @@ class DRAV2DevLabPanel extends HTMLElement {
   }
   _openGitDialog() {
     this._gitDialogOpen = true;
+    this._archiveMessage = "";
     this._render();
     this.shadowRoot?.querySelector("#git-dialog-repo")?.focus?.();
   }
@@ -264,29 +266,45 @@ class DRAV2DevLabPanel extends HTMLElement {
     const repository = this.shadowRoot?.querySelector("#git-dialog-repo")?.value?.trim() || "";
     const secretInput = this.shadowRoot?.querySelector("#git-dialog-token");
     const token = secretInput?.value || "";
-    // Clear the browser input before any asynchronous call / re-render.
+    // Clear the transient secret BEFORE calling HA or painting the status.
     if (secretInput) secretInput.value = "";
-    if (!/^[A-Za-z0-9-]{1,39}\/[A-Za-z0-9_.-]{1,100}$/.test(repository) ||
-        token.length < 10 || token.length > 512) {
-      this._archiveMessage = "Bitte privates Repository und gültigen GitHub-Token eingeben.";
+    const validRepo = /^[A-Za-z0-9-]{1,39}\/[A-Za-z0-9_.-]{1,100}$/.test(repository);
+    const reuse = !token && this._centralExport.configured === true &&
+      repository === this._centralExport.repository;
+    if (!validRepo || (!reuse && (token.length < 10 || token.length > 512))) {
+      this._archiveCheckState = "error";
+      this._archiveMessage = reuse ? "Gespeicherten Zugang prüfen." :
+        "Repository und GitHub-Token prüfen. Ein vorhandener Token muss für dasselbe Repository nicht erneut eingegeben werden.";
       this._render();
       return;
     }
     this._archiveBusy = true;
-    this._archiveMessage = "Privates Repository und Leseberechtigung werden geprüft …";
+    this._archiveCheckState = "checking";
+    this._archiveMessage = reuse ?
+      "Gespeicherte Verbindung wird erneut geprüft …" :
+      "Privates Repository und GitHub-Zugang werden geprüft …";
     this._render();
     try {
-      const result = await this._hass.callWS({
-        type:"deploy_relay_v2_dev/archive_repository/configure",
-        repository, token,
+      const result = await this._hass.callWS(reuse ? {
+        type:"deploy_relay_v2_dev/archive_repository/check",
+      } : {
+        type:"deploy_relay_v2_dev/archive_repository/configure", repository, token,
       });
+      if (!result || result.repository !== repository || result.configured !== true ||
+          result.repository_configured !== true || result.server_token_available !== true ||
+          (reuse && result.verified_private_read !== true)) {
+        throw new Error("archive validation failed");
+      }
       this._centralExport = result;
-      this._gitConfigured = result.configured === true;
-      this._archiveMessage = this._gitConfigured ?
-        "Privates Repository und Zugang gespeichert. Export ist nach erfolgreichem Diagnosetest verfügbar." :
-        "Einrichtung unvollständig – bitte Verbindung prüfen.";
+      this._gitConfigured = true;
+      this._archiveCheckState = "success";
+      this._archiveMessage = reuse ?
+        "Verbindung erfolgreich geprüft: Privates Repository erreichbar. Schreibberechtigung wird beim Export überprüft." :
+        "Zugang gespeichert und privates Repository erfolgreich geprüft. Der Token bleibt serverseitig hinterlegt.";
     } catch (_error) {
-      this._archiveMessage = "Einrichtung fehlgeschlagen: Repository muss privat, erreichbar und für den Token lesbar sein. Keine Zugangsdaten wurden im Browser gespeichert.";
+      this._archiveCheckState = "error";
+      this._archiveMessage =
+        "Prüfung fehlgeschlagen: Repository, privater Zugriff oder GitHub-Berechtigung kontrollieren. Bereits gespeicherte Einstellungen bleiben erhalten.";
     } finally {
       this._archiveBusy = false;
       if (this.isConnected) this._render();
@@ -305,6 +323,7 @@ class DRAV2DevLabPanel extends HTMLElement {
       this._centralExport = result;
       this._gitConfigured = result.configured === true;
       this._archiveMessage = "Repository und serverseitiger Zugang entfernt. JSON-Download bleibt verfügbar.";
+      this._archiveCheckState = "idle";
     } catch (_error) {
       this._archiveMessage = "Entfernen nicht möglich. Möglicherweise wartet ein Export auf Wiederholung.";
     } finally {
@@ -581,8 +600,11 @@ class DRAV2DevLabPanel extends HTMLElement {
     // unsent secret only in the transient password input, never component state.
     const unsentToken = this._gitDialogOpen ?
       s?.querySelector("#git-dialog-token")?.value || "" : "";
-    const unsentRepository = this._gitDialogOpen ?
+    const previousRepo = this._gitDialogOpen ?
       s?.querySelector("#git-dialog-repo")?.value : null;
+    // Unmounted inputs return undefined. Assigning that to an HTML input.value
+    // turns it into the literal text "undefined" (seen on Android/desktop).
+    const unsentRepository = typeof previousRepo === "string" ? previousRepo : null;
     const projectRows = this._projects.map(p => { const saved = this._projectSaved.get(p.repository) === p.backup_retention; return `<tr><td>${this._escapeProject(p.name)}<div class="note">${this._escapeProject(p.repository)}</div></td><td>${p.origin === "v1_import" ? "DRA V1" : "Manuell"}</td><td><input class="retention" type="number" min="3" max="100" value="${Number.isInteger(p.backup_retention) ? p.backup_retention : 10}" aria-label="Sicherungen" /><button class="retention-save ${saved ? "retention-saved" : ""}" data-repo="${this._escapeProject(p.repository)}" ${this._projectBusy ? "disabled" : ""}>${saved ? "Gespeichert" : "Speichern"}</button><button class="preselect-toggle" data-repo="${this._escapeProject(p.repository)}" data-enabled="${p.batch_preselect === false}" ${this._projectBusy ? "disabled" : ""}>Sammelupdate: ${p.batch_preselect === false ? "Aus" : "Ein"}</button><button class="source-check" data-repo="${this._escapeProject(p.repository)}" ${this._sourceBusy ? "disabled" : ""}>Git-Quelle prüfen</button></td></tr>`; }).join("");
     const batchRows = this._projects.map(p => {
       const checked = this._batchSelection === null ? p.batch_preselect !== false : this._batchSelection.includes(p.repository);
@@ -718,6 +740,15 @@ class DRAV2DevLabPanel extends HTMLElement {
           background:var(--card-background-color,#222); border:1px solid var(--divider-color,#555);
           border-radius:14px; padding:18px; box-shadow:0 14px 38px #0009; }
         .git-dialog header { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+        .git-dialog button.git-check-success { background:var(--success-color,#2e994e);
+          color:#fff; border-color:var(--success-color,#2e994e); }
+        .git-dialog button.git-check-error { background:var(--error-color,#c62828);
+          color:#fff; border-color:var(--error-color,#c62828); }
+        .git-check-feedback { margin:10px 0; padding:8px 10px; border-radius:8px;
+          background:var(--secondary-background-color,#2b2b2b); }
+        .git-check-feedback.success { border-left:4px solid var(--success-color,#2e994e); }
+        .git-check-feedback.error { border-left:4px solid var(--error-color,#c62828); }
+        .git-check-feedback.pending { border-left:4px solid var(--warning-color,#ce9332); }
         .git-dialog header h2 { font-size:19px; margin:0; }
         .git-dialog header button { min-width:40px; margin:0; }
         .git-dialog .dialog-actions { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
@@ -874,18 +905,24 @@ class DRAV2DevLabPanel extends HTMLElement {
                      placeholder="Eigentümer/Privates-Repository" autocomplete="off"
                      value="${this._escapeProject(this._centralExport.repository || "")}"
                      ${this._archiveBusy || this._centralExport.pending ? "readonly" : ""} />
-              <label for="git-dialog-token">GitHub-Token (wird nicht wieder angezeigt)</label>
+              <label for="git-dialog-token">GitHub-Token
+                ${this._centralExport.configured ? "– bereits gespeichert, für erneute Prüfung nicht nötig" :
+                  "(wird nach dem Speichern nicht mehr angezeigt)"}</label>
               <input id="git-dialog-token" class="git-token" type="password"
                      autocomplete="off" spellcheck="false"
-                     placeholder="Fine-grained GitHub-Token"
+                     placeholder="${this._centralExport.configured ? "Nur bei Tokenänderung eingeben" : "Fine-grained GitHub-Token"}"
                      ${this._archiveBusy ? "disabled" : ""} />
               <p class="note">Der Schlüssel wird nur zur Einrichtung an Home Assistant
               übertragen, dort getrennt geschützt gespeichert und nicht an
               die Oberfläche zurückgesendet. Nutze eine verschlüsselte HA-Verbindung.</p>
               <div class="dialog-actions">
                 <button id="git-dialog-save"
+                        class="${this._archiveCheckState === "success" ? "git-check-success" :
+                          this._archiveCheckState === "error" ? "git-check-error" : ""}"
                         ${this._archiveBusy || this._gitBusy ? "disabled" : ""}>
-                  Zugang speichern und prüfen
+                  ${this._archiveCheckState === "success" ? "✓ Zugang geprüft" :
+                    this._archiveCheckState === "error" ? "✕ Prüfung fehlgeschlagen" :
+                    this._archiveBusy ? "Prüfung läuft …" : "Speichern & prüfen"}
                 </button>
                 <button id="git-dialog-clear"
                         ${this._archiveBusy || this._gitBusy || this._centralExport.pending ||
@@ -898,7 +935,14 @@ class DRAV2DevLabPanel extends HTMLElement {
                 <strong>Serverzugang:</strong>
                 ${this._centralExport.server_token_available ? "Vorhanden" : "Fehlt"}.
               </p>
-              <p class="note">${this._escapeProject(this._archiveMessage)}</p>
+              <p class="git-check-feedback ${this._archiveCheckState === "success" ? "success" :
+                 this._archiveCheckState === "error" ? "error" :
+                 this._archiveBusy ? "pending" : ""}" role="status">
+                ${this._escapeProject(this._archiveMessage ||
+                 (this._centralExport.configured ?
+                   "Zugang dauerhaft auf Home Assistant gespeichert. Erneut prüfen ohne Token-Eingabe möglich." :
+                   "Noch kein GitHub-Zugang eingerichtet."))}
+              </p>
               <div class="dialog-actions">
                 <button id="git-export" ${this._gitBusy || this._centralExport.pending ||
                   busy || (!valid && !validSuite) || op?.status !== "success" ||
@@ -915,6 +959,9 @@ class DRAV2DevLabPanel extends HTMLElement {
               </div>
               ${this._centralExport.pending ? `<p class="critical">Ein Export wartet auf Wiederholung.
               Das Ziel darf nicht gewechselt werden; der Token kann für einen erneuten Versuch aktualisiert werden.</p>` : ""}
+              ${this._gitConfigured && (!valid && !validSuite || op?.status !== "success") ?
+                `<p class="note">Der Zugang ist gespeichert. Für „Jetzt exportieren“ zuerst einen
+                CPU/RAM- oder Gesamtdiagnosetest erfolgreich abschließen.</p>` : ""}
               <p class="note">${this._escapeProject(this._gitStatus)}</p>
               ${this._lastExport ? `<p><strong>Export-ID:</strong> ${this._escapeProject(this._lastExport.export_id)}
               <strong>Zielpfad:</strong> ${this._escapeProject(this._lastExport.path)}</p>
@@ -965,7 +1012,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     if (this._gitDialogOpen) {
       const repoInput = s.querySelector("#git-dialog-repo");
       const tokenInput = s.querySelector("#git-dialog-token");
-      if (repoInput && unsentRepository !== null) repoInput.value = unsentRepository;
+      if (repoInput && typeof unsentRepository === "string") repoInput.value = unsentRepository;
       if (tokenInput && unsentToken) tokenInput.value = unsentToken;
       s.querySelector("#git-export-dialog")?.addEventListener("keydown", event => {
         if (event.key === "Escape") this._closeGitDialog();
