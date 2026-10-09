@@ -96,6 +96,7 @@ class FakeResponse:
     def __init__(self, status=201, payload=None):
         self.status = status
         self.payload = payload if payload is not None else {"commit": {"sha": "b" * 40}}
+        self.content = self
 
     async def __aenter__(self):
         return self
@@ -106,11 +107,23 @@ class FakeResponse:
     async def json(self):
         return self.payload
 
+    async def read(self, maximum):
+        return json.dumps(self.payload).encode("utf-8")[:maximum]
+
 
 class FakeSession:
     def __init__(self, response=None):
         self.requests = []
+        self.visibility_requests = []
         self.response = response or FakeResponse()
+        self.repo_response = FakeResponse(200, {
+            "full_name": "TheDaimos/Project-Log-And-Export",
+            "private": True, "default_branch": "main",
+        })
+
+    def get(self, url, **kwargs):
+        self.visibility_requests.append((url, kwargs))
+        return self.repo_response
 
     def put(self, url, **kwargs):
         self.requests.append((url, kwargs))
@@ -254,6 +267,54 @@ class GitExportTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(module.GitMeasurementError):
                 await self.writer.export(sample, version="0.1.14")
         self.assertEqual(self.session.requests, [])
+
+    async def test_public_or_unverifiable_archive_is_never_written(self):
+        for status, meta in (
+            (200, {"full_name":"TheDaimos/Project-Log-And-Export",
+                   "private":False, "default_branch":"main"}),
+            (200, {"full_name":"TheDaimos/untrusted", "private":True,
+                   "default_branch":"main"}),
+            (403, {"message":"forbidden"}),
+            (404, {"message":"missing"}),
+        ):
+            with self.subTest(status=status, meta=meta):
+                self.session.repo_response = FakeResponse(status, meta)
+                with self.assertRaises(module.GitMeasurementError):
+                    await self.writer.export(measurement(), version="0.1.14")
+                self.assertEqual(self.session.requests, [])
+                self.assertTrue(self.writer.pending)
+                # Explicit retry of the same path after visibility becomes private.
+                self.session.repo_response = FakeResponse(200, {
+                    "full_name":"TheDaimos/Project-Log-And-Export",
+                    "private":True, "default_branch":"main",
+                })
+                await self.writer.retry_pending()
+                self.assertFalse(self.writer.pending)
+                self.assertTrue(self.session.visibility_requests)
+                self.assertTrue(all("allow_redirects" in kw and kw["allow_redirects"] is False
+                                    for _, kw in self.session.visibility_requests))
+                self.session.requests.clear()
+
+    async def test_persisted_payload_with_nested_secrets_is_rejected(self):
+        self.session.response = FakeResponse(503)
+        with self.assertRaises(module.GitMeasurementError):
+            await self.writer.export(measurement(), version="0.1.14")
+        good = self.store.data
+        for mutate in (
+            lambda x: x["snapshot"]["measurement"].update({"authorization":"SECRET"}),
+            lambda x: x["snapshot"]["measurement"].update({"synthetic_hashes":"evil"}),
+            lambda x: x["snapshot"]["measurement"]["memory"]["snapshots"]["start"].update(
+                {"password":"SECRET"}),
+            lambda x: x["snapshot"].update({"note":"unapproved"}),
+        ):
+            bad = copy.deepcopy(good)
+            raw = json.loads(bad["pending"]["raw"])
+            mutate(raw)
+            bad["pending"]["raw"] = json.dumps(raw, sort_keys=True, separators=(",", ":"))+"\n"
+            pending = module.MeasurementGitExport(
+                FakeStore(bad), self.session, token_provider=lambda:self.token)
+            with self.assertRaises(module.GitMeasurementError):
+                await pending.load()
 
     async def test_403_rejected_and_original_kept_locally(self):
         self.session.response = FakeResponse(403, {"raw_token": self.token})
