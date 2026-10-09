@@ -620,6 +620,29 @@ class MeasurementGitExport:
         """Never accept browser-entered GitHub credentials."""
         raise GitMeasurementError("central export access must be configured on the server")
 
+    def local_download(self, summary: object, *, version: str,
+                       display_name: str = APPLICATION_NAME,
+                       source_commit: str | None = None) -> dict[str, str]:
+        """Return a sanitized JSON file independently of GitHub configuration.
+
+        A download NEVER touches the queue, uses tokens or sends any network
+        requests. It produces the same mandatory archive metadata and immutable
+        technical application ID as a GitHub upload.
+        """
+        now = datetime.now(timezone.utc)
+        payload = _archive_payload(
+            summary, version, now, secrets.token_hex(16),
+            display_name, source_commit,
+        )
+        filename = payload["path"].rsplit("/", 1)[-1]
+        return {
+            "filename": filename,
+            "content": payload["raw"],
+            "export_id": payload["export_id"],
+            "application_id": APPLICATION_ID,
+            "mime_type": "application/json",
+        }
+
     async def export(self, summary: object, *, version: str,
                      display_name: str = APPLICATION_NAME,
                      source_commit: str | None = None) -> dict[str, str]:
