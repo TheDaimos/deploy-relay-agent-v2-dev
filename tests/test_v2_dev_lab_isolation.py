@@ -119,6 +119,20 @@ class LabIsolationContracts(unittest.TestCase):
         self.assertIn("Math.max(1, (op.total_count === 87 ? 80 : 40) - step - elapsed)", frontend)
         self.assertIn("disconnectedCallback()", frontend)
 
+    def test_responsive_diagnostics_are_grouped_without_duplicate_actions(self):
+        frontend = (LAB_ROOT / "frontend/lab.js").read_text(encoding="utf-8")
+        self.assertIn('class="dashboard-grid"', frontend)
+        self.assertIn('class="inner-panel status-panel"', frontend)
+        self.assertIn('class="section-card export-card"', frontend)
+        self.assertIn('class="diagnostic-results section-card"', frontend)
+        self.assertIn("@media (min-width:1100px)", frontend)
+        self.assertIn("@media (max-width:600px)", frontend)
+        self.assertEqual(frontend.count('id="refresh"'), 1)
+        self.assertEqual(frontend.count('id="git-export"'), 1)
+        self.assertEqual(frontend.count('id="json-download"'), 1)
+        self.assertLess(frontend.index("02 · Diagnoseexport"), frontend.index("04 · Auftragsverarbeitung"))
+        self.assertLess(frontend.index("03 · Messergebnisse"), frontend.index("05 · Meine Projekte"))
+
     def test_config_flow_uses_test_domain_not_v1_domain(self):
         source = (LAB_ROOT / "config_flow.py").read_text(encoding="utf-8")
         self.assertIn("ConfigFlow, domain=DOMAIN", source)
