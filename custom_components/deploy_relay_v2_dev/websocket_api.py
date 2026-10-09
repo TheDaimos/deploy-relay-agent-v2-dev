@@ -23,6 +23,34 @@ def _runtime(hass: HomeAssistant):
     return state.get("runtime") if isinstance(state, dict) else None
 
 
+async def _exportable_diagnostic(runtime, operations=None):
+    """Single source of truth for UI eligibility, JSON and Git export.
+
+    A later non-measurement preview must not hide an earlier successfully
+    completed measurement. Failed and running operations cannot be exported.
+    """
+    suite = runtime.suite.summary()
+    solo = runtime.measurement.summary()
+    choices = [
+        result for result in (suite, solo)
+        if isinstance(result, dict) and isinstance(result.get("operation_id"), str)
+    ]
+    if not choices:
+        return None
+    if operations is None:
+        operations = await runtime.registry.list(limit=12)
+    # Prefer the newest completed diagnostic whose ID remains in registry.
+    candidates = {result["operation_id"]: result for result in reversed(choices)}
+    for record in operations:
+        op_id = record.get("operation_id")
+        if record.get("status") == "success" and op_id in candidates:
+            # Defend against stale/unrelated in-memory data.
+            live = await runtime.registry.get(str(op_id))
+            if live is not None and live["status"] == "success":
+                return candidates[op_id]
+    return None
+
+
 @websocket_api.websocket_command({probatio.Required("type"): "deploy_relay_v2_dev/test/state"})
 @websocket_api.require_admin
 @websocket_api.async_response
@@ -36,6 +64,7 @@ async def async_state(hass, connection, msg):
     seen = {item["operation_id"] for item in current}
     operations = (current + [item for item in retained
                              if item["operation_id"] not in seen])[:12]
+    eligible = await _exportable_diagnostic(runtime, current)
     connection.send_result(msg["id"], {
         "version": VERSION,
         "mode": "READ_ONLY_TEST",
@@ -44,6 +73,8 @@ async def async_state(hass, connection, msg):
         "suite": runtime.suite.summary(),
         "git_configured": runtime.git_export.configured,
         "central_export": runtime.git_export.status(),
+        "diagnostics_export_ready": eligible is not None,
+        "diagnostics_export_kind": eligible.get("mode") if eligible else None,
         "git_available": runtime.git_export.available,
         "git_read_configured": runtime.source_auth.configured,
         "projects": runtime.projects.list(),
@@ -285,22 +316,12 @@ async def async_download_json(hass, connection, msg):
     if runtime is None:
         connection.send_error(msg["id"], "not_ready", "Testlabor nicht gestartet")
         return
-    current = await runtime.registry.list(limit=1)
-    latest_id = current[0]["operation_id"] if current else None
-    suite = runtime.suite.summary()
-    solo = runtime.measurement.summary()
-    summary = (suite if suite and suite.get("operation_id") == latest_id
-               else solo if solo and solo.get("operation_id") == latest_id
-               else None)
+    summary = await _exportable_diagnostic(runtime)
     if summary is None:
-        connection.send_error(msg["id"], "no_measurement", "Kein abgeschlossener Messlauf vorhanden")
-        return
-    try:
-        operation = await runtime.registry.get(str(summary["operation_id"]))
-    except OperationContractError:
-        operation = None
-    if operation is None or operation["status"] != "success":
-        connection.send_error(msg["id"], "no_measurement", "Kein abgeschlossener Messlauf vorhanden")
+        connection.send_error(
+            msg["id"], "no_measurement",
+            "Noch keine erfolgreich abgeschlossene exportierbare Diagnose vorhanden",
+        )
         return
     try:
         document = runtime.git_export.local_download(summary, version=VERSION)
@@ -320,22 +341,12 @@ async def async_git_export(hass, connection, msg):
     if runtime is None:
         connection.send_error(msg["id"], "not_ready", "Testlabor nicht gestartet")
         return
-    current = await runtime.registry.list(limit=1)
-    latest_id = current[0]["operation_id"] if current else None
-    suite = runtime.suite.summary()
-    solo = runtime.measurement.summary()
-    summary = (suite if suite and suite.get("operation_id") == latest_id
-               else solo if solo and solo.get("operation_id") == latest_id
-               else None)
+    summary = await _exportable_diagnostic(runtime)
     if summary is None:
-        connection.send_error(msg["id"], "no_measurement", "Kein abgeschlossener Messlauf vorhanden")
-        return
-    try:
-        operation = await runtime.registry.get(str(summary["operation_id"]))
-    except OperationContractError:
-        operation = None
-    if operation is None or operation["status"] != "success":
-        connection.send_error(msg["id"], "no_measurement", "Kein abgeschlossener Messlauf vorhanden")
+        connection.send_error(
+            msg["id"], "no_measurement",
+            "Noch keine erfolgreich abgeschlossene exportierbare Diagnose vorhanden",
+        )
         return
     try:
         result = await runtime.git_export.export(summary, version=VERSION)
