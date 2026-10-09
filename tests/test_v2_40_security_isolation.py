@@ -76,7 +76,7 @@ class JournalIsolationContracts(unittest.TestCase):
         self.assertEqual(ws.count("@websocket_api.require_admin"), 24)
         self.assertIn("await runtime.git_export.export(summary, version=VERSION)", ws)
         self.assertNotIn("token", (LAB / "readonly_benchmark.py").read_text(encoding="utf-8"))
-        self.assertIn("Zentrales privates Diagnosearchiv", panel)
+        self.assertIn("Diagnoseexport – Download oder privates GitHub-Archiv", panel)
         self.assertNotIn('id="git-token"', panel)
         self.assertNotIn("deploy-relay-agent-v2-dev/blob/main/.deploy-relay", panel)
         self.assertIn('type="password"', panel)
