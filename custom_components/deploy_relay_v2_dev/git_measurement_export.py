@@ -160,10 +160,10 @@ def public_export_document(summary: object, *, version: str, now: datetime) -> d
 
 
 
-SUITE_SCHEMA = "dra-v2-dev-suite.v1"
-MULTICORE_SCHEMA = "dra-v2-dev-multicore.v1"
-SUITE_EXPORT_SCHEMA = "dra-v2-dev-git-suite.v1"
-_WORKER_COUNTS = (1, 2, 4)
+SUITE_SCHEMA = "dra-v2-dev-suite.v2"
+MULTICORE_SCHEMA = "dra-v2-dev-multicore.v2"
+SUITE_EXPORT_SCHEMA = "dra-v2-dev-git-suite.v2"
+_WORKER_COUNTS = (1, 2, 4, 6, 8, 10, 12)
 
 
 def sanitized_multicore(data: object) -> dict[str, object]:
@@ -181,7 +181,7 @@ def sanitized_multicore(data: object) -> dict[str, object]:
             raise GitMeasurementError("invalid multicore core count")
         cpu[key] = value
     stages = data["levels"]
-    if type(stages) is not list or len(stages) != 3:
+    if type(stages) is not list or len(stages) != len(_WORKER_COUNTS):
         raise GitMeasurementError("invalid multicore levels")
     checked = []
     for workers, row in zip(_WORKER_COUNTS, stages):
