@@ -1,4 +1,4 @@
-# DRA V2 DEV 0.1.14 – Referenz für zentrales privates Diagnosearchiv
+# DRA V2 DEV 0.1.15 – Referenz für zentrales privates Diagnosearchiv
 
 Stand 09.10.2026 | Featurezweig \`feature/v2-10-inventory-operation-contract\` | **Code-/CI-Abnahme; Home-Assistant-Realabnahme ausstehend**
 
@@ -13,7 +13,7 @@ Die Ausführung richtet sich nach:
 
 - **Anwendungs-ID:** \`deploy-relay-agent-v2\`, unveränderlich, nie neu vergeben.
 - **Anzeigename:** \`Deploy Relay Agent V2\`, ein exportbezogenes Pflichtfeld, darf sich später ändern, ohne technische ID oder Archivordner zu ändern.
-- **Version:** tatsächliches \`VERSION\` der laufenden V2-Integration; im Codecheckpoint \`0.1.14\`.
+- **Version:** tatsächliches \`VERSION\` der laufenden V2-Integration; im Codecheckpoint \`0.1.15\`.
 - **Exportzeitpunkt:** ISO 8601, UTC (\`YYYY-MM-DDTHH:MM:SSZ\`).
 - **Export-ID:** kryptografisch erzeugte 128-Bit-Hexkennung, pro neu angelegtem Export neu. **Wiederholversuche behalten exakt dieselbe Export-ID und denselben Dateipfad.**
 - **Quelle:** \`source.repository=TheDaimos/deploy-relay-agent-v2-dev\`; \`source.commit\` nur falls tatsächlich sicher bekannt und überprüft, sonst \`null\`.
@@ -29,19 +29,19 @@ Der bisherige, für Diagnoseexporte verwendete Pfad \`.deploy-relay/diagnostics/
 
 ## Serverseitige Autorisierung und privates Ziel
 
-- **Festes einziges Ziel:** \`TheDaimos/Project-Log-And-Export\`, Zweig \`main\`.
-- **GitHub-Berechtigungen:** eigener *Fine-grained personal access token* oder gleichwertiger eng begrenzter serverseitiger Zugang, nur für **dieses eine private Repository**: \`Contents: Read and write\`, \`Metadata: Read\`. Keine V1-GitHub-Zugangsdaten, kein V2-Quell-Lesetoken und kein historischer V2-Exporttoken.
+- **Kein vorbelegtes Repository:** Jeder Administrator speichert sein persönliches privates Export-Repository als `Eigentümer/Repository`. `TheDaimos/Project-Log-And-Export` ist nur eine mögliche freiwillige Wahl, ausdrücklich kein Standard. Standardzweig wird beim Export aus den privaten GitHub-Metadaten gelesen.
+- **GitHub-Berechtigungen:** Eigener eng begrenzter serverseitiger Zugang ausschließlich für das manuell gewählte private Repository (`Contents: Read and write`, `Metadata: Read`). Keine V1- oder V2-Lesetokens, keine Zugangsdaten im Browser.
 - **Keine Token-Eingabe im DRA-Browser:** Token kommt ausschließlich aus der **Umgebungsvariable der Home-Assistant-Serverlaufzeit** \`DRA_V2_CENTRAL_EXPORT_TOKEN\`. Der Browser erhält nur \`configured\`/ \`pending\`/ Ziel-ID und später Pfad/Export-ID/Commit des erfolgreichen Uploads.
 - **HA-Installation:** Ob und auf welche unterstützte Weise diese Variable in der konkreten HA-DEV-Installationsform gesetzt werden kann, ist vor einer echten Abnahme ausdrücklich zu klären. Keine unbestätigten Änderungen an HA-Konfiguration oder Home-Assistant-Startumgebung vornehmen. Wird die Variable nicht bereitgestellt, gilt \`Nicht eingerichtet\` – es erfolgt **kein Upload**.
-- **Zusätzliche Privatsperre:** Vor **jedem** Upload wird die fest bekannte GitHub-Repository-API abgefragt. Muss \`private=true\`, \`full_name=TheDaimos/Project-Log-And-Export\`, \`default_branch=main\` sein; Fehler oder veränderte Sichtbarkeit **blockieren sämtliche Uploads**. Keine Weiterleitung, keine frei bestimmbaren Ziel-URLs.
+- **Privatsperre:** Vor jedem Upload wird exakt das gespeicherte Repository per GitHub geprüft: `private=true`, `full_name` entspricht der Einstellung und ein gültiger Standardzweig ist vorhanden. Bei fehlender Berechtigung oder öffentlichem Ziel keinerlei Upload.
 - **Append-only:** GitHub Contents API wird ausschließlich mit einer **CREATE**-Anfrage ohne \`sha\` beschickt. Ein bereits existierender Pfad kann nicht überschrieben werden; HTTP 409/422 oder fehlerhafte Bestätigung gelten nicht als Erfolg.
 
 ## Geheimnisbereinigung, Wiederholung und Status
 
 - DRA V2 übernimmt nur streng validierte, fest definierte **numerische Messfelder** (CPU/RAM/Mehrkern), keine willkürlichen JSON-Einträge, geheimen Werte, Dateipfade, Projektlisten, Tokens oder Auftragskennungen. Verdächtige Inhalte werden **vor Archivierung/Upload abgewiesen**, nicht stillschweigend unbereinigt gespeichert.
-- **Lokaler sicherer Rückfall:** Vor Netzübertragung wird genau **ein bereits bereinigter** Export in der eigenen privaten HA-Speicherung \`deploy_relay_v2_dev.archive_queue\` unter \`dra-v2-dev-central-export-queue.v1\` gesichert. Misslingt der Upload, bleibt derselbe Datensatz für einen **expliziten erneuten Versuch** erhalten. Es gibt **keinen** automatischen Export in andere Repositories.
+- **Lokaler sicherer Rückfall:** Im privaten HA-Store `deploy_relay_v2_dev.archive_queue` wird Schema `dra-v2-dev-central-export-queue.v2` mit selbstgewähltem Repository und höchstens einem bereinigten, zielgebundenen Export gespeichert. Bei Fehlern manueller Wiederholversuch nur an dasselbe Ziel. Zielwechsel während eines ausstehenden Exports gesperrt.
 - Beim Laden nach HA-Neustart wird der gesamte gespeicherte Datensatz **einschließlich verschachtelter Messfelder** erneut strikt geprüft. Manipulierte, unvollständige oder unbekannte Versionen führen konservativ zur Ablehnung, ohne dass vorhandene Beweise gelöscht werden.
-- **Status in der V2-Oberfläche:** zentraler, privater Zielhinweis, serverseitige Zugangskonfiguration, ausstehender Export, Export-/Wiederholschaltflächen, nach Erfolg genaue Export-ID, Zielpfad und Verweis auf privaten GitHub-Dateieintrag. Ohne Login ins private Repository ist der Link nicht öffentlich einsehbar.
+- **Status:** Das Export-Repository-Feld bleibt beim Erststart leer. GitHub-Schaltfläche bleibt ohne explizit gespeichertes privates Repository und Serverzugang gesperrt. Ein unabhängiger JSON-Download benötigt beides nicht. Nach Git-Erfolg werden Export-ID und Pfad angezeigt.
 - Die bisherige schreibgeschützte Messung, der Mehrkerntest und die Gesamttestfolge bleiben erhalten; nur ihr Diagnose-**Ziel** und die verbindliche Metadatenhülle wurden umgestellt.
 
 ## Künstliche Abnahmefälle vor HA-Reallauf
@@ -56,4 +56,13 @@ Der bisherige, für Diagnoseexporte verwendete Pfad \`.deploy-relay/diagnostics/
 - Reibungslose CPU/RAM-/7-Stufen-Mehrkern-/Gesamttestfunktionalität und dokumentierte Isolierung von V1.
 - JavaScript-Oberfläche, WebSocket-Administratorpflicht, keine Exporte/Secrets im öffentlichen GitHub-Actions-Protokoll und unveränderte V2-Dateigrenzen.
 
-**Keine echte private Archivprobe mit vertraulichen HA-Daten durchgeführt.** Ein späterer HA-Realtest benötigt eine gesondert bestätigte, serverseitige Bereitstellung des nur auf \`Project-Log-And-Export\` begrenzten GitHub-Tokens sowie einen explizit ausgelösten Export **künstlicher Daten**. DRA-V1 DEV/PUB, V2-PUB und V2-DEV \`main\` bleiben unverändert; Entwurfs-PR #2 nicht zusammenführen.
+**Keine echte private Archivprobe durchgeführt.** HA-Abnahme erfordert die ausdrückliche Repositorywahl sowie einen nur darauf begrenzten serverseitigen Zugang; lokaler JSON-Download benötigt beides nicht. DRA V1, V2-PUB und V2-DEV `main` unverändert, Entwurfs-PR #2 ungemergt.
+
+## Verbindlicher Nachtrag V2 DEV 0.1.15 – Kein Standardrepo, unabhängiger Download
+
+- **Leerer Ausgangszustand:** Keine öffentliche oder private GitHub-Ablage ist vorbelegt, weder TheDaimos noch eine andere Organisation. Jeder Administrator wählt sein eigenes privates Repository ausdrücklich selbst aus.
+- **Persistenz und Privatsperre:** Das Administrator-Repository wird ohne Token getrennt gespeichert. Eine neue GitHub-Übertragung ist nur nach Prüfung von `private=true` und der exakten Repositoryidentität möglich. Server-Token wird nicht an Browser übertragen.
+- **Kein Umleiten:** Ein ausstehender Export ist an die ursprüngliche Repositorywahl gebunden. Wechsel/Entfernen sind bis zu einem sicheren Abschluss gesperrt; Wiederholung nutzt dieselbe Export-ID.
+- **JSON-Download:** Ein erfolgreich abgeschlossener Diagnose-Test kann unabhängig von GitHub als bereinigte JSON-Datei heruntergeladen werden. Die Datei enthält das vollständige verpflichtende Metadatenschema und eine einmalige Export-ID; kein Token, kein Upload, keine Warteschlange.
+- **Adminschutz:** Frei von GitHub-Konfiguration bedeutet nicht öffentlich für fremde Nutzer. Download und Einstellungen setzen eine HA-Administratorberechtigung voraus.
+- **Prüfung:** Künstliche Fälle für leeres Ziel, eigenständig funktionierenden Download, private Repositoryauswahl, unzulässige Namen, fehlende GitHub-Rechte, Archivkollision und unterbundenen Zielwechsel.

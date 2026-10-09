@@ -1,7 +1,7 @@
 {
   "domain": "deploy_relay_v2_dev",
   "name": "DRA V2 DEV – Testlabor",
-  "version": "0.1.14",
+  "version": "0.1.15",
   "documentation": "https://github.com/TheDaimos/deploy-relay-agent-v2-dev",
   "issue_tracker": "https://github.com/TheDaimos/deploy-relay-agent-v2-dev/issues",
   "codeowners": ["@TheDaimos"],
