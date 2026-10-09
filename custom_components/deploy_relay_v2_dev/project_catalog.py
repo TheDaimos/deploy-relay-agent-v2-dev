@@ -146,6 +146,9 @@ class ProjectCatalog:
         keys = [r["repository"].casefold() for r in rows]
         if len(set(keys)) != len(keys):
             raise CatalogError("duplicate catalog record")
+        ids = [r["project_id"] for r in rows]
+        if len(set(ids)) != len(ids):
+            raise CatalogError("duplicate managed target identity")
         self._records = rows
 
     def list(self) -> list[dict[str, object]]:
@@ -158,6 +161,9 @@ class ProjectCatalog:
             raise CatalogError("catalog unavailable")
         if len(records) > MAX_PROJECTS:
             raise CatalogError("catalog full")
+        if (len({r["project_id"] for r in records}) != len(records)
+            or len({r["repository"].casefold() for r in records}) != len(records)):
+            raise CatalogError("duplicate managed target identity")
         try:
             await self._store.async_save({"schema": SCHEMA, "projects": records})
         except Exception:
