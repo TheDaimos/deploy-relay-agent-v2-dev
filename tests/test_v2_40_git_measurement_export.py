@@ -146,6 +146,41 @@ class GitExportTests(unittest.IsolatedAsyncioTestCase):
         payload = base64.b64decode(request["json"]["content"])
         return url, request, json.loads(payload)
 
+    async def test_status_uses_only_five_character_token_suffix(self):
+        archive = FakeStore()
+        credentials = FakeStore()
+        exporter = module.MeasurementGitExport(
+            archive, self.session, token_provider=lambda: None,
+            credential_store=credentials,
+        )
+        await exporter.load()
+        self.assertEqual(exporter.status()["token_suffix"], None)
+        token = "github_pat_REDACTED_EXCEPT_LAST_5_CHARS_ABCDE"
+        await exporter.configure_archive("TheDaimos/Project-Log-And-Export", token)
+        original = exporter.status()
+        self.assertEqual(original["repository"], "TheDaimos/Project-Log-And-Export")
+        self.assertEqual(original["token_suffix"], "ABCDE")
+        self.assertNotIn(token, str(original))
+        rebooted = module.MeasurementGitExport(
+            archive, self.session, token_provider=lambda: None,
+            credential_store=credentials,
+        )
+        await rebooted.load()
+        self.assertEqual(rebooted.status()["token_suffix"], "ABCDE")
+        self.assertTrue(rebooted.configured)
+        verified = await rebooted.check_archive()
+        self.assertTrue(verified["verified_private_read"])
+        self.assertFalse(verified["write_verified"])
+        self.assertNotIn(token, str(verified))
+        self.assertEqual(len(self.session.requests), 0)
+
+    async def test_environment_only_token_never_returns_suffix(self):
+        self.assertTrue(self.writer.configured)
+        self.assertIsNone(self.writer.status()["token_suffix"])
+        result = await self.writer.check_archive()
+        self.assertTrue(result["verified_private_read"])
+        self.assertIsNone(result["token_suffix"])
+
     async def test_dialog_credentials_are_saved_only_in_private_server_store(self):
         queue = FakeStore()
         credentials = FakeStore()
