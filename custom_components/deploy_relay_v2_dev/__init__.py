@@ -70,6 +70,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     settings = V2Settings(Store(hass, 1, "deploy_relay_v2_dev.settings"))
     try:
         await settings.load()
+        await settings.startup_check()
     except SettingsError:
         return False
     measurement = ReadOnlyMeasurement()
