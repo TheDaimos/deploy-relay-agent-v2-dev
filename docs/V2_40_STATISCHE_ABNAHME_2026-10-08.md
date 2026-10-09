@@ -274,3 +274,30 @@ DRA V1 meldet `Keine ausgewählten Projekte benötigen eine Installation.`, `✓
 - Die Exportzeiten 07:45:05 und 08:08:45 MESZ liegen innerhalb beziehungsweise nahe dem Zeitbereich der Grafiken. **Der Git-Export enthält keine synchronisierten absoluten Start-/Endzeitstempel des Auftrags oder der einzelnen Phasen.** Die Nutzerbilder zeigen nicht die eindeutig abgegrenzten Sekunden eines Testlaufs. Daher dürfen **weder die CPU-Spitzen noch Schreibspitzen einer konkreten Phase oder DRA V2 ursächlich zugeordnet** werden. Besonders der hervorgehobene Ausschlag um 07:01 Uhr ist zeitlich weit vor den beiden Exporten.
 
 **Abnahme:** Zweiter echter Gesamttest und öffentlicher Git-Export **PASS**; CPU-/Datenträger-VM-Verlauf **als qualitative Beobachtung dokumentiert**. V2-40-50 **bleibt OPEN**, solange exakt zeitlich abgegrenzte Referenz-/Lastfenster für I/O und eine belastbare HA-Reaktionszeitmessung fehlen. Keine Freigabe von V2-Installationen/Schreibparallelität, keine Änderung von DRA V1 oder V2-PUB, kein HA-Neustart.
+
+
+### HA-DEV – V2 DEV 0.1.8 mit sieben Mehrkernstufen nach HA-Neustart (09.10.2026)
+
+**Nutzerangabe als verbindliche Zeitmarke:** Home Assistant wurde **vor** dem Messlauf neu gestartet; Start des vollständigen V2-DEV-0.1.8-Gesamttests nach Nutzerangabe **08:29 Uhr MESZ**. Die drei bereitgestellten Proxmox-Bilder zeigen die bestätigte HA-DEV-VM 109 (CPU, RAM, Disk IO) mit Zeitachse ungefähr 07:22–08:30 MESZ. **Die auffälligen CPU-/RAM-/I/O-Schwankungen vor 08:29 Uhr dürfen nicht dem danach gestarteten Mehrkernvergleich zugeschrieben werden.** Eine am rechten Rand erkennbare Spitze liegt zeitlich nah am Start; mangels synchronisierter Rohdaten ist deren Ursache nicht beweisbar.
+
+**Nachgewiesener neuer Git-Export:** `.deploy-relay/diagnostics/v2-dev/2026-10-09/20261009T063106Z-c9e7b4c2.json` im öffentlichen Branch `main`; Git-Commit `241353c8d62b3f04e15becd870da0bdf35bfc264`. Das JSON hat `created_at=2026-10-09T06:31:06Z` = **08:31:06 MESZ**, `version=0.1.8`, `schema=dra-v2-dev-git-suite.v2`, `suite.mode=full` und `readonly_steps=40`. Exportzeit ist nicht identisch mit einem präzisen Backend-Auftragsabschlussstempel, aber chronologisch mit dem vom Nutzer angegebenen Start um 08:29 Uhr vereinbar.
+
+**Vollständiger synthetischer Sieben-Stufen-Realtest:**
+
+| Prozesse (nacheinander getestete Stufe) | PBKDF2-Runden gesamt | Gesamtzeit inkl. Startaufwand | CPU-Zeit aller Kinder | relativer Durchsatz* | Status |
+| ---: | ---: | ---: | ---: | ---: | --- |
+| 1 | 400.000 | 87 ms | 67 ms | 1,00× | ok |
+| 2 | 800.000 | 87 ms | 136 ms | 2,00× | ok |
+| 4 | 1.600.000 | 98 ms | 283 ms | 3,55× | ok |
+| 6 | 2.400.000 | 132 ms | 483 ms | 3,95× | ok |
+| 8 | 3.200.000 | 143 ms | 696 ms | 4,87× | ok |
+| 10 | 4.000.000 | 157 ms | 964 ms | 5,54× | ok |
+| 12 | 4.800.000 | 168 ms | 1.193 ms | 6,21× | ok |
+
+*Durchsatzfaktor = `(N × 400.000 / Wandzeit_N) / (400.000 / 87 ms)`; **nicht** die echte Anzahl gleichzeitig voll ausgelasteter physischer Kerne. `logical_cpus_visible=12`; `affinity_cpus_visible=12`. Trotz sieben erfolgreich abgeschlossener Stufen ist die Skalierung bei zwölf Prozessen nicht linear (ca. 6,21× statt 12×). Die Arbeit ist pro Kind kurz und synthetisch; Start-, Scheduler- und sonstige HA-Last beeinflussen die Werte.
+
+**CPU-/RAM-Teilprüfung im kombinierten Lauf:** 40.607 ms für die gesonderte 40-s-Phase; maximale Verzögerung 48 ms; 640 synthetische Hashdurchläufe. Prozessweite CPU-Millisekunden für Basis/Arbeit/Nachlauf 765/1.999/926 ms. HA-Prozess-RSS Start 1.816.216 KiB, Ende 1.817.532 KiB, Änderung **+1.316 KiB (ca. +1,29 MiB)**. Prozesswerte sind ausdrücklich **nicht isolierter DRA-V2-Verbrauch**. Die V1- und V2-einzeln-Felder im Export bleiben `null`.
+
+**Proxmox-Bilder vor/um Testbeginn:** CPU lange grob 1,6–1,9 %, einzelne Spitzen um ca. 08:23 und 08:29 auf etwa 5–5,3 %. RAM-VM-Anzeige bis ungefähr 08:22 um 5,8 GiB, dann ein deutlicher Rückgang bis ungefähr 1,9 GiB mit Wiederanstieg gegen Ende des sichtbaren Fensters. Disk-I/O: gleichzeitig scharfe Leseaktivität mit ungefähr 14 M auf der Diagrammskala, kurzzeitige Schreibaktivität bis grob 4 M. Im Bildschirm ist die vollständige I/O-Einheit nicht belegt; kein MB/s-/IOPS-Wert erfinden. Das Zeitmuster ist **mit HA-Neustart vereinbar**, belegt aber ohne Prozesseinzelmessung keine konkrete Ursache jeder Spitze. Vor allem reicht die sichtbare Kurve **nicht** bis zu allen sieben Mehrkernstufen nach 08:29 Uhr; sie ist **kein direkter CPU-/I/O-Dauerlastnachweis** des 12-Prozesse-Tests.
+
+**Teilabnahme:** V2 DEV 0.1.8 Realtest (neues siebenteiliges Schema, alle sieben `ok`, vollständiger `full`-Bericht, anonymisierter Git-Export) **PASS für genau diesen einen Lauf**. Nach dem Neustart **noch keine erneute V1-Sammelprüfung belegt**, daher V1-Funktionskontrolle für diesen Neustart nicht als geprüft behaupten. **V2-40-50 bleibt OFFEN**, weil zeitlich exakt korrelierte Disk-I/O- und HA-Reaktionszeitmessungen sowie länger dauernde Last-/Wiederholungsprüfungen nicht vorliegen. Keine produktive Mutations-/Parallelfreigabe und kein weiterer Neustart veranlasst.
