@@ -79,3 +79,7 @@ In V2 DEV 0.1.7 wurde ein separater begrenzter 1/2/4-Prozesse-Vergleich und ein 
 ## V2-40-50 – Gesamttest auf HA-DEV nachgewiesen (09.10.2026)
 
 V2 DEV 0.1.7 ist durch einen echten anonymisierten öffentlichen `dra-v2-dev-git-suite.v1`-Export vom 09.10.2026 nachgewiesen: 40 Warteschritte, 40 Sekunden CPU-/RAM-Messung, anschließende erfolgreiche Mehrkernstufen 1/2/4, alles in einem Bericht. Die Durchsatzverhältnisse 2,11×/3,92× sind ausschließlich kurze synthetische Messungen, keine isolierte DRA-Leistung. Detailwerte und Sicherheitsbewertung unter `docs/V2_40_STATISCHE_ABNAHME_2026-10-08.md`. **V2-40-50 bleibt bis zur DRA-V1-Funktionsprüfung nach dem Versionswechsel und den weiteren Ressourcen-Gates offen**; keine V2-Schreibaktionen freigegeben.
+
+## V2-40-50 – V1-Parallelbetriebsprüfung nach 0.1.7 bestanden (09.10.2026)
+
+Die DRA-V1-Sammelaktualisierung zeigt fünf Projekte einschließlich DRA V2 DEV 0.1.7 mit jeweils 0 Änderungen und `Aktuell`. Die Schaltflächen zur Schreibfreigabe und Installation sind deaktiviert; kein Schreibauftrag erfolgte. **V1-Lese- und Vorschaufunktion nach Versionswechsel PASS.** Noch offen bleiben Datenträger-E/A und HA-Reaktionszeit als quantitative V2-40-50-Gates; daher kein Final-Abschluss, keine Freigabe für V2-Schreibaktionen. Verbindliches Detail: `docs/V2_40_STATISCHE_ABNAHME_2026-10-08.md`.

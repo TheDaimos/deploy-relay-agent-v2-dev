@@ -67,3 +67,7 @@ Alle drei Mehrkernstufen meldeten `ok`; `logical_cpus_visible = 12` und `affinit
 **Sicherheitsprüfung des öffentlichen JSON:** feste Schemaversion, nur CPU-/RAM-/Mehrkernzähler und harmlose Metadaten; keine Auftragskennung, kein Git-Token und keine Projektkonfiguration im veröffentlichten Report. DRA V1 und V2 sind weiterhin nicht unabhängig im Prozessspeicher messbar; `dra_v1_kib` / `dra_v2_kib` bleiben `null`.
 
 **Abnahmebewertung:** Gesamttest-Realpfad, alle drei Mehrkernstufen und gemeinsamer manueller Git-Export **PASS (ein erfolgreicher Lauf)**. V2-40-50 **noch nicht final geschlossen**, weil die anschließende DRA-V1-Funktionskontrolle, längerfristige Reproduzierbarkeit, HA-Reaktionszeit und E/A-Werte für die V2-0.1.7-Änderung nicht abschließend nachgewiesen sind. Der öffentliche Export belegt den Runtimebetrieb 0.1.7, aber nicht den genauen Installations- oder Neustartablauf. Keine neue HA-Installation, Neustartfreigabe, V2-PUB-Bereitstellung oder Merge hieraus ableiten.
+
+## V1-Funktionskontrolle nach dem ersten Gesamttest (09.10.2026)
+
+Der Nutzer hat die DRA-V1-Sammelaktualisierung nach dem V2-0.1.7-Wechsel erneut geprüft. Fünf Projekte einschließlich V2 DEV werden als `Aktuell` mit `0 Änderung(en)` angezeigt, Schreibzugriff und Installation sind nicht freigegeben, Prüfung abgeschlossen. **V1 schreibgeschützt PASS.** Siehe `docs/V2_40_STATISCHE_ABNAHME_2026-10-08.md`. Quantitative Ressourcenabnahme V2-40-50 weiter offen.

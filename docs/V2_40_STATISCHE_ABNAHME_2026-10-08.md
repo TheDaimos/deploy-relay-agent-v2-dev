@@ -215,3 +215,22 @@ Alle drei Mehrkernstufen meldeten `ok`; `logical_cpus_visible = 12` und `affinit
 **Sicherheitsprüfung des öffentlichen JSON:** feste Schemaversion, nur CPU-/RAM-/Mehrkernzähler und harmlose Metadaten; keine Auftragskennung, kein Git-Token und keine Projektkonfiguration im veröffentlichten Report. DRA V1 und V2 sind weiterhin nicht unabhängig im Prozessspeicher messbar; `dra_v1_kib` / `dra_v2_kib` bleiben `null`.
 
 **Abnahmebewertung:** Gesamttest-Realpfad, alle drei Mehrkernstufen und gemeinsamer manueller Git-Export **PASS (ein erfolgreicher Lauf)**. V2-40-50 **noch nicht final geschlossen**, weil die anschließende DRA-V1-Funktionskontrolle, längerfristige Reproduzierbarkeit, HA-Reaktionszeit und E/A-Werte für die V2-0.1.7-Änderung nicht abschließend nachgewiesen sind. Der öffentliche Export belegt den Runtimebetrieb 0.1.7, aber nicht den genauen Installations- oder Neustartablauf. Keine neue HA-Installation, Neustartfreigabe, V2-PUB-Bereitstellung oder Merge hieraus ableiten.
+
+
+### HA-DEV – DRA-V1-Funktionskontrolle nach V2 DEV 0.1.7 (09.10.2026)
+
+**Nutzerbeleg:** Bildschirmfoto des DRA-V1-Dialogs `Sammelaktualisierung` nach V2-0.1.7-Gesamttest und erfolgreichem Git-Export. Die schreibgeschützte Sammelprüfung zeigt fünf vollständig verfügbare Projekte; jeweils `✓ Aktuell` und `0 Änderung(en)`:
+
+| Projekt | Vom DRA V1 angezeigter Quell-Commit (Kurzkennung) | Änderungen |
+| --- | --- | ---: |
+| Deploy Relay (V1) | `5550b40de7b7` | 0 |
+| DRA V2 DEV – Nur Testlabor | `5c98941cfdcc` | 0 |
+| Gewitterradar | `df118237de73` | 0 |
+| WeatherRouter | `a057fcb07e40` | 0 |
+| WeatherRouter Private Extensions | `6977e7c99f21` | 0 |
+
+DRA V1 meldet `Keine ausgewählten Projekte benötigen eine Installation.`, `✓ Prüfung abgeschlossen`; `Schreibzugriff freigeben` und `0 Projekte installieren` sind inaktiv. Es fand **keine Installation und keine Schreibfreigabe** in diesem Prüfschritt statt.
+
+**Abnahme:** DRA-V1-Sammelprüfung im V1/V2-Parallelbetrieb nach V2-0.1.7-Wechsel **PASS (schreibgeschützte Funktion)**. Die fünf Projekte inklusive V2-DEV werden korrekt erfasst, Quellversionen dargestellt und ohne Änderungen geprüft. Dieser Screenshot belegt **keine vollständige V1-Schreibinstallation**, keine Prozess-/Leistungsisolierung und keine weiteren V2-Sicherheits-Grenzfälle.
+
+**V2-40-50 weiterhin OFFEN:** Der V1-Schutz-Nachweis ist erfüllt; für die endgültige quantitative Ressourcenabnahme bleiben nachvollziehbare HA-Reaktionszeiten, Datenträger-E/A und ggf. ein wiederholter zeitlich vergleichbarer Belastungslauf ausständig. Kein Neustart, V1-Code-Eingriff, V2-PUB-Release oder Merge von Draft-PR #2 abgeleitet.
