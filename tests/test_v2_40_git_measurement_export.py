@@ -139,11 +139,81 @@ class GitExportTests(unittest.IsolatedAsyncioTestCase):
             self.store, self.session, token_provider=lambda: self.token,
         )
         await self.writer.load()
+        await self.writer.set_repository("TheDaimos/Project-Log-And-Export")
 
     def uploaded(self, n=0):
         url, request = self.session.requests[n]
         payload = base64.b64decode(request["json"]["content"])
         return url, request, json.loads(payload)
+
+    async def test_no_default_repository_and_download_without_github(self):
+        store = FakeStore()
+        writer = module.MeasurementGitExport(
+            store, self.session, token_provider=lambda: None,
+        )
+        await writer.load()
+        self.assertIsNone(writer.repository)
+        self.assertIsNone(writer.status()["repository"])
+        self.assertFalse(writer.configured)
+        with self.assertRaises(module.GitMeasurementError):
+            await writer.export(measurement(), version="0.1.14")
+        local = writer.local_download(measurement(), version="0.1.14")
+        content = json.loads(local["content"])
+        self.assertEqual(local["application_id"], "deploy-relay-agent-v2")
+        self.assertEqual(content["exportSchema"], module.STANDARD_SCHEMA)
+        self.assertEqual(content["snapshot"]["measurement"]["synthetic_hashes"], 46)
+        self.assertTrue(local["filename"].endswith("__" + local["export_id"] + ".json"))
+        self.assertEqual(store.writes, 0)
+        self.assertEqual(self.session.requests, [])
+        self.assertEqual(self.session.visibility_requests, [])
+
+    async def test_admin_repository_change_clear_and_no_implicit_transfer(self):
+        await self.writer.clear_repository()
+        self.assertIsNone(self.writer.repository)
+        self.assertFalse(self.writer.configured)
+        await self.writer.set_repository("AnotherOwner/Private-Archive")
+        self.session.repo_response = FakeResponse(200, {
+            "full_name": "AnotherOwner/Private-Archive",
+            "private": True, "default_branch": "trunk",
+        })
+        result = await self.writer.export(measurement(), version="0.1.14")
+        self.assertEqual(result["repository"], "AnotherOwner/Private-Archive")
+        self.assertEqual(result["branch"], "trunk")
+        self.assertIn("/repos/AnotherOwner/Private-Archive/contents/", self.session.requests[0][0])
+        self.assertEqual(self.session.requests[0][1]["json"]["branch"], "trunk")
+        await self.writer.clear_repository()
+        self.assertIsNone(self.writer.repository)
+
+    async def test_cannot_switch_destination_while_export_pending(self):
+        self.session.response = FakeResponse(503)
+        with self.assertRaises(module.GitMeasurementError):
+            await self.writer.export(measurement(), version="0.1.14")
+        original = copy.deepcopy(self.store.data)
+        with self.assertRaises(module.GitMeasurementError):
+            await self.writer.set_repository("Other/Archive")
+        with self.assertRaises(module.GitMeasurementError):
+            await self.writer.clear_repository()
+        self.assertEqual(self.store.data, original)
+        self.assertEqual(self.writer.repository, "TheDaimos/Project-Log-And-Export")
+
+    async def test_repo_names_are_validated_without_vendor_default(self):
+        for repository in (
+            "", "https://github.com/Owner/Private", "Owner/../../a",
+            "Owner/Repo?branch=a", "Owner/Repo/extra", "owner/.storage",
+            "Owner/Private\nAuthorization", True, None,
+        ):
+            with self.subTest(repository=repository), self.assertRaises(module.GitMeasurementError):
+                await self.writer.set_repository(repository)
+
+    async def test_download_works_with_failed_pending_upload(self):
+        self.session.response = FakeResponse(403)
+        with self.assertRaises(module.GitMeasurementError):
+            await self.writer.export(measurement(), version="0.1.14")
+        before = copy.deepcopy(self.store.data)
+        payload = self.writer.local_download(measurement(), version="0.1.14")
+        self.assertEqual(json.loads(payload["content"])["application"]["id"],
+                         "deploy-relay-agent-v2")
+        self.assertEqual(self.store.data, before)
 
     async def test_private_export_metadaten_and_correct_month(self):
         result = await self.writer.export(measurement(), version="0.1.14")
@@ -233,7 +303,7 @@ class GitExportTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(change=change), self.assertRaises(module.GitMeasurementError):
                 await self.writer.export(sample, version="0.1.14")
         self.assertEqual(self.session.requests, [])
-        self.assertEqual(self.store.writes, 0)
+        self.assertEqual(self.store.writes, 1)
 
     async def test_full_suite_snapshot_remains_compatible(self):
         result = await self.writer.export(combined_suite(), version="0.1.14")
@@ -246,7 +316,7 @@ class GitExportTests(unittest.IsolatedAsyncioTestCase):
             [1, 2, 4, 6, 8, 10, 12],
         )
         self.assertNotIn("operation_id", json.dumps(obj))
-        self.assertEqual(result["repository"], module.REPOSITORY)
+        self.assertEqual(result["repository"], "TheDaimos/Project-Log-And-Export")
 
     async def test_multicore_only_and_unavailable_are_kept(self):
         report = combined_suite("multicore")
@@ -322,6 +392,7 @@ class GitExportTests(unittest.IsolatedAsyncioTestCase):
             await self.writer.export(measurement(), version="0.1.14")
         self.assertNotIn(self.token, str(caught.exception))
         self.assertEqual(self.store.data["schema"], module.QUEUE_SCHEMA)
+        self.assertEqual(self.store.data["pending"]["repository"], "TheDaimos/Project-Log-And-Export")
         self.assertTrue(self.writer.pending)
         self.assertNotIn(self.token, self.store.data["pending"]["raw"])
         self.assertEqual(len(self.session.requests), 1)
@@ -366,18 +437,18 @@ class GitExportTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(module.GitMeasurementError):
             await writer.export(measurement(), version="0.1.14")
         self.assertEqual(self.session.requests, [])
-        self.assertEqual(self.store.writes, 0)
+        self.assertEqual(self.store.writes, 1)
 
     async def test_browser_token_configuration_is_disabled(self):
         with self.assertRaises(module.GitMeasurementError):
             await self.writer.configure(token=self.token)
-        self.assertEqual(self.store.writes, 0)
+        self.assertEqual(self.store.writes, 1)
 
     async def test_corrupted_pending_queue_never_silently_overwritten(self):
         for bad in (
             {"schema": "unknown", "pending": None},
-            {"schema": module.QUEUE_SCHEMA, "pending": {"path": "public"}},
-            {"schema": module.QUEUE_SCHEMA, "pending": {
+            {"schema": module.QUEUE_SCHEMA, "repository": "User/Repo", "pending": {"path": "public"}},
+            {"schema": module.QUEUE_SCHEMA, "repository": "User/Repo", "pending": {
                 "path": "exports/deploy-relay-agent-v2/evil",
                 "export_id": "a"*32, "raw": '{"password":"SECRET"}',
             }},
