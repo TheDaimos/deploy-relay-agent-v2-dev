@@ -120,6 +120,12 @@ class V2ProjectCatalogTests(unittest.IsolatedAsyncioTestCase):
                     await self.catalog.add(repo, name)
         self.assertEqual(self.store.writes, 0)
 
+    async def test_different_owners_cannot_share_backup_identity(self):
+        await self.catalog.add("TheDaimos/weather-router", "WeatherRouter")
+        with self.assertRaises(m.CatalogError):
+            await self.catalog.add("OtherOwner/weather-router", "Other")
+        self.assertEqual(len(self.catalog.list()), 1)
+
     async def test_retention_range_min_max_and_bool(self):
         await self.catalog.add("TheDaimos/test", "Test")
         for value in (-1, 0, 2, 101, True, "10"):
