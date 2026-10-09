@@ -8,6 +8,7 @@ project installation, backup writes or restore commands.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import asyncio
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -37,6 +38,7 @@ class LabRuntime:
     git_export: MeasurementGitExport
     projects: ProjectCatalog
     settings: V2Settings
+    source_scan_lock: asyncio.Lock
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -84,7 +86,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
     runtime = LabRuntime(registry=registry, supervisor=supervisor, journal=journal,
                          measurement=measurement, suite=suite, git_export=git_export,
-                         projects=projects, settings=settings)
+                         projects=projects, settings=settings,
+                         source_scan_lock=asyncio.Lock())
     store["runtime"] = runtime
     try:
         async_register_commands(hass)

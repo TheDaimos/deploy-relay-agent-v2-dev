@@ -5,6 +5,10 @@ import asyncio
 import probatio
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
+
+from .remote_source import inspect_public_repository
+from .source_preflight import PreflightError, safe_path
 
 from .const import DOMAIN, VERSION, READONLY_TEST_STEPS
 from .operation_model import OperationContractError, OperationPhase
@@ -447,6 +451,52 @@ async def async_batch_preview(hass, connection, msg):
         return
     connection.send_result(msg["id"], snapshot)
 
+
+@websocket_api.websocket_command({
+    probatio.Required("type"): "deploy_relay_v2_dev/projects/source_preview",
+    probatio.Required("repository"): str,
+    probatio.Required("ref"): str,
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def async_projects_source_preview(hass, connection, msg):
+    """Admin-only exact-commit public GitHub check; V1 and HA target unchanged."""
+    runtime = _runtime(hass)
+    if runtime is None:
+        connection.send_error(msg["id"], "not_ready", "Projektverwaltung nicht bereit")
+        return
+    # No arbitrary GitHub URL or unregistered project can trigger a local scan.
+    repo = msg["repository"]
+    if type(repo) is not str or not any(
+        project["repository"].casefold() == repo.casefold()
+        for project in runtime.projects.list()
+    ):
+        connection.send_error(msg["id"], "not_registered", "Projekt nicht registriert")
+        return
+    # Do not spawn multiple network scans/filesystem enumerations simultaneously.
+    if runtime.source_scan_lock.locked():
+        connection.send_error(msg["id"], "busy", "Quellprüfung läuft bereits")
+        return
+    try:
+        async with runtime.source_scan_lock:
+            report = await asyncio.wait_for(
+                inspect_public_repository(
+                    async_get_clientsession(hass),
+                    hass.config.path(),
+                    repo,
+                    msg["ref"],
+                ),
+                timeout=45,
+            )
+    except (PreflightError, TimeoutError, OSError, ValueError):
+        connection.send_error(
+            msg["id"], "source_unavailable",
+            "Quellprüfung nicht möglich oder Quelle nicht vertrauenswürdig",
+        )
+        return
+    connection.send_result(msg["id"], report)
+
+
 def async_register_commands(hass: HomeAssistant) -> None:
     state = hass.data.setdefault(DOMAIN, {})
     if state.get("commands_registered"):
@@ -457,6 +507,6 @@ def async_register_commands(hass: HomeAssistant) -> None:
                     async_projects_import_v1, async_projects_add,
                     async_projects_retention, async_projects_preselect,
                     async_settings_get, async_settings_save, async_settings_ack_cpu_warning,
-                    async_batch_preview):
+                    async_batch_preview, async_projects_source_preview):
         websocket_api.async_register_command(hass, handler)
     state["commands_registered"] = True
