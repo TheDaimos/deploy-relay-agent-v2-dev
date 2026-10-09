@@ -24,8 +24,28 @@ class FakeElement {
   attachShadow() { return this.shadowRoot; }
 }
 const elements = new Map();
+const downloads = [];
+const urls = [];
+const mockDocument = {
+  createElement(tag) {
+    assert.equal(tag, "a");
+    return {
+      href: "", download: "",
+      click() { downloads.push({filename:this.download, url:this.href}); },
+    };
+  },
+};
+const mockURL = {
+  createObjectURL(blob) {
+    assert(blob instanceof Blob);
+    urls.push(blob);
+    return "blob:local-dra-v2";
+  },
+  revokeObjectURL(_id) {},
+};
 const ctx = {
   HTMLElement: FakeElement,
+  Blob, document:mockDocument, URL:mockURL,
   customElements: { get: n => elements.get(n), define: (n, x) => elements.set(n, x) },
   Date: class extends Date { static now() { return now; } },
   setTimeout(cb, ms) {
@@ -122,3 +142,40 @@ panel.disconnectedCallback();
 assert.equal(panel._countdownTimer, null, "detach must cancel all live countdown work");
 assert.equal(panel._timer, null);
 console.log("V2 countdown behavior PASS: backend anchor, ticking, re-sync, completion, detach");
+// Independent JSON download must stay available without any GitHub target.
+panel._operation = sample("success", 40);
+panel._centralExport = {
+  configured:false, repository_configured:false, repository:null,
+  server_token_available:false, pending:false,
+};
+const id = "a".repeat(32);
+const filename = "2026-10-09T11-00-00Z__deploy-relay-agent-v2__0.1.14__diagnostics__" + id + ".json";
+const json = JSON.stringify({
+  application:{id:"deploy-relay-agent-v2"},
+  export:{exportId:id},
+});
+panel._hass = {
+  async callWS(message) {
+    assert.equal(message.type, "deploy_relay_v2_dev/test/download_json");
+    return {
+      filename, content:json, export_id:id,
+      application_id:"deploy-relay-agent-v2", mime_type:"application/json",
+    };
+  },
+};
+panel._render();
+assert(panel.shadowRoot.innerHTML.includes("JSON-Datei herunterladen"));
+assert(panel.shadowRoot.innerHTML.includes("Es gibt ausdrücklich kein vorbelegtes Repository."));
+panel._downloadJSON().then(() => {
+  assert.equal(downloads.length, 1);
+  assert.equal(downloads[0].filename, filename);
+  assert.equal(downloads[0].url, "blob:local-dra-v2");
+  assert.equal(urls.length, 1);
+  assert.equal(panel._downloadStatus, "JSON-Download gestartet: " + filename);
+  assert.equal(panel._centralExport.repository, null);
+  console.log("DRA V2 JSON download without GitHub PASS");
+}).catch(error => {
+  console.error(error);
+  process.exitCode = 1;
+});
+
