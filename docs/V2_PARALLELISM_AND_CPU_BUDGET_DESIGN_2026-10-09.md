@@ -55,3 +55,8 @@ Die V2-DEV-0.1.8-Diagnose unterstützt jetzt sieben fest vorgegebene, nacheinand
 ## Teilimplementierung V2 DEV 0.1.11 (09.10.2026)
 
 Admin-Vorgaben `mode=sequential|controlled`, `max_readonly_jobs=1..4`, `max_worker_processes=1..12` werden in `deploy_relay_v2_dev.settings` getrennt von V1 gespeichert. `automatic` bleibt gesperrt. Der Server meldet die **aktuell wirksame** Grenze unverändert 1 Leseauftrag, 0 Schreibaufträge und `worker_budget_enforced=false`. Die Vorgabe ist **kein CPU-Pinning** und aktiviert **keine** neue Parallelität. Echte Scheduler-/Ressourcenvergabe erst nach weiteren statischen und HA-Gates. Dokumentiert unter `docs/V2_0_1_11_SETTINGS_BATCH_2026-10-09.md`.
+
+
+## V2 DEV 0.1.12 – Automatische CPU-Verfügbarkeit beim Start (09.10.2026)
+
+Zur DRA-Settings-Entwicklung ergänzt: Beim Laden der V2-Integration Anzahl verfügbarer logischer Prozessoren ermitteln und gegenüber der gespeicherten Maximalvorgabe 1–12 prüfen. Sinkt die Verfügbarkeit unter den eingestellten Wert, wird dieser **vor weiterer Verwendung dauerhaft auf das verfügbare Maß reduziert**, mit gespeicherter, quittierbarer Warnung in der V2-Oberfläche. Bei einem Anstieg wird nur der beobachtete Wert still aktualisiert, keine automatische Erhöhung der Benutzerwahl. Alte Settings v1 bleiben erhalten und migrieren kontrolliert auf v2; bei fehlerhaften Messungen kein erfundener Wert. **Das aktiviert noch keine tatsächliche Worker-Affinität/Parallelität** und beweist keine cgroup-Quote. Detailvertrag `docs/V2_CPU_STARTUP_GUARD_2026-10-09.md`; HA-Realabnahme nach expliziter Freigabe offen.

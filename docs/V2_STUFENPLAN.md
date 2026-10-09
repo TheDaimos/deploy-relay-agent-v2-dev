@@ -104,3 +104,8 @@ Nach ausdrücklicher Nutzerfreigabe für gebündelte V2-Entwicklung wurde im iso
 ## Gebündeltes Paket DRA V2 DEV 0.1.11 – Einstellungen und Sammelvorauswahl (09.10.2026)
 
 Gemeinsame Implementierung der rein **gespeicherten** DRA-Vorgaben für schreibgeschützte Leseparallelität (1–4) und Arbeitsprozesse (1–12), der projektbezogenen `batch_preselect`-Einstellung (Altbestand ohne Feld: `true`) und einer strikt nicht schreibenden Sammelauswahl-Vorschau (`not_checked`, kein Git-Abgleich). Die Werte **ändern noch nicht den aktiven Worker-/Auftragsscheduler**, aktiv bleibt genau ein Lese-Testauftrag, null Schreibaktionen. HA-Realabnahme erst nach ausdrücklicher Installationsfreigabe. Die allgemeinen Gate- und Sicherheitsregeln gelten unverändert. Technische Dokumentation: `docs/V2_0_1_11_SETTINGS_BATCH_2026-10-09.md`.
+
+
+## V2 DEV 0.1.12 – Automatische CPU-Verfügbarkeit beim Start (09.10.2026)
+
+Zur DRA-Settings-Entwicklung ergänzt: Beim Laden der V2-Integration Anzahl verfügbarer logischer Prozessoren ermitteln und gegenüber der gespeicherten Maximalvorgabe 1–12 prüfen. Sinkt die Verfügbarkeit unter den eingestellten Wert, wird dieser **vor weiterer Verwendung dauerhaft auf das verfügbare Maß reduziert**, mit gespeicherter, quittierbarer Warnung in der V2-Oberfläche. Bei einem Anstieg wird nur der beobachtete Wert still aktualisiert, keine automatische Erhöhung der Benutzerwahl. Alte Settings v1 bleiben erhalten und migrieren kontrolliert auf v2; bei fehlerhaften Messungen kein erfundener Wert. **Das aktiviert noch keine tatsächliche Worker-Affinität/Parallelität** und beweist keine cgroup-Quote. Detailvertrag `docs/V2_CPU_STARTUP_GUARD_2026-10-09.md`; HA-Realabnahme nach expliziter Freigabe offen.
