@@ -165,6 +165,10 @@ class DRAV2DevLabPanel extends HTMLElement {
       this._cpuStatus = data.cpu_status || this._cpuStatus;
       this._gitConfigured = data.git_configured === true;
       this._centralExport = data.central_export || this._centralExport;
+      if (this._archiveCheckState === "idle" && this._centralExport.configured) {
+        // Stored on HA, but not necessarily reverified this browser session.
+        this._archiveCheckState = "stored";
+      }
       this._gitReadConfigured = data.git_read_configured === true;
       this._gitAvailable = data.git_available === true;
       this._error = "";
@@ -917,10 +921,11 @@ class DRAV2DevLabPanel extends HTMLElement {
               die Oberfläche zurückgesendet. Nutze eine verschlüsselte HA-Verbindung.</p>
               <div class="dialog-actions">
                 <button id="git-dialog-save"
-                        class="${this._archiveCheckState === "success" ? "git-check-success" :
+                        class="${["success", "stored"].includes(this._archiveCheckState) ? "git-check-success" :
                           this._archiveCheckState === "error" ? "git-check-error" : ""}"
                         ${this._archiveBusy || this._gitBusy ? "disabled" : ""}>
                   ${this._archiveCheckState === "success" ? "✓ Zugang geprüft" :
+                    this._archiveCheckState === "stored" ? "✓ Gespeichert · prüfen" :
                     this._archiveCheckState === "error" ? "✕ Prüfung fehlgeschlagen" :
                     this._archiveBusy ? "Prüfung läuft …" : "Speichern & prüfen"}
                 </button>
@@ -935,7 +940,7 @@ class DRAV2DevLabPanel extends HTMLElement {
                 <strong>Serverzugang:</strong>
                 ${this._centralExport.server_token_available ? "Vorhanden" : "Fehlt"}.
               </p>
-              <p class="git-check-feedback ${this._archiveCheckState === "success" ? "success" :
+              <p class="git-check-feedback ${["success", "stored"].includes(this._archiveCheckState) ? "success" :
                  this._archiveCheckState === "error" ? "error" :
                  this._archiveBusy ? "pending" : ""}" role="status">
                 ${this._escapeProject(this._archiveMessage ||
