@@ -20,6 +20,9 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._projectBusy = false;
     this._projectSaved = new Map();
     this._projectMessage = "";
+    this._sourceBusy = false;
+    this._sourceMessage = "";
+    this._sourcePreview = null;
     this._v1Candidates = null;
     this._gitConfigured = false;
     this._gitAvailable = false;
@@ -328,6 +331,33 @@ class DRAV2DevLabPanel extends HTMLElement {
     }
   }
 
+
+  async _sourceCheck(button) {
+    if (!button || !this._hass || this._sourceBusy) return;
+    const repository = button.dataset.repo;
+    const ref = this.shadowRoot?.querySelector("#source-ref")?.value?.trim() || "";
+    this._sourceBusy = true;
+    this._sourcePreview = null;
+    this._sourceMessage = "GitHub-Quelle und vorhandene Dateien werden schreibgeschützt geprüft …";
+    this._render();
+    try {
+      const report = await this._hass.callWS({
+        type:"deploy_relay_v2_dev/projects/source_preview", repository, ref,
+      });
+      if (!report || report.repository?.toLowerCase() !== repository.toLowerCase() ||
+          report.installation_enabled !== false || report.sources_verified !== true) {
+        throw new Error("ungueltiges Quellpruefungsergebnis");
+      }
+      this._sourcePreview = report;
+      this._sourceMessage = "Quellprüfung abgeschlossen. Keine Installation freigegeben.";
+    } catch (_error) {
+      this._sourceMessage = "Quelle nicht erreichbar oder sicherheitstechnisch nicht prüfbar. Kein Update als aktuell bestätigt.";
+    } finally {
+      this._sourceBusy = false;
+      if (this.isConnected) this._render();
+    }
+  }
+
   _addProject() {
     const repo = this.shadowRoot?.querySelector("#project-repo")?.value || "";
     const name = this.shadowRoot?.querySelector("#project-name")?.value || "";
@@ -408,13 +438,20 @@ class DRAV2DevLabPanel extends HTMLElement {
   }
   _render() {
     const s = this.shadowRoot;
-    const projectRows = this._projects.map(p => { const saved = this._projectSaved.get(p.repository) === p.backup_retention; return `<tr><td>${this._escapeProject(p.name)}<div class="note">${this._escapeProject(p.repository)}</div></td><td>${p.origin === "v1_import" ? "DRA V1" : "Manuell"}</td><td><input class="retention" type="number" min="3" max="100" value="${Number.isInteger(p.backup_retention) ? p.backup_retention : 10}" aria-label="Sicherungen" /><button class="retention-save ${saved ? "retention-saved" : ""}" data-repo="${this._escapeProject(p.repository)}" ${this._projectBusy ? "disabled" : ""}>${saved ? "Gespeichert" : "Speichern"}</button><button class="preselect-toggle" data-repo="${this._escapeProject(p.repository)}" data-enabled="${p.batch_preselect === false}" ${this._projectBusy ? "disabled" : ""}>Sammelupdate: ${p.batch_preselect === false ? "Aus" : "Ein"}</button></td></tr>`; }).join("");
+    const projectRows = this._projects.map(p => { const saved = this._projectSaved.get(p.repository) === p.backup_retention; return `<tr><td>${this._escapeProject(p.name)}<div class="note">${this._escapeProject(p.repository)}</div></td><td>${p.origin === "v1_import" ? "DRA V1" : "Manuell"}</td><td><input class="retention" type="number" min="3" max="100" value="${Number.isInteger(p.backup_retention) ? p.backup_retention : 10}" aria-label="Sicherungen" /><button class="retention-save ${saved ? "retention-saved" : ""}" data-repo="${this._escapeProject(p.repository)}" ${this._projectBusy ? "disabled" : ""}>${saved ? "Gespeichert" : "Speichern"}</button><button class="preselect-toggle" data-repo="${this._escapeProject(p.repository)}" data-enabled="${p.batch_preselect === false}" ${this._projectBusy ? "disabled" : ""}>Sammelupdate: ${p.batch_preselect === false ? "Aus" : "Ein"}</button><button class="source-check" data-repo="${this._escapeProject(p.repository)}" ${this._sourceBusy ? "disabled" : ""}>Git-Quelle prüfen</button></td></tr>`; }).join("");
     const batchRows = this._projects.map(p => {
       const checked = this._batchSelection === null ? p.batch_preselect !== false : this._batchSelection.includes(p.repository);
       return `<label class="batch-line"><input type="checkbox" class="batch-choice" data-repo="${this._escapeProject(p.repository)}" ${checked ? "checked" : ""} /> ${this._escapeProject(p.name)}</label>`;
     }).join("");
     const batchReport = Array.isArray(this._batchPreview?.selected) ?
       this._batchPreview.selected.map(p => `<li>${this._escapeProject(p.name)}: Quellstand nicht geprüft</li>`).join("") : "";
+    const sourceReport = this._sourcePreview;
+    const sourceList = (files, limit=25) => {
+      if (!Array.isArray(files) || !files.length) return "<li>Keine</li>";
+      const sample = files.slice(0, limit).map(name => `<li>${this._escapeProject(name)}</li>`).join("");
+      const more = files.length > limit ? `<li>… und ${files.length-limit} weitere</li>` : "";
+      return sample + more;
+    };
     const previewRows = Array.isArray(this._v1Candidates) ? this._v1Candidates.map(p => `<li>${this._escapeProject(p.name)} – ${this._escapeProject(p.repository)}</li>`).join("") : "";
     const op = this._operation;
     const busy = this._busy || this._active() || this._gitBusy;
@@ -607,6 +644,23 @@ class DRAV2DevLabPanel extends HTMLElement {
           <p class="note">${this._escapeProject(this._projectMessage)}</p>
           ${this._projects.length ? `<div class="table-wrap"><table><thead><tr><th>Projekt</th><th>Herkunft</th><th>Sicherungen behalten</th></tr></thead>
           <tbody>${projectRows}</tbody></table></div>` : `<p class="note">Noch keine Projekte in V2 hinterlegt.</p>`}
+          <p><strong>GitHub-Quellprüfung (nur lesend)</strong></p>
+          <label>Quellzweig (optional; leer = Standardzweig)
+            <input id="source-ref" class="project-text" placeholder="deploy/dev" autocomplete="off" /></label>
+          <p class="note">Über „Git-Quelle prüfen“ beim jeweiligen Projekt wird die
+          öffentliche GitHub-Quelle geprüft. Keine V1-Zugangsdaten, keine Installation.
+          Private Repositories benötigen später einen separaten V2-Lesezugang.</p>
+          <p class="note">${this._escapeProject(this._sourceMessage)}</p>
+          ${sourceReport ? `<div class="source-report"><strong>Prüfung: ${this._escapeProject(sourceReport.repository)}</strong>
+            <p>Quellzweig: ${this._escapeProject(sourceReport.source_ref)}
+            · Commit: ${this._escapeProject(sourceReport.source_commit?.slice(0,12))}</p>
+            <p>Hinzugefügt: ${sourceReport.add.length} · Geändert: ${sourceReport.change.length}
+            · Zu entfernen: ${sourceReport.remove.length} · Unverändert: ${sourceReport.unchanged_count}</p>
+            <p><strong>Hinzugefügt</strong></p><ul>${sourceList(sourceReport.add)}</ul>
+            <p><strong>Geändert</strong></p><ul>${sourceList(sourceReport.change)}</ul>
+            <p><strong>Bei einer späteren Installation zu entfernen</strong></p><ul>${sourceList(sourceReport.remove)}</ul>
+            <p class="note">Nur Vorschau – Installation gesperrt. Projektübernahme
+            und unabhängige Sicherung müssen vor jedem Schreibauftrag geprüft werden.</p></div>` : ""}
           <p class="note"><strong>Backup-Richtlinie:</strong> 10 gesicherte Stände je Projekt, individuell 3–100.
           Neue Einträge sind zunächst ungeprüft. Installation, tatsächliche Sicherung,
           Rotation und Wiederherstellung bleiben bis zur separaten Transaktionsabnahme gesperrt.</p>
@@ -659,6 +713,7 @@ class DRAV2DevLabPanel extends HTMLElement {
       this._batchMessage = "Auswahl geändert – Vorschau erneut prüfen.";
     }));
     s.querySelectorAll(".preselect-toggle")?.forEach(button => button.addEventListener("click", () => this._togglePreselect(button)));
+    s.querySelectorAll(".source-check")?.forEach(button => button.addEventListener("click", () => this._sourceCheck(button)));
     s.querySelector("#project-preview")?.addEventListener("click", () => this._projectAction("v1_preview"));
     s.querySelector("#project-import")?.addEventListener("click", () => this._projectAction("import_v1"));
     s.querySelector("#project-cancel")?.addEventListener("click", () => { this._v1Candidates = null; this._render(); });
