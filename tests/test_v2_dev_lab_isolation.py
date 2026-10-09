@@ -85,7 +85,7 @@ class LabIsolationContracts(unittest.TestCase):
         self.assertNotIn("import voluptuous", sockets)
         for handler in ("async_state", "async_start", "async_measure", "async_multicore",
                         "async_all", "async_get",
-                        "async_git_configure", "async_git_export",
+                        "async_git_export", "async_git_retry",
                         "async_projects_list", "async_projects_v1_preview",
                         "async_projects_import_v1", "async_projects_add",
                         "async_projects_retention", "async_projects_preselect",
