@@ -556,6 +556,15 @@ class MeasurementGitExport:
             "server_token_available": self.server_token_available,
             "pending": self.pending,
             "repository": self._repository,
+            # Admin-only status: the final five characters of the saved token.
+            # Never expose a full token, and never expose a credential bound to
+            # another repository. Environment-only credentials have no hint.
+            "token_suffix": (
+                self._credential_token[-5:]
+                if self._credential_token is not None and
+                   self._credential_repository == self._repository
+                else None
+            ),
         }
 
     async def load(self) -> None:
