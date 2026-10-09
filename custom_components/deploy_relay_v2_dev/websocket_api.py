@@ -9,6 +9,7 @@ from homeassistant.core import HomeAssistant
 from .const import DOMAIN, VERSION, READONLY_TEST_STEPS
 from .operation_model import OperationContractError, OperationPhase
 from .git_measurement_export import GitMeasurementError
+from .project_catalog import CatalogError, v1_proposals
 
 
 def _runtime(hass: HomeAssistant):
@@ -37,6 +38,7 @@ async def async_state(hass, connection, msg):
         "suite": runtime.suite.summary(),
         "git_configured": runtime.git_export.configured,
         "git_available": runtime.git_export.available,
+        "projects": runtime.projects.list(),
     })
 
 
@@ -230,11 +232,119 @@ async def async_git_export(hass, connection, msg):
     connection.send_result(msg["id"], result)
 
 
+
+
+@websocket_api.websocket_command({
+    probatio.Required("type"): "deploy_relay_v2_dev/projects/list",
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def async_projects_list(hass, connection, msg):
+    runtime = _runtime(hass)
+    if runtime is None:
+        connection.send_error(msg["id"], "not_ready", "Projektverwaltung nicht bereit")
+        return
+    connection.send_result(msg["id"], {
+        "projects": runtime.projects.list(),
+        "deployment_enabled": False,
+        "backup_mutation_enabled": False,
+    })
+
+
+@websocket_api.websocket_command({
+    probatio.Required("type"): "deploy_relay_v2_dev/projects/v1_preview",
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def async_projects_v1_preview(hass, connection, msg):
+    runtime = _runtime(hass)
+    if runtime is None:
+        connection.send_error(msg["id"], "not_ready", "Projektverwaltung nicht bereit")
+        return
+    try:
+        candidates = v1_proposals(hass.config_entries)
+    except CatalogError:
+        connection.send_error(msg["id"], "invalid_inventory", "V1-Projektliste nicht lesbar")
+        return
+    connection.send_result(msg["id"], {
+        "candidates": candidates,
+        "requires_confirmation": True,
+        "credentials_copied": False,
+    })
+
+
+@websocket_api.websocket_command({
+    probatio.Required("type"): "deploy_relay_v2_dev/projects/import_v1",
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def async_projects_import_v1(hass, connection, msg):
+    runtime = _runtime(hass)
+    if runtime is None:
+        connection.send_error(msg["id"], "not_ready", "Projektverwaltung nicht bereit")
+        return
+    try:
+        result = await runtime.projects.import_v1(hass.config_entries)
+    except CatalogError:
+        connection.send_error(msg["id"], "import_failed", "Übernahme konnte nicht gespeichert werden")
+        return
+    connection.send_result(msg["id"], {**result, "projects": runtime.projects.list()})
+
+
+@websocket_api.websocket_command({
+    probatio.Required("type"): "deploy_relay_v2_dev/projects/add",
+    probatio.Required("repository"): str,
+    probatio.Required("name"): str,
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def async_projects_add(hass, connection, msg):
+    runtime = _runtime(hass)
+    if runtime is None:
+        connection.send_error(msg["id"], "not_ready", "Projektverwaltung nicht bereit")
+        return
+    try:
+        record = await runtime.projects.add(msg["repository"], msg["name"])
+    except CatalogError:
+        connection.send_error(msg["id"], "invalid_project", "Projekt konnte nicht angelegt werden")
+        return
+    connection.send_result(msg["id"], {
+        "project": record, "projects": runtime.projects.list()
+    })
+
+
+@websocket_api.websocket_command({
+    probatio.Required("type"): "deploy_relay_v2_dev/projects/retention",
+    probatio.Required("repository"): str,
+    probatio.Required("backup_retention"): int,
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def async_projects_retention(hass, connection, msg):
+    runtime = _runtime(hass)
+    if runtime is None:
+        connection.send_error(msg["id"], "not_ready", "Projektverwaltung nicht bereit")
+        return
+    try:
+        record = await runtime.projects.set_retention(
+            msg["repository"], msg["backup_retention"],
+        )
+    except CatalogError:
+        connection.send_error(msg["id"], "invalid_retention", "Sicherungsanzahl ungültig")
+        return
+    connection.send_result(msg["id"], {
+        "project": record, "projects": runtime.projects.list(),
+        "backups_deleted": 0,
+    })
+
 def async_register_commands(hass: HomeAssistant) -> None:
     state = hass.data.setdefault(DOMAIN, {})
     if state.get("commands_registered"):
         return
     for handler in (async_state, async_start, async_measure, async_multicore,
-                    async_all, async_get, async_git_configure, async_git_export):
+                    async_all, async_get, async_git_configure, async_git_export,
+                    async_projects_list, async_projects_v1_preview,
+                    async_projects_import_v1, async_projects_add,
+                    async_projects_retention):
         websocket_api.async_register_command(hass, handler)
     state["commands_registered"] = True

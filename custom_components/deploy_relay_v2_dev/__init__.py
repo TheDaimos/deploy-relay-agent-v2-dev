@@ -1,7 +1,8 @@
 """DRA V2 development lab: harmless read-only tasks on an existing HA-DEV.
 
 This integration is separate from the deploy_relay V1 integration.
-No project installation, backup handling, source access or restore is provided.
+Only opt-in, metadata-only project registration is offered; there are no
+project installation, backup writes or restore commands.
 """
 
 from __future__ import annotations
@@ -17,6 +18,7 @@ from .const import DOMAIN
 from .operation_registry import OperationRegistry
 from .operation_journal import JournalError, OperationJournal
 from .git_measurement_export import GitMeasurementError, MeasurementGitExport
+from .project_catalog import CatalogError, ProjectCatalog
 from .readonly_task_supervisor import ReadOnlyTaskSupervisor
 from .readonly_benchmark import ReadOnlyMeasurement, ReadOnlySuite
 from .ha_preview_task_factory import PreviewTaskFactory
@@ -32,6 +34,7 @@ class LabRuntime:
     measurement: ReadOnlyMeasurement
     suite: ReadOnlySuite
     git_export: MeasurementGitExport
+    projects: ProjectCatalog
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -56,6 +59,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # Git-only credentials must not block journal recovery or V1.
         # A damaged configuration is never silently overwritten.
         pass
+    projects = ProjectCatalog(Store(hass, 1, "deploy_relay_v2_dev.projects"))
+    try:
+        await projects.load()
+    except CatalogError:
+        # Damaged project metadata must not be silently replaced.
+        return False
     measurement = ReadOnlyMeasurement()
     suite = ReadOnlySuite(measurement)
     registry = OperationRegistry(max_completed=12, max_readonly=1)
@@ -66,7 +75,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         on_terminal=journal.capture,
     )
     runtime = LabRuntime(registry=registry, supervisor=supervisor, journal=journal,
-                         measurement=measurement, suite=suite, git_export=git_export)
+                         measurement=measurement, suite=suite, git_export=git_export,
+                         projects=projects)
     store["runtime"] = runtime
     try:
         async_register_commands(hass)
