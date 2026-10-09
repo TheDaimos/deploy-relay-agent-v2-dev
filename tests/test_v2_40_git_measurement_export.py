@@ -297,6 +297,32 @@ class GitExportTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([x["workers"] for x in report["multicore"]["levels"]], [1, 2, 4, 6, 8, 10, 12])
         self.assertEqual(result["repository"], module.REPOSITORY)
 
+    async def test_seven_stages_strict_no_missing_or_reordered_workers(self):
+        await self.writer.configure(token=self.token)
+        cases = []
+        missing = combined_suite()
+        missing["multicore"]["levels"] = missing["multicore"]["levels"][:-1]
+        cases.append(missing)
+        extra = combined_suite()
+        extra["multicore"]["levels"].append({
+            "workers": 14, "status": "ok", "wall_ms": 200,
+            "aggregate_worker_cpu_ms": 300, "iterations_total": 5600000,
+        })
+        cases.append(extra)
+        reordered = combined_suite()
+        reordered["multicore"]["levels"][5], reordered["multicore"]["levels"][6] = (
+            reordered["multicore"]["levels"][6], reordered["multicore"]["levels"][5]
+        )
+        cases.append(reordered)
+        legacy = combined_suite()
+        legacy["multicore"]["schema"] = "dra-v2-dev-multicore.v1"
+        cases.append(legacy)
+        for case in cases:
+            with self.subTest(levels=case["multicore"]["levels"]):
+                with self.assertRaises(module.GitMeasurementError):
+                    await self.writer.export(case, version="0.1.8")
+        self.assertEqual(self.session.requests, [])
+
     async def test_multicore_only_export_with_unavailable_stage(self):
         await self.writer.configure(token=self.token)
         report = combined_suite("multicore")
