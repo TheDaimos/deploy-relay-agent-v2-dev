@@ -107,3 +107,13 @@ Aufgrund der HA-Nutzerrückmeldung nach V2 DEV 0.1.16 wurden drei konkrete Fehlf
 6. **Abnahme ohne Nutzer-Geheimnisse:** Synthetische Python- und JavaScript-Tests für den allein mit Adminsicht erlaubten Fünf-Zeichen-Hinweis, Wiederherstellung über neue Store-Instanz, keine vollständigen Token-Rückgaben, UI-Freigabe ohne Repo gesperrt, nach gültiger Messung und Einrichtung aktiv, grünen/roten Status, Wiederholung ohne Token-Neueingabe, literal `undefined` sowie Messungswahl nach späterer Vorschau. Keine Änderung an V1 oder an HA-DEV wurde durch die Umsetzung veranlasst.
 
 **Noch offen:** HA-Realabnahme der korrigierten V2 DEV 0.1.17 sowie der tatsächlichen GitHub-Schreibberechtigung. Historische Dateien bleiben unverändert, keine Exporte in ein öffentliches Repository.
+
+
+## Oberflächenordnung V2 DEV 0.1.18 (09.10.2026)
+
+- Teststeuerung mit eingerahmtem Auftragsstatus, Restzeit und direkter Statusaktualisierung.
+- Diagnoseexport unmittelbar neben der Teststeuerung auf breiten Bildschirmen und direkt darunter auf Mobilgeräten; unverändert unabhängiger JSON-Download, privater Git-Export und jederzeit erreichbare Exporteinstellungen.
+- Messergebnisse sind in einem eigenen, nachgeordneten Bereich mit seitlich verschiebbaren Tabellen; Projektverwaltung, Auftragsverarbeitung und Sammelvorschau als optisch getrennte Bereiche.
+- Maximale Inhaltsbreite 1600 px mit zweispaltiger Desktopanordnung ab 1100 px und einspaltiger Mobilansicht; keine Änderung an Export-Backend, Tokenpersistenz, Privatsperre oder den V1-Integrationen.
+- Benutzer meldete am 09.10.2026 einen erfolgreichen privaten Git-Export in der HA-Oberfläche (sichtbare Export-ID und Zielpfad). Das ist eine Benutzerbestätigung, keine vom Entwicklungsprozess unabhängig abgeglichene GitHub-Dateiverifikation.
+- Die Freigabe für die Installation über DRA V1 bleibt eine gesonderte Benutzerhandlung; dieser Commit installiert oder startet Home Assistant nicht neu.
