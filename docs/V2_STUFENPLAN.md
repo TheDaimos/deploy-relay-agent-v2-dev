@@ -113,3 +113,7 @@ Zur DRA-Settings-Entwicklung ergänzt: Beim Laden der V2-Integration Anzahl verf
 ## Gemeinsames Paket V2 DEV 0.1.13 – öffentliche Quellprüfung und Sicherungsintegrität (09.10.2026)
 
 Das nächste gemeinsame V2-Funktionspaket enthält eine schreibgeschützte, commitgenaue **GitHub-Quellprüfung** pro registriertem öffentlichen Projekt, streng validiertes Manifest/Git-Baum, lesenden SHA-genauen Dateivergleich gegen begrenzte Projektzielordner sowie die Vorbereitung eines **SHA-256-basierten vollständigen Sicherungsnachweises**. Eine Integritätsprüfung ist noch keine tatsächlich erstellte, wiederherstellbare Sicherung! Keine privaten V1-Tokens und keine V2-Git-Export-Tokens werden für die Quellprüfung wiederverwendet. Keine Installation, Rotation/Löschung, Wiederherstellung oder Neustart erlaubt. Detailvertrag: `docs/V2_B2_PREFLIGHT_BACKUP_INTEGRITY_2026-10-09.md`; alle ursprünglichen Sicherheitsgates V2-70/80/140 und Ressourcen-Gate V2-40-50 bleiben unabhängig offen.
+
+### Zusätzliche Prüfung privater GitHub-Projekte (V2 DEV 0.1.13, 09.10.2026)
+
+Das Paket enthält zusätzlich einen separat konfigurierbaren V2-GitHub-Lesezugang für private Projektquellen. Er besitzt ein eigenständiges, strenges HA-Store-Schema und kann nur per ausdrücklich administrativem Speichervorgang gesetzt/entfernt werden; niemals automatisch aus DRA V1 oder aus dem V2-Diagnoseexport übernommen. Weiterhin **ausschließlich lesender** SHA-genauer Quellabgleich, keine Installationsfreigabe. Details: `docs/V2_B2_PREFLIGHT_BACKUP_INTEGRITY_2026-10-09.md`.
