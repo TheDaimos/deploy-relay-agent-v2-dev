@@ -1,4 +1,4 @@
-"""Explicit Git diagnostic export of anonymous V2 DEV measurement results.
+"""Server-only private central archive export of sanitized V2 DEV measurements.
 
 The writer never touches V1 configuration, project files or the operation
 journal. Each upload is administrator-triggered and targets one fixed path.
@@ -8,20 +8,27 @@ from __future__ import annotations
 import asyncio
 import base64
 import json
+import os
 import re
 import secrets
 from datetime import datetime, timezone
 from typing import Protocol
 from urllib.parse import quote
 
-REPOSITORY = "TheDaimos/deploy-relay-agent-v2-dev"
+REPOSITORY = "TheDaimos/Project-Log-And-Export"
+SOURCE_REPOSITORY = "TheDaimos/deploy-relay-agent-v2-dev"
+APPLICATION_ID = "deploy-relay-agent-v2"
+APPLICATION_NAME = "Deploy Relay Agent V2"
+STANDARD_SCHEMA = "daimos-project-log-export-v1"
+QUEUE_SCHEMA = "dra-v2-dev-central-export-queue.v1"
+SERVER_TOKEN_ENV = "DRA_V2_CENTRAL_EXPORT_TOKEN"
 BRANCH = "main"
-ROOT = ".deploy-relay/diagnostics/v2-dev"
-AUTH_SCHEMA = "dra-v2-dev-git-auth.v1"
+ROOT = "exports/deploy-relay-agent-v2"
+AUTH_SCHEMA = "deprecated-public-writer-do-not-use"
 MEASUREMENT_SCHEMA = "dra-v2-dev-measurement.v2"
 EXPORT_SCHEMA = "dra-v2-dev-git-measurement.v2"
 SCOPE = "HA_PROCESS_WIDE_CPU_NOT_DRA_ONLY"
-MAX_EXPORT_BYTES = 4096
+MAX_EXPORT_BYTES = 8192
 TOKEN_RE = re.compile(r"[^\s\x00-\x1f\x7f]{10,256}\Z", re.ASCII)
 HEX_RE = re.compile(r"[0-9a-f]{32}\Z")
 COMMIT_RE = re.compile(r"[0-9a-f]{40}\Z")
@@ -242,15 +249,159 @@ def sanitized_suite(data: object) -> dict[str, object]:
     }
 
 
-class MeasurementGitExport:
-    """One optional, narrowly scoped writer. No polling or background uploads."""
+def archive_document(summary: object, *, version: str, now: datetime,
+                     export_id: str, display_name: str = APPLICATION_NAME,
+                     source_commit: str | None = None) -> dict:
+    """Wrap an unchanged strictly sanitized diagnostic snapshot in the V1 standard."""
+    if type(export_id) is not str or not re.fullmatch(r"[0-9a-f]{32}", export_id):
+        raise GitMeasurementError("invalid export identifier")
+    if (type(display_name) is not str or not 1 <= len(display_name) <= 80
+            or any(ord(char) < 32 or ord(char) > 126 for char in display_name)):
+        raise GitMeasurementError("invalid application display name")
+    if source_commit is not None and (
+            type(source_commit) is not str or not COMMIT_RE.fullmatch(source_commit)):
+        raise GitMeasurementError("invalid source commit")
+    if type(version) is not str or not re.fullmatch(r"0\.1\.[0-9]{1,3}", version):
+        raise GitMeasurementError("invalid testlab version")
+    if not isinstance(now, datetime) or now.tzinfo is None:
+        raise GitMeasurementError("invalid export time")
+    normalized = now.astimezone(timezone.utc)
+    captured = normalized.isoformat(timespec="seconds").replace("+00:00", "Z")
+    if type(summary) is dict and summary.get("schema") == SUITE_SCHEMA:
+        mode = summary.get("mode")
+        snapshot = {
+            "schema": SUITE_EXPORT_SCHEMA,
+            "created_at": captured,
+            "component": "deploy_relay_v2_dev",
+            "version": version,
+            "mode": "READ_ONLY_TEST",
+            "suite": sanitized_suite(summary),
+            "note": "Synthetic subprocess comparison, not individual DRA CPU attribution.",
+        }
+        test_id = "V2-READONLY-FULL" if mode == "full" else "V2-MULTICORE"
+    else:
+        snapshot = public_export_document(summary, version=version, now=normalized)
+        test_id = "V2-CPU-RAM"
+    return {
+        "exportSchema": STANDARD_SCHEMA,
+        "application": {
+            "id": APPLICATION_ID, "name": display_name, "version": version,
+        },
+        "export": {"type": "diagnostics", "capturedAt": captured, "exportId": export_id},
+        "source": {"repository": SOURCE_REPOSITORY, "commit": source_commit},
+        "test": {
+            "id": test_id, "capabilityId": None, "capabilityUiNumber": None,
+        },
+        # Full diagnostic schema remains unchanged inside snapshot.
+        "snapshot": snapshot,
+    }
 
-    def __init__(self, store: SecretStore, session: object) -> None:
+
+def archive_path(document: dict) -> str:
+    """Only fixed immutable technical application ID determines archive path."""
+    if (type(document) is not dict or
+            document.get("exportSchema") != STANDARD_SCHEMA or
+            type(document.get("application")) is not dict or
+            document["application"].get("id") != APPLICATION_ID or
+            type(document.get("export")) is not dict or
+            document["export"].get("type") != "diagnostics"):
+        raise GitMeasurementError("invalid central export metadata")
+    version = document["application"].get("version")
+    if type(version) is not str or not re.fullmatch(r"0\.1\.[0-9]{1,3}", version):
+        raise GitMeasurementError("invalid central export version")
+    stamp = document["export"].get("capturedAt")
+    eid = document["export"].get("exportId")
+    if type(stamp) is not str or not re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ", stamp):
+        raise GitMeasurementError("invalid central export timestamp")
+    if type(eid) is not str or not HEX_RE.fullmatch(eid):
+        raise GitMeasurementError("invalid central export ID")
+    # Validate actual UTC time, not just filename notation.
+    try:
+        when = datetime.strptime(stamp, "%Y-%m-%dT%H:%M:%SZ")
+    except ValueError:
+        raise GitMeasurementError("invalid central export timestamp") from None
+    return (
+        f"{ROOT}/{when:%Y-%m}/diagnostics/"
+        f"{when:%Y-%m-%dT%H-%M-%SZ}__{APPLICATION_ID}__{version}__diagnostics__{eid}.json"
+    )
+
+
+def _archive_payload(summary, version: str, now: datetime,
+                     export_id: str, display_name: str, source_commit: str | None):
+    document = archive_document(
+        summary, version=version, now=now, export_id=export_id,
+        display_name=display_name, source_commit=source_commit,
+    )
+    path = archive_path(document)
+    raw = (json.dumps(document, sort_keys=True, separators=(",", ":"), ensure_ascii=True) + "\n")
+    if len(raw.encode("utf-8")) > MAX_EXPORT_BYTES:
+        raise GitMeasurementError("central export exceeds size limit")
+    # No arbitrary client-controlled text fields are carried over: snapshots
+    # pass a complete allowlist, while all metadata comes from server constants.
+    if any(word in raw.casefold() for word in (
+            "authorization:", "github_pat_", "ghp_", "gho_", "ghu_",
+            "password", "access_token", "private_key", "client_secret",
+    )):
+        raise GitMeasurementError("secret-like content blocked")
+    return {"path": path, "export_id": export_id, "raw": raw}
+
+
+def _validate_pending(value: object) -> dict | None:
+    if value is None:
+        return None
+    if type(value) is not dict or set(value) != {"path", "export_id", "raw"}:
+        raise GitMeasurementError("invalid central export recovery data")
+    raw = value["raw"]
+    if type(raw) is not str or len(raw.encode("utf-8")) > MAX_EXPORT_BYTES:
+        raise GitMeasurementError("invalid central export recovery payload")
+    try:
+        document = json.loads(raw)
+        app = document["application"]
+        exp = document["export"]
+        snap = document["snapshot"]
+        source = document["source"]
+        test = document["test"]
+        if set(document) != {"exportSchema", "application", "export", "source", "test", "snapshot"}:
+            raise ValueError()
+        if (set(app) != {"id", "name", "version"} or set(exp) != {"type", "capturedAt", "exportId"}
+                or set(source) != {"repository", "commit"} or source["repository"] != SOURCE_REPOSITORY
+                or set(test) != {"id", "capabilityId", "capabilityUiNumber"}
+                or test["capabilityId"] is not None or test["capabilityUiNumber"] is not None
+                or type(test["id"]) is not str
+                or set(snap) not in (
+                    {"schema", "created_at", "component", "version", "mode", "suite", "note"},
+                    {"schema", "created_at", "component", "version", "mode", "measurement", "note"},
+                )
+                or snap["version"] != app["version"]
+                or snap["created_at"] != exp["capturedAt"]
+                or value["export_id"] != exp["exportId"]
+                or value["path"] != archive_path(document)):
+            raise ValueError()
+        if any(secret in raw.casefold() for secret in (
+                "github_pat_", "ghp_", "gho_", "password", "authorization:", "access_token",
+        )):
+            raise ValueError()
+    except (ValueError, KeyError, TypeError, AttributeError):
+        raise GitMeasurementError("invalid central export recovery data") from None
+    return dict(value)
+
+
+class MeasurementGitExport:
+    """One append-only private archive writer, never writes to source repository.
+
+    Credentials must be provisioned to the Home Assistant server environment.
+    The previous browser-entered public-export credential is never read or used.
+    An unfinished sanitized report is persisted for explicit retry after failure.
+    """
+
+    def __init__(self, store: SecretStore, session: object, *,
+                 token_provider=None) -> None:
         self._store = store
         self._session = session
+        self._token_provider = token_provider or (lambda: os.environ.get(SERVER_TOKEN_ENV))
         self._lock = asyncio.Lock()
-        self._token: str | None = None
         self._ready = False
+        self._pending: dict | None = None
 
     @property
     def available(self) -> bool:
@@ -258,106 +409,117 @@ class MeasurementGitExport:
 
     @property
     def configured(self) -> bool:
-        return self._ready and self._token is not None
+        try:
+            token = self._token_provider()
+        except Exception:
+            return False
+        return type(token) is str and bool(TOKEN_RE.fullmatch(token))
+
+    @property
+    def pending(self) -> bool:
+        return self._pending is not None
+
+    def status(self) -> dict:
+        return {
+            "configured": self.configured,
+            "pending": self.pending,
+            "repository": REPOSITORY,
+        }
 
     async def load(self) -> None:
         try:
             value = await self._store.async_load()
         except Exception:
-            raise GitMeasurementError("Git export configuration unavailable") from None
+            raise GitMeasurementError("central export queue unavailable") from None
         if value is None:
-            self._ready = True
-            return
-        if not isinstance(value, dict) or set(value) != {"schema", "token"} or value["schema"] != AUTH_SCHEMA:
-            raise GitMeasurementError("Git export configuration invalid")
-        token = value["token"]
-        if token is not None and (type(token) is not str or not TOKEN_RE.fullmatch(token)):
-            raise GitMeasurementError("Git export configuration invalid")
-        self._token = token
+            self._pending = None
+        elif type(value) is dict and set(value) == {"schema", "pending"} and value["schema"] == QUEUE_SCHEMA:
+            self._pending = _validate_pending(value["pending"])
+        else:
+            raise GitMeasurementError("central export recovery schema invalid")
         self._ready = True
 
-    async def configure(self, *, token: str = "", clear: bool = False) -> None:
-        async with self._lock:
-            if not self._ready or type(clear) is not bool:
-                raise GitMeasurementError("Git export unavailable")
-            if not clear and (type(token) is not str or not TOKEN_RE.fullmatch(token)):
-                raise GitMeasurementError("Invalid Git token")
-            updated: str | None = None if clear else token
-            try:
-                await self._store.async_save({"schema": AUTH_SCHEMA, "token": updated})
-            except Exception:
-                raise GitMeasurementError("Git export configuration not saved") from None
-            self._token = updated
+    async def _persist(self, pending: dict | None) -> None:
+        try:
+            await self._store.async_save({"schema": QUEUE_SCHEMA, "pending": pending})
+        except Exception:
+            raise GitMeasurementError("central export cannot be saved locally") from None
+        self._pending = pending
 
-    async def export(self, summary: object, *, version: str) -> dict[str, str]:
+    async def configure(self, *, token: str = "", clear: bool = False) -> None:
+        """Legacy browser token route deliberately disabled; no browser secrets."""
+        raise GitMeasurementError("central export access must be configured on the server")
+
+    async def export(self, summary: object, *, version: str,
+                     display_name: str = APPLICATION_NAME,
+                     source_commit: str | None = None) -> dict[str, str]:
         async with self._lock:
+            if not self._ready:
+                raise GitMeasurementError("central export unavailable")
             if not self.configured:
-                raise GitMeasurementError("Git export not configured")
+                raise GitMeasurementError("central archive permission not configured on server")
+            if self._pending is not None:
+                raise GitMeasurementError("unsent central export pending; retry it first")
             now = datetime.now(timezone.utc)
-            if type(summary) is dict and summary.get("schema") == SUITE_SCHEMA:
-                if type(version) is not str or not re.fullmatch(r"0\.1\.[0-9]{1,3}", version):
-                    raise GitMeasurementError("invalid suite version")
-                document = {
-                    "schema": SUITE_EXPORT_SCHEMA,
-                    "created_at": now.isoformat(timespec="seconds").replace("+00:00", "Z"),
-                    "component": "deploy_relay_v2_dev",
-                    "version": version,
-                    "mode": "READ_ONLY_TEST",
-                    "suite": sanitized_suite(summary),
-                    "note": "Synthetic subprocess comparison, not individual DRA CPU attribution.",
-                }
-                output_schema = SUITE_EXPORT_SCHEMA
-            else:
-                document = public_export_document(summary, version=version, now=now)
-                output_schema = EXPORT_SCHEMA
-            stamp = now.strftime("%Y%m%dT%H%M%SZ")
-            day = now.strftime("%Y-%m-%d")
-            path = f"{ROOT}/{day}/{stamp}-{secrets.token_hex(4)}.json"
-            body = {
-                "schema": output_schema,
-                "repository": REPOSITORY,
-                "branch": BRANCH,
-                "path": path,
-                "snapshot": document,
-            }
-            raw = (json.dumps(body, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
-            if len(raw) > MAX_EXPORT_BYTES:
-                raise GitMeasurementError("Git export exceeds limit")
-            encoded = base64.b64encode(raw).decode("ascii")
-            url_path = "/".join(quote(segment, safe="") for segment in path.split("/"))
-            owner, repo = REPOSITORY.split("/")
-            url = f"https://api.github.com/repos/{owner}/{repo}/contents/{url_path}"
-            try:
-                async with asyncio.timeout(10):
-                    async with self._session.put(
-                        url,
-                        headers={
-                            "Accept": "application/vnd.github+json",
-                            "Authorization": f"Bearer {self._token}",
-                            "User-Agent": "DRA-V2-DEV-Measurement-Export",
-                            "X-GitHub-Api-Version": "2022-11-28",
-                        },
-                        json={
-                            "message": "chore(diagnostics): export sanitized V2 DEV measurement [skip ci]",
-                            "content": encoded,
-                            "branch": BRANCH,
-                        },
-                    ) as response:
-                        if response.status != 201:
-                            raise GitMeasurementError("Git export rejected")
-                        result = await response.json()
-            except GitMeasurementError:
-                raise
-            except Exception:
-                raise GitMeasurementError("Git export unavailable") from None
-            commit = result.get("commit") if isinstance(result, dict) else None
-            sha = commit.get("sha") if isinstance(commit, dict) else None
-            if not isinstance(sha, str) or not COMMIT_RE.fullmatch(sha):
-                raise GitMeasurementError("Git export confirmation invalid")
-            return {
-                "repository": REPOSITORY,
-                "branch": BRANCH,
-                "path": path,
-                "commit_sha": sha,
-                "file_url": f"https://github.com/{REPOSITORY}/blob/{BRANCH}/{path}",
-            }
+            data = _archive_payload(
+                summary, version, now, secrets.token_hex(16),
+                display_name, source_commit,
+            )
+            await self._persist(data)
+            return await self._upload_pending()
+
+    async def retry_pending(self) -> dict[str, str]:
+        async with self._lock:
+            if not self._ready or self._pending is None:
+                raise GitMeasurementError("no local export awaiting upload")
+            if not self.configured:
+                raise GitMeasurementError("central archive permission not configured on server")
+            return await self._upload_pending()
+
+    async def _upload_pending(self) -> dict[str, str]:
+        data = self._pending
+        if data is None:
+            raise GitMeasurementError("no local export awaiting upload")
+        token = self._token_provider()
+        if type(token) is not str or not TOKEN_RE.fullmatch(token):
+            raise GitMeasurementError("central archive permission not configured on server")
+        path = data["path"]
+        url_path = "/".join(quote(piece, safe="") for piece in path.split("/"))
+        url = f"https://api.github.com/repos/{REPOSITORY}/contents/{url_path}"
+        content = base64.b64encode(data["raw"].encode("utf-8")).decode("ascii")
+        try:
+            async with asyncio.timeout(12):
+                async with self._session.put(
+                    url,
+                    allow_redirects=False,
+                    headers={
+                        "Accept": "application/vnd.github+json",
+                        "Authorization": f"Bearer {token}",
+                        "User-Agent": "DRA-V2-Private-Central-Export",
+                        "X-GitHub-Api-Version": "2022-11-28",
+                    },
+                    json={
+                        "message": "chore(archive): new DRA V2 diagnostic [skip ci]",
+                        "content": content, "branch": BRANCH,
+                        # ABSENT sha: GitHub can CREATE, never UPDATE existing file.
+                    },
+                ) as response:
+                    if response.status != 201:
+                        raise GitMeasurementError(
+                            "central archive upload rejected (check permission, path or collision)"
+                        )
+                    result = await response.json()
+        except GitMeasurementError:
+            raise
+        except Exception:
+            raise GitMeasurementError("central archive upload failed; local report retained") from None
+        commit = result.get("commit") if type(result) is dict else None
+        sha = commit.get("sha") if type(commit) is dict else None
+        if type(sha) is not str or not COMMIT_RE.fullmatch(sha):
+            raise GitMeasurementError("central archive confirmation invalid; local report retained")
+        await self._persist(None)
+        return {
+            "repository": REPOSITORY, "branch": BRANCH, "path": path,
+            "export_id": data["export_id"], "commit_sha": sha,
+            "file_url": f"https://github.com/{REPOSITORY}/blob/{BRANCH}/{path}",
+        }
