@@ -724,7 +724,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     s.innerHTML = `
       <style>
         :host { display:block; min-height:100%; color:var(--primary-text-color, #f2f2f2); background:var(--primary-background-color, #111); font-family:var(--paper-font-body1_-_font-family, sans-serif); }
-        main { margin:auto; max-width:720px; padding:24px 18px 56px; }
+        main { margin:auto; width:100%; max-width:1600px; box-sizing:border-box; padding:24px clamp(12px,2.5vw,36px) 56px; }
         h1 { font-size:24px; margin:0 0 12px; }
         article { background:var(--card-background-color,#202020); border:1px solid var(--divider-color,#555); border-radius:14px; padding:20px; margin-top:18px; }
         p { line-height:1.5; }
@@ -746,7 +746,22 @@ class DRAV2DevLabPanel extends HTMLElement {
         button.retention-saved { background:#247d42; color:#fff; }
         input.project-text { box-sizing:border-box; width:100%; min-height:40px; background:var(--primary-background-color,#151515); color:inherit; border:1px solid var(--divider-color,#555); border-radius:8px; padding:8px; margin:5px 0; }
         input.git-token { box-sizing:border-box; width:100%; min-height:40px; background:var(--primary-background-color,#151515); color:inherit; border:1px solid var(--divider-color,#555); border-radius:8px; padding:8px; }
-        .git-main-actions { display:flex; flex-wrap:wrap; align-items:center; gap:5px; }
+        .git-main-actions { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+         .git-main-actions button { margin-top:6px; }
+         .diagnostic-results { overflow:hidden; }
+         @media (min-width:1000px) {
+           .git-main-actions { gap:12px; }
+           .git-main-actions button { min-width:165px; }
+           .diagnostic-results table { font-size:13px; }
+         }
+         @media (max-width:600px) {
+           main { padding:12px 10px 32px; }
+           article { padding:14px; margin-top:12px; }
+           .git-main-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); }
+           .git-main-actions button { min-width:0; width:100%; margin:0; padding:12px 6px; font-size:13px; }
+           .git-main-actions button:first-child { grid-column:1 / -1; }
+           button { max-width:100%; }
+         }
         .git-main-actions button { margin-right:0; }
         .git-dialog-backdrop { position:fixed; inset:0; z-index:2147483644; display:flex;
           align-items:center; justify-content:center; padding:12px; box-sizing:border-box;
@@ -793,9 +808,44 @@ class DRAV2DevLabPanel extends HTMLElement {
           anschließend nacheinander 1, 2, 4, 6, 8, 10 und 12 getrennte Arbeitsprozesse. Ein Auftrag, ein Git-Export.</p>
           <p class="note">Messlauf: 10 Sekunden Basis, 20 Sekunden begrenzte Rechenarbeit
           außerhalb der HA-Ereignisschleife, 10 Sekunden Nachlauf. Maximal ein Auftrag gleichzeitig.</p>
+        </article>
+        <article>
+          <strong>Diagnoseexport</strong>
+          <p class="note">Lokale JSON-Datei oder Export in dein selbst eingerichtetes privates GitHub-Repository.</p>
+          <div class="git-main-actions">
+            <button id="refresh" ${this._busy ? "disabled" : ""}>Status aktualisieren</button>
+            <button id="json-download" ${this._downloadBusy || busy ||
+              !this._diagnosticsExportReady ? "disabled" : ""}>JSON herunterladen</button>
+            <button id="git-export" ${this._gitBusy || busy ||
+              !this._gitAvailable || !this._gitConfigured ||
+              this._centralExport.pending || !this._diagnosticsExportReady ? "disabled" : ""}>
+              Git-Export
+            </button>
+            <button id="git-dialog-open">Export-Einstellungen</button>
+          </div>
+          <p class="note"><strong>Repository:</strong>
+            ${this._centralExport.repository ?
+              this._escapeProject(this._centralExport.repository) : "Nicht eingerichtet"}
+            · <strong>Token:</strong>
+            ${this._centralExport.token_suffix &&
+              /^[A-Za-z0-9_-]{5}$/.test(this._centralExport.token_suffix) ?
+              "•••••" + this._escapeProject(this._centralExport.token_suffix) :
+              this._centralExport.server_token_available ? "Serverseitig vorhanden" : "Nicht eingerichtet"}
+          </p>
+          ${!this._diagnosticsExportReady ? `<p class="note">Für den Export zuerst einen
+          CPU/RAM- oder Mehrkern-Diagnosetest erfolgreich abschließen.</p>` : ""}
+          ${this._centralExport.pending ? `<p class="note">Ein Export wartet auf Wiederholung –
+          unter „Export-Einstellungen“ fortsetzen.</p>` : ""}
+          ${this._downloadStatus ? `<p class="note">${this._escapeProject(this._downloadStatus)}</p>` : ""}
+          ${this._gitStatus ? `<p class="note">${this._escapeProject(this._gitStatus)}</p>` : ""}
+          ${this._lastExport ? `<p><strong>Export-ID:</strong> ${this._escapeProject(this._lastExport.export_id)}
+            · <strong>Zielpfad:</strong> ${this._escapeProject(this._lastExport.path)}</p>` : ""}
+        </article>
+        <article class="diagnostic-results">
+          <strong>Messergebnisse und Auswertung</strong>
+          <p class="note">Ausführliche Messwerte und Mehrkern-Ergebnisse erscheinen hier nach dem Test.</p>
           ${report}
           ${multicoreReport}
-          <button id="refresh" ${this._busy ? "disabled" : ""}>Status aktualisieren</button>
         </article>
         <article>
           <strong>DRA-Einstellungen · Auftragsverarbeitung</strong>
@@ -892,37 +942,6 @@ class DRAV2DevLabPanel extends HTMLElement {
           noch nicht überprüft; keine Installation möglich.</p><ul>${batchReport}</ul>` : ""}
         </article>
 
-        <article>
-          <strong>Diagnoseexport</strong>
-          <p class="note">Lokale JSON-Datei oder Export in dein selbst eingerichtetes privates GitHub-Repository.</p>
-          <div class="git-main-actions">
-            <button id="json-download" ${this._downloadBusy || busy ||
-              !this._diagnosticsExportReady ? "disabled" : ""}>JSON herunterladen</button>
-            <button id="git-export" ${this._gitBusy || busy ||
-              !this._gitAvailable || !this._gitConfigured ||
-              this._centralExport.pending || !this._diagnosticsExportReady ? "disabled" : ""}>
-              Git-Export
-            </button>
-            <button id="git-dialog-open">Export-Einstellungen</button>
-          </div>
-          <p class="note"><strong>Repository:</strong>
-            ${this._centralExport.repository ?
-              this._escapeProject(this._centralExport.repository) : "Nicht eingerichtet"}
-            · <strong>Token:</strong>
-            ${this._centralExport.token_suffix &&
-              /^[A-Za-z0-9_-]{5}$/.test(this._centralExport.token_suffix) ?
-              "•••••" + this._escapeProject(this._centralExport.token_suffix) :
-              this._centralExport.server_token_available ? "Serverseitig vorhanden" : "Nicht eingerichtet"}
-          </p>
-          ${!this._diagnosticsExportReady ? `<p class="note">Für den Export zuerst einen
-          CPU/RAM- oder Mehrkern-Diagnosetest erfolgreich abschließen.</p>` : ""}
-          ${this._centralExport.pending ? `<p class="note">Ein Export wartet auf Wiederholung –
-          unter „Export-Einstellungen“ fortsetzen.</p>` : ""}
-          ${this._downloadStatus ? `<p class="note">${this._escapeProject(this._downloadStatus)}</p>` : ""}
-          ${this._gitStatus ? `<p class="note">${this._escapeProject(this._gitStatus)}</p>` : ""}
-          ${this._lastExport ? `<p><strong>Export-ID:</strong> ${this._escapeProject(this._lastExport.export_id)}
-            · <strong>Zielpfad:</strong> ${this._escapeProject(this._lastExport.path)}</p>` : ""}
-        </article>
         ${this._gitDialogOpen ? `
           <div class="git-dialog-backdrop">
             <section class="git-dialog" id="git-export-dialog"
