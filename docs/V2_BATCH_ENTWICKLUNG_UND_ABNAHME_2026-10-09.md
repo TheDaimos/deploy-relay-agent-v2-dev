@@ -55,3 +55,7 @@ Die Paketübersicht beschreibt **Zusammenarbeit und Reihenfolge**, keine automat
 Erfolg wird nicht an der bloßen Anzahl gesparter Einzeltests gemessen, sondern an **weniger HA-Installationen und -Neustarts pro abgeschlossener, nachvollziehbarer Funktion**. Im gemeinsamen Bericht stehen Paketversion, Quell-SHA, tatsächlich geprüfte Funktionen, genaue Zeitpunkte, Laufzeiten, Ergebnis pro Teilfunktion, nicht prüfbare Punkte und Links zu CI/Git. Fehler in einer Komponente machen den gesamten Paketstatus nicht irreführend grün.
 
 **Aktueller Stand:** V2 DEV 0.1.8 (7 Mehrkernstufen) wurde auf HA-DEV real geprüft und DRA V1 funktionierte nach HA-Neustart weiter. V2-40-50 ist wegen der fehlenden korrelierbaren Latenz-/I/O-Nachweise weiterhin OFFEN. Das erste neue Funktionspaket A soll diese Lücke zusammen mit Diagnoseverbesserungen schließen. In diesem Dokument sind **noch keine neuen Laufzeitfunktionen implementiert und keine Installation genehmigt**.
+
+## Weiterer Paketbaustein V2 DEV 0.1.13 (09.10.2026)
+
+Bei einzelnen registrierten öffentlichen GitHub-Projekten kann jetzt eine echte **schreibgeschützte** Quellprüfung mit festem Commit und lokalem Dateivergleich angefordert werden. **Keine automatische Sammelinstallation, keine automatischen Schreibaktionen oder verfügbare Rücksicherung** wurden dadurch freigegeben. Ein privat geschütztes Repository gilt ohne separates V2-Lesetoken als nicht zugänglich; es wird niemals als aktuell fingiert.

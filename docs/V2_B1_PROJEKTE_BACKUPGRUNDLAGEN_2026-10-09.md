@@ -91,3 +91,7 @@ einem unabhängigen, geprüften V2-Transaktionskern erfüllt. Keine bloße
 Übernahme der V1-Laufzeit oder des V1-Backup-Verzeichnisses.
 
 V2-PUB, V1-DEV/PUB und V2-DEV main unverändert, Draft-PR #2 bleibt Entwurf.
+
+## Fortschreibung B2 – Quellprüfung und Sicherungsnachweis (09.10.2026)
+
+Im gemeinsamen V2-DEV-Stand 0.1.13 wurden die öffentlich lesende, SHA-pinnte GitHub-Prüfung, eine admin-only Dateivergleichsvorschau und der vollständige SHA-256-Sicherungsintegritätsvertrag ergänzt. Dies ist **keine Installation und keine existierende Backupdatei**. Details: `docs/V2_B2_PREFLIGHT_BACKUP_INTEGRITY_2026-10-09.md`.
