@@ -76,7 +76,7 @@ class JournalIsolationContracts(unittest.TestCase):
         self.assertEqual(ws.count("@websocket_api.require_admin"), 26)
         self.assertIn("await runtime.git_export.export(summary, version=VERSION)", ws)
         self.assertNotIn("token", (LAB / "readonly_benchmark.py").read_text(encoding="utf-8"))
-        self.assertIn("<strong>Diagnoseexport</strong>", panel)
+        self.assertIn("<h2>02 · Diagnoseexport</h2>", panel)
         self.assertIn('id="git-dialog-open"', panel)
         self.assertIn('role="dialog"', panel)
         self.assertNotIn('id="git-token"', panel)
