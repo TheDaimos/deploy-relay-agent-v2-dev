@@ -788,23 +788,51 @@ class DRAV2DevLabPanel extends HTMLElement {
         </article>
 
         <article>
-          <strong>Zentrales privates Diagnosearchiv</strong>
-          <p class="note">Verbindliches Ziel: TheDaimos/Project-Log-And-Export (privat).
-          Die technische Anwendungs-ID bleibt dauerhaft deploy-relay-agent-v2.
-          Der Übertragungszugang wird ausschließlich auf dem Home-Assistant-Server
-          über die Umgebungsvariable DRA_V2_CENTRAL_EXPORT_TOKEN bereitgestellt.
-          Es wird kein Token im Browser eingegeben oder angezeigt.</p>
-          <p>Serverseitige Berechtigung: ${this._gitConfigured ? "vorhanden" : "nicht eingerichtet"}.
-          ${this._centralExport.pending ? "Ein bereinigter Export wartet auf erneute Übertragung." : ""}</p>
+          <strong>Diagnoseexport – Download oder privates GitHub-Archiv</strong>
+          <p class="note">Die technische Anwendungs-ID bleibt deploy-relay-agent-v2.
+          JSON-Dateien können ohne Repository und ohne GitHub-Zugang heruntergeladen werden.
+          Für GitHub wird ein selbst gewähltes privates Repository benötigt.
+          Es gibt ausdrücklich kein vorbelegtes Repository.</p>
+          <button id="json-download" ${this._downloadBusy || busy ||
+            (!valid && !validSuite) || op?.status !== "success" ? "disabled" : ""}>
+            JSON-Datei herunterladen
+          </button>
+          <p class="note">${this._escapeProject(this._downloadStatus)}</p>
+          <p><strong>Privates GitHub-Archiv (optional)</strong></p>
+          <p class="note">Ein eigener Serverzugang mit minimalen Rechten wird für das
+          ausgewählte Repository benötigt. GitHub-Schlüssel bleiben außerhalb des Browsers.</p>
+          <label>Export-Repository (Eigentümer/Repository)
+            <input id="archive-repository" class="project-text" type="text"
+              placeholder="Eigentümer/Privates-Repository" autocomplete="off"
+              value="${this._escapeProject(this._centralExport.repository || "")}" />
+          </label>
+          <button id="archive-save" ${this._archiveBusy || this._centralExport.pending ?
+            "disabled" : ""}>Export-Repository speichern</button>
+          <button id="archive-clear" ${this._archiveBusy || this._centralExport.pending ||
+            !this._centralExport.repository_configured ? "disabled" : ""}>
+            Export-Repository entfernen
+          </button>
+          <p class="note">Konfiguriertes Repository:
+            ${this._centralExport.repository ?
+              this._escapeProject(this._centralExport.repository) : "Keines"}.
+            Serverseitiger GitHub-Zugang:
+            ${this._centralExport.server_token_available ? "vorhanden" : "nicht eingerichtet"}.
+            ${this._centralExport.pending ? "Ein bereinigter Export wartet auf Wiederholung." : ""}</p>
+          <p class="note">${this._escapeProject(this._archiveMessage)}</p>
           <button id="git-export" ${this._gitBusy || this._centralExport.pending ||
             busy || (!valid && !validSuite) || op?.status !== "success" ||
-            !this._gitAvailable || !this._gitConfigured ? "disabled" : ""}>Ins private Archiv exportieren</button>
+            !this._gitAvailable || !this._gitConfigured ? "disabled" : ""}>
+            Ins private Repository exportieren
+          </button>
           <button id="git-retry" ${this._gitBusy || !this._centralExport.pending ||
-            !this._gitConfigured || !this._gitAvailable ? "disabled" : ""}>Gespeicherten Export erneut übertragen</button>
+            !this._gitConfigured || !this._gitAvailable ? "disabled" : ""}>
+            Gespeicherten Export erneut übertragen
+          </button>
           <p class="note">${this._escapeProject(this._gitStatus)}</p>
           ${this._lastExport ? `<p><strong>Export-ID:</strong> ${this._escapeProject(this._lastExport.export_id)}
           <strong>Zielpfad:</strong> ${this._escapeProject(this._lastExport.path)}</p>
-          <a class="git-link" href="${this._lastExport.file_url}" target="_blank" rel="noopener noreferrer">Privaten Export öffnen</a>` : ""}
+          <a class="git-link" href="${this._lastExport.file_url}" target="_blank"
+             rel="noopener noreferrer">Privaten Export öffnen</a>` : ""}
         </article>
         <p class="note">Während eines laufenden Tests wird der Status etwa alle 1,5 Sekunden aktualisiert. Im Leerlauf erfolgt keine regelmäßige Abfrage. Nach einem Home-Assistant-Neustart bleiben abgeschlossene Aufträge im begrenzten Verlauf abrufbar. Vorher laufende Testaufträge erscheinen als unterbrochen und werden nicht neu gestartet.</p>
       </main>
@@ -814,6 +842,9 @@ class DRAV2DevLabPanel extends HTMLElement {
     s.querySelector("#multicore")?.addEventListener("click", () => this._runSequence("multicore"));
     s.querySelector("#all")?.addEventListener("click", () => this._runSequence("full"));
     s.querySelector("#refresh")?.addEventListener("click", () => this._refresh());
+    s.querySelector("#json-download")?.addEventListener("click", () => this._downloadJSON());
+    s.querySelector("#archive-save")?.addEventListener("click", () => this._setArchiveRepository(false));
+    s.querySelector("#archive-clear")?.addEventListener("click", () => this._setArchiveRepository(true));
     s.querySelector("#git-export")?.addEventListener("click", () => this._exportGit(false));
     s.querySelector("#git-retry")?.addEventListener("click", () => this._exportGit(true));
     s.querySelector("#settings-save")?.addEventListener("click", () => this._saveSettings());
