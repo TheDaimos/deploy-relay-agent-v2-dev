@@ -28,7 +28,11 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._gitReadMessage = "";
     this._v1Candidates = null;
     this._gitConfigured = false;
-    this._centralExport = {configured:false,pending:false};
+    this._centralExport = {configured:false,repository_configured:false,server_token_available:false,pending:false,repository:null};
+    this._archiveBusy = false;
+    this._archiveMessage = "";
+    this._downloadBusy = false;
+    this._downloadStatus = "";
     this._gitAvailable = false;
     this._gitSetup = false;
     this._gitBusy = false;
@@ -240,12 +244,81 @@ class DRAV2DevLabPanel extends HTMLElement {
       this._schedule();
     }
   }
+  async _setArchiveRepository(clear=false) {
+    if (!this._hass || this._archiveBusy || this._gitBusy) return;
+    const repository = clear ? null :
+      this.shadowRoot?.querySelector("#archive-repository")?.value?.trim();
+    if (!clear && !/^[A-Za-z0-9-]{1,39}\/[A-Za-z0-9_.-]{1,100}$/.test(repository || "")) {
+      this._archiveMessage = "Repository als Eigentümer/Repository eingeben.";
+      this._render();
+      return;
+    }
+    this._archiveBusy = true;
+    try {
+      const result = await this._hass.callWS(clear ? {
+        type:"deploy_relay_v2_dev/archive_repository/clear",
+      } : {
+        type:"deploy_relay_v2_dev/archive_repository/set", repository,
+      });
+      this._centralExport = result;
+      this._gitConfigured = result.configured === true;
+      this._archiveMessage = clear ?
+        "Export-Repository entfernt. GitHub-Export ist jetzt gesperrt." :
+        "Repository gespeichert. Beim Export muss es privat und erreichbar sein.";
+    } catch (_error) {
+      this._archiveMessage = "Repository konnte nicht geändert werden. Möglicherweise wartet ein Export auf Wiederholung.";
+    } finally {
+      this._archiveBusy = false;
+      if (this.isConnected) this._render();
+    }
+  }
+
+  async _downloadJSON() {
+    if (!this._hass || this._downloadBusy || this._busy || this._active()) return;
+    this._downloadBusy = true;
+    this._downloadStatus = "Bereinigte Diagnose für lokalen Download wird erstellt …";
+    try {
+      const result = await this._hass.callWS({
+        type:"deploy_relay_v2_dev/test/download_json",
+      });
+      if (!result || result.application_id !== "deploy-relay-agent-v2" ||
+          result.mime_type !== "application/json" ||
+          !/^20[0-9]{2}-[0-9]{2}-[0-9T-]+Z__deploy-relay-agent-v2__0\.1\.[0-9]{1,3}__diagnostics__[0-9a-f]{32}\.json$/.test(result.filename) ||
+          !/^[0-9a-f]{32}$/.test(result.export_id) ||
+          !result.filename.endsWith("__" + result.export_id + ".json") ||
+          typeof result.content !== "string" || result.content.length > 8192) {
+        throw new Error("invalid download");
+      }
+      const payload = JSON.parse(result.content);
+      if (payload?.application?.id !== result.application_id ||
+          payload?.export?.exportId !== result.export_id) {
+        throw new Error("invalid diagnostic metadata");
+      }
+      const file = new Blob([result.content], {type:"application/json;charset=utf-8"});
+      const objectUrl = URL.createObjectURL(file);
+      try {
+        const link = document.createElement("a");
+        link.href = objectUrl;
+        link.download = result.filename;
+        link.click();
+      } finally {
+        setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+      }
+      this._downloadStatus = "JSON-Download gestartet: " + result.filename;
+    } catch (_error) {
+      this._downloadStatus = "JSON-Download fehlgeschlagen. Diagnoseverfügbarkeit prüfen.";
+    } finally {
+      this._downloadBusy = false;
+      if (this.isConnected) this._render();
+    }
+  }
+
   async _exportGit(retry=false) {
     if (!this._hass || this._gitBusy || this._busy || this._active()) return;
     this._gitBusy = true;
     this._gitStatus = retry ?
       "Erneute private Übertragung des gespeicherten Exports läuft …" :
-      "Diagnosedaten werden ausschließlich ins private Zentralarchiv übertragen …";
+      "Bereinigter Diagnoseexport in das gewählte private Repository läuft …";
     this._lastExport = null;
     this._render();
     try {
@@ -255,21 +328,25 @@ class DRAV2DevLabPanel extends HTMLElement {
       const path = String(result.path || "");
       const eid = String(result.export_id || "");
       const sha = String(result.commit_sha || "");
+      const repository = String(result.repository || "");
+      const branch = String(result.branch || "");
       const expected = /^exports\/deploy-relay-agent-v2\/[0-9]{4}-[0-9]{2}\/diagnostics\/[0-9T-]+Z__deploy-relay-agent-v2__0\.1\.[0-9]{1,3}__diagnostics__[0-9a-f]{32}\.json$/;
-      if (result.repository !== "TheDaimos/Project-Log-And-Export" ||
-          result.branch !== "main" || !expected.test(path) ||
+      if (repository !== this._centralExport.repository ||
+          !/^[A-Za-z0-9][A-Za-z0-9_.\/-]{0,99}$/.test(branch) ||
+          !expected.test(path) ||
           !/^[0-9a-f]{32}$/.test(eid) || !/^[0-9a-f]{40}$/.test(sha) ||
-          !path.endsWith("__" + eid + ".json")) {
+          !path.endsWith("__" + eid + ".json") ||
+          !String(result.file_url || "").startsWith("https://github.com/" + repository + "/blob/")) {
         throw new Error("invalid private archive confirmation");
       }
-      this._lastExport = { file_url: result.file_url, path, export_id: eid, commit_sha: sha };
-      this._centralExport = {configured: this._gitConfigured, pending: false};
+      this._lastExport = {file_url:result.file_url, path, export_id:eid, commit_sha:sha};
+      this._centralExport = {...this._centralExport, pending:false};
       this._gitStatus = "Privater Export erfolgreich · Export-ID " + eid + " · " + path;
     } catch (_error) {
       this._gitStatus = retry ?
-        "Wiederholung fehlgeschlagen. Der bereinigte Export bleibt lokal erhalten; Schreibberechtigung und Netzwerk prüfen." :
-        "Privater Zentralexport fehlgeschlagen. Kein öffentliches Ersatzziel. Bei Übertragungsproblemen bleibt der vorbereitete Export lokal; erneut versuchen.";
-      this._centralExport = {...this._centralExport, pending: true};
+        "Wiederholung fehlgeschlagen. Der bereinigte Export bleibt lokal erhalten." :
+        "GitHub-Export fehlgeschlagen. Kein öffentliches Ersatzziel. JSON kann unabhängig heruntergeladen werden.";
+      this._centralExport = {...this._centralExport, pending:true};
     } finally {
       this._gitBusy = false;
       if (this.isConnected) this._render();
