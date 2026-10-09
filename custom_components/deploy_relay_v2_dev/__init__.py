@@ -58,6 +58,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     git_export = MeasurementGitExport(
         Store(hass, 1, "deploy_relay_v2_dev.archive_queue"),
         async_get_clientsession(hass),
+        credential_store=Store(hass, 1, "deploy_relay_v2_dev.archive_credentials"),
     )
     try:
         await git_export.load()
