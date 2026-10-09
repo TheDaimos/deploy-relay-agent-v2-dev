@@ -17,8 +17,9 @@ _PROJECT_ID = re.compile(r"[a-z][a-z0-9_]{0,63}\Z")
 _MANIFEST = "deploy-relay.json"
 _ENTRY_KEYS = frozenset({
     "project_id", "name", "repository", "manifest_path",
-    "origin", "status", "backup_retention",
+    "origin", "status", "backup_retention", "batch_preselect",
 })
+_LEGACY_ENTRY_KEYS = _ENTRY_KEYS - {"batch_preselect"}
 
 
 class CatalogError(ValueError):
@@ -47,7 +48,7 @@ def normalize_repo(repository: object) -> str:
 
 
 def sanitize_entry(row: object) -> dict[str, object]:
-    if type(row) is not dict or set(row) != _ENTRY_KEYS:
+    if type(row) is not dict or set(row) not in (_ENTRY_KEYS, _LEGACY_ENTRY_KEYS):
         raise CatalogError("invalid project record")
     repo = normalize_repo(row["repository"])
     if type(row["project_id"]) is not str or not _PROJECT_ID.fullmatch(row["project_id"]):
@@ -64,10 +65,14 @@ def sanitize_entry(row: object) -> dict[str, object]:
     retention = row["backup_retention"]
     if type(retention) is not int or not MIN_RETENTION <= retention <= MAX_RETENTION:
         raise CatalogError("invalid backup retention")
+    preselect = row.get("batch_preselect", True)
+    if type(preselect) is not bool:
+        raise CatalogError("invalid batch preselection")
     return {
         "project_id": row["project_id"], "name": name, "repository": repo,
         "manifest_path": _MANIFEST, "origin": row["origin"],
         "status": "pending_review", "backup_retention": retention,
+        "batch_preselect": preselect,
     }
 
 
@@ -87,6 +92,7 @@ def proposal(repository: object, name: object, retention: object = 10,
         "project_id": ident, "name": label.strip(), "repository": repo,
         "manifest_path": _MANIFEST, "origin": origin,
         "status": "pending_review", "backup_retention": retention,
+        "batch_preselect": True,
     })
 
 
@@ -203,3 +209,47 @@ class ProjectCatalog:
             rows[found] = sanitize_entry({**rows[found], "backup_retention": retention})
             await self._save(rows)
             return dict(rows[found])
+
+    async def set_batch_preselect(self, repository: str, enabled: bool) -> dict[str, object]:
+        repo = normalize_repo(repository)
+        if type(enabled) is not bool:
+            raise CatalogError("invalid batch preselection")
+        async with self._lock:
+            rows = self.list()
+            idx = next((i for i, x in enumerate(rows)
+                        if x["repository"].casefold() == repo.casefold()), None)
+            if idx is None:
+                raise CatalogError("project not found")
+            if rows[idx]["batch_preselect"] == enabled:
+                return dict(rows[idx])
+            rows[idx] = sanitize_entry({**rows[idx], "batch_preselect": enabled})
+            await self._save(rows)
+            return dict(rows[idx])
+
+    def batch_preview(self, repositories: object) -> dict[str, object]:
+        """Frozen read-only identity preview; not a Git update or install plan."""
+        if type(repositories) is not list or len(repositories) > MAX_PROJECTS:
+            raise CatalogError("invalid batch selection")
+        requested: list[str] = []
+        for repo in repositories:
+            if type(repo) is not str:
+                raise CatalogError("invalid batch project")
+            requested.append(normalize_repo(repo).casefold())
+        if len(set(requested)) != len(requested):
+            raise CatalogError("duplicate batch project")
+        available = {r["repository"].casefold(): r for r in self.list()}
+        if any(repo not in available for repo in requested):
+            raise CatalogError("unknown batch project")
+        return {
+            "schema": "dra-v2-dev-batch-preview.v1",
+            "selected": [
+                {"repository": available[repo]["repository"],
+                 "project_id": available[repo]["project_id"],
+                 "name": available[repo]["name"],
+                 "status": "not_checked"}
+                for repo in requested
+            ],
+            "count": len(requested),
+            "sources_verified": False,
+            "installation_enabled": False,
+        }
