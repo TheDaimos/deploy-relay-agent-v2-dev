@@ -183,6 +183,86 @@ async def async_get(hass, connection, msg):
 
 
 @websocket_api.websocket_command({
+    probatio.Required("type"): "deploy_relay_v2_dev/archive_repository/set",
+    probatio.Required("repository"): str,
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def async_archive_repository_set(hass, connection, msg):
+    """Only admin-selected private archive; never choose a vendor default."""
+    runtime = _runtime(hass)
+    if runtime is None:
+        connection.send_error(msg["id"], "not_ready", "Archivverwaltung nicht bereit")
+        return
+    try:
+        status = await runtime.git_export.set_repository(msg["repository"])
+    except GitMeasurementError:
+        connection.send_error(
+            msg["id"], "invalid_archive_repository",
+            "Export-Repository konnte nicht gespeichert werden. Laufenden Export prüfen.",
+        )
+        return
+    connection.send_result(msg["id"], status)
+
+
+@websocket_api.websocket_command({
+    probatio.Required("type"): "deploy_relay_v2_dev/archive_repository/clear",
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def async_archive_repository_clear(hass, connection, msg):
+    runtime = _runtime(hass)
+    if runtime is None:
+        connection.send_error(msg["id"], "not_ready", "Archivverwaltung nicht bereit")
+        return
+    try:
+        status = await runtime.git_export.clear_repository()
+    except GitMeasurementError:
+        connection.send_error(
+            msg["id"], "archive_repository_locked",
+            "Archivziel nicht entfernt: ein Export wartet auf Wiederholung.",
+        )
+        return
+    connection.send_result(msg["id"], status)
+
+
+@websocket_api.websocket_command({
+    probatio.Required("type"): "deploy_relay_v2_dev/test/download_json",
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def async_download_json(hass, connection, msg):
+    """Safe local download. No GitHub repository, token or queue is required."""
+    runtime = _runtime(hass)
+    if runtime is None:
+        connection.send_error(msg["id"], "not_ready", "Testlabor nicht gestartet")
+        return
+    current = await runtime.registry.list(limit=1)
+    latest_id = current[0]["operation_id"] if current else None
+    suite = runtime.suite.summary()
+    solo = runtime.measurement.summary()
+    summary = (suite if suite and suite.get("operation_id") == latest_id
+               else solo if solo and solo.get("operation_id") == latest_id
+               else None)
+    if summary is None:
+        connection.send_error(msg["id"], "no_measurement", "Kein abgeschlossener Messlauf vorhanden")
+        return
+    try:
+        operation = await runtime.registry.get(str(summary["operation_id"]))
+    except OperationContractError:
+        operation = None
+    if operation is None or operation["status"] != "success":
+        connection.send_error(msg["id"], "no_measurement", "Kein abgeschlossener Messlauf vorhanden")
+        return
+    try:
+        document = runtime.git_export.local_download(summary, version=VERSION)
+    except GitMeasurementError:
+        connection.send_error(msg["id"], "invalid_diagnostics", "Diagnose nicht für den Download geeignet")
+        return
+    connection.send_result(msg["id"], document)
+
+
+@websocket_api.websocket_command({
     probatio.Required("type"): "deploy_relay_v2_dev/test/git_export",
 })
 @websocket_api.require_admin
@@ -551,6 +631,8 @@ def async_register_commands(hass: HomeAssistant) -> None:
                     async_projects_retention, async_projects_preselect,
                     async_settings_get, async_settings_save, async_settings_ack_cpu_warning,
                     async_batch_preview, async_projects_source_preview,
-                    async_git_read_configure, async_git_read_clear):
+                    async_git_read_configure, async_git_read_clear,
+                    async_archive_repository_set, async_archive_repository_clear,
+                    async_download_json):
         websocket_api.async_register_command(hass, handler)
     state["commands_registered"] = True
