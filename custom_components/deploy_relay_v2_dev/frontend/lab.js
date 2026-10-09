@@ -532,6 +532,29 @@ class DRAV2DevLabPanel extends HTMLElement {
           <button id="refresh" ${this._busy ? "disabled" : ""}>Status aktualisieren</button>
         </article>
         <article>
+          <strong>DRA-Einstellungen · Auftragsverarbeitung</strong>
+          <p class="note">Gespeicherte Planungsvorgaben. Die aktive Testlabor-Sperre bleibt bei
+          einem Leseauftrag und null Schreibaufträgen. Dies begrenzt derzeit keine echten Prozessorkerne.</p>
+          <label>Betriebsart
+            <select id="settings-mode" class="project-text">
+              <option value="sequential" ${this._settings.mode === "sequential" ? "selected" : ""}>Nacheinander</option>
+              <option value="controlled" ${this._settings.mode === "controlled" ? "selected" : ""}>Gesteuert parallel (noch in Entwicklung)</option>
+              <option value="automatic" disabled>Automatisch (noch nicht verfügbar)</option>
+            </select>
+          </label>
+          <label>Parallele Leseaufträge (spätere Obergrenze 1–4)
+            <input id="settings-readonly" class="project-text" type="number" min="1" max="4" value="${this._settings.max_readonly_jobs}" />
+          </label>
+          <label>DRA-Arbeitsprozesse (spätere Obergrenze 1–12)
+            <input id="settings-workers" class="project-text" type="number" min="1" max="12" value="${this._settings.max_worker_processes}" />
+          </label>
+          <button id="settings-save" ${this._settingsBusy ? "disabled" : ""}>Vorgaben speichern</button>
+          <p class="note">${this._escapeProject(this._settingsMessage)}</p>
+          <p class="note">Die separate feste Mehrkern-Diagnose bleibt unverändert. Kein
+          Schreibzugriff, kein CPU-Pinning und keine automatische Ressourcensteuerung.</p>
+        </article>
+
+        <article>
           <strong>Meine Projekte · V2-Entwicklung</strong>
           <p class="note">Projektmetadaten getrennt von DRA V1 verwalten. V1 bleibt unverändert.
           Übernahme kopiert weder Git-Zugangsdaten noch Installationsstände oder Sicherungsdateien.</p>
@@ -550,6 +573,17 @@ class DRAV2DevLabPanel extends HTMLElement {
           Neue Einträge sind zunächst ungeprüft. Installation, tatsächliche Sicherung,
           Rotation und Wiederherstellung bleiben bis zur separaten Transaktionsabnahme gesperrt.</p>
         </article>
+        <article>
+          <strong>Sammelaktualisierung · Auswahl vorbereiten</strong>
+          <p class="note">Die gespeicherte Vorauswahl wird nur beim Öffnen dieser
+          Ansicht verwendet. Häkchen gelten für den aktuellen Vorgang.</p>
+          ${this._projects.length ? batchRows : "<p>Bitte erst Projekte anlegen oder aus V1 übernehmen.</p>"}
+          <button id="batch-preview" ${this._batchBusy || this._projects.length === 0 ? "disabled" : ""}>Auswahl prüfen (ohne Installation)</button>
+          <p class="note">${this._escapeProject(this._batchMessage)}</p>
+          ${this._batchPreview ? `<p>${this._batchPreview.count} Projekte ausgewählt. Git-Stand
+          noch nicht überprüft; keine Installation möglich.</p><ul>${batchReport}</ul>` : ""}
+        </article>
+
         <article>
           <strong>Messdaten nach Git exportieren</strong>
           <p class="note">Wie bei DRA V1: separater GitHub-Schreibtoken und ein neues JSON-Dokument pro Export.
@@ -578,6 +612,9 @@ class DRAV2DevLabPanel extends HTMLElement {
     s.querySelector("#git-remove")?.addEventListener("click", () => this._configureGit(true));
     s.querySelector("#git-cancel")?.addEventListener("click", () => { this._gitSetup = false; this._render(); });
     s.querySelector("#git-export")?.addEventListener("click", () => this._exportGit());
+    s.querySelector("#settings-save")?.addEventListener("click", () => this._saveSettings());
+    s.querySelector("#batch-preview")?.addEventListener("click", () => this._previewBatch());
+    s.querySelectorAll(".preselect-toggle")?.forEach(button => button.addEventListener("click", () => this._togglePreselect(button)));
     s.querySelector("#project-preview")?.addEventListener("click", () => this._projectAction("v1_preview"));
     s.querySelector("#project-import")?.addEventListener("click", () => this._projectAction("import_v1"));
     s.querySelector("#project-cancel")?.addEventListener("click", () => { this._v1Candidates = null; this._render(); });
