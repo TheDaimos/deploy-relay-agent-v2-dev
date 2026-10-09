@@ -286,7 +286,33 @@ class GitExportTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(queue.data, orig_queue)
         self.assertEqual(credentials.data, orig_creds)
 
+    async def test_pending_retry_allows_same_repository_token_rotation(self):
+        queue, credentials = FakeStore(), FakeStore()
+        writer = module.MeasurementGitExport(
+            queue, self.session, credential_store=credentials,
+            token_provider=lambda: None,
+        )
+        await writer.load()
+        repo = "TheDaimos/Project-Log-And-Export"
+        await writer.configure_archive(repo, "github_pat_TOKEN_BEFORE_REVOCATION")
+        self.session.response = FakeResponse(503)
+        with self.assertRaises(module.GitMeasurementError):
+            await writer.export(measurement(), version="0.1.16")
+        previous = copy.deepcopy(queue.data)
+        await writer.configure_archive(repo, "github_pat_REPLACEMENT_TOKEN")
+        self.assertEqual(queue.data, previous)
+        self.assertEqual(credentials.data["token"], "github_pat_REPLACEMENT_TOKEN")
+        self.session.response = FakeResponse(201)
+        result = await writer.retry_pending()
+        self.assertEqual(result["repository"], repo)
+        self.assertFalse(writer.pending)
+        self.assertEqual(
+            self.session.requests[-1][1]["headers"]["Authorization"],
+            "Bearer github_pat_REPLACEMENT_TOKEN",
+        )
+
     async def test_unknown_credential_schema_aborts_before_export(self):
+
         queue, credentials = FakeStore(), FakeStore({
             "schema": "unknown", "repository": "TheDaimos/Project-Log-And-Export",
             "token": "github_pat_SYNTHETIC_NOT_REAL",

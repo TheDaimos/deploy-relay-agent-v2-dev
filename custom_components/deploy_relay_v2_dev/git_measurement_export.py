@@ -640,8 +640,8 @@ class MeasurementGitExport:
         async with self._lock:
             if not self._ready or self._credential_store is None:
                 raise GitMeasurementError("private archive credentials unavailable")
-            if self._pending is not None:
-                raise GitMeasurementError("pending archive export must be resolved first")
+            if self._pending is not None and selected != self._repository:
+                raise GitMeasurementError("pending archive target cannot be changed")
             # Establish privacy and read access before accepting configuration.
             await self._ensure_private_repository(token, selected)
             try:

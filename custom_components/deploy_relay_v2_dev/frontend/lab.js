@@ -873,18 +873,18 @@ class DRAV2DevLabPanel extends HTMLElement {
               <input id="git-dialog-repo" class="project-text" type="text"
                      placeholder="Eigentümer/Privates-Repository" autocomplete="off"
                      value="${this._escapeProject(this._centralExport.repository || "")}"
-                     ${this._archiveBusy || this._centralExport.pending ? "disabled" : ""} />
+                     ${this._archiveBusy || this._centralExport.pending ? "readonly" : ""} />
               <label for="git-dialog-token">GitHub-Token (wird nicht wieder angezeigt)</label>
               <input id="git-dialog-token" class="git-token" type="password"
                      autocomplete="off" spellcheck="false"
                      placeholder="Fine-grained GitHub-Token"
-                     ${this._archiveBusy || this._centralExport.pending ? "disabled" : ""} />
+                     ${this._archiveBusy ? "disabled" : ""} />
               <p class="note">Der Schlüssel wird nur zur Einrichtung an Home Assistant
               übertragen, dort getrennt geschützt gespeichert und nicht an
               die Oberfläche zurückgesendet. Nutze eine verschlüsselte HA-Verbindung.</p>
               <div class="dialog-actions">
                 <button id="git-dialog-save"
-                        ${this._archiveBusy || this._gitBusy || this._centralExport.pending ? "disabled" : ""}>
+                        ${this._archiveBusy || this._gitBusy ? "disabled" : ""}>
                   Zugang speichern und prüfen
                 </button>
                 <button id="git-dialog-clear"
@@ -914,7 +914,7 @@ class DRAV2DevLabPanel extends HTMLElement {
                 </button>
               </div>
               ${this._centralExport.pending ? `<p class="critical">Ein Export wartet auf Wiederholung.
-              Das Ziel darf bis zum Abschluss nicht gewechselt werden.</p>` : ""}
+              Das Ziel darf nicht gewechselt werden; der Token kann für einen erneuten Versuch aktualisiert werden.</p>` : ""}
               <p class="note">${this._escapeProject(this._gitStatus)}</p>
               ${this._lastExport ? `<p><strong>Export-ID:</strong> ${this._escapeProject(this._lastExport.export_id)}
               <strong>Zielpfad:</strong> ${this._escapeProject(this._lastExport.path)}</p>
