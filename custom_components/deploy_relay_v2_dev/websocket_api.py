@@ -10,6 +10,7 @@ from .const import DOMAIN, VERSION, READONLY_TEST_STEPS
 from .operation_model import OperationContractError, OperationPhase
 from .git_measurement_export import GitMeasurementError
 from .project_catalog import CatalogError, v1_proposals
+from .settings import SettingsError
 
 
 def _runtime(hass: HomeAssistant):
@@ -39,6 +40,8 @@ async def async_state(hass, connection, msg):
         "git_configured": runtime.git_export.configured,
         "git_available": runtime.git_export.available,
         "projects": runtime.projects.list(),
+        "settings": runtime.settings.snapshot(),
+        "settings_effective": runtime.settings.effective(),
     })
 
 
@@ -337,6 +340,92 @@ async def async_projects_retention(hass, connection, msg):
         "backups_deleted": 0,
     })
 
+
+
+@websocket_api.websocket_command({
+    probatio.Required("type"): "deploy_relay_v2_dev/settings/get",
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def async_settings_get(hass, connection, msg):
+    runtime = _runtime(hass)
+    if runtime is None:
+        connection.send_error(msg["id"], "not_ready", "Einstellungen nicht bereit")
+        return
+    connection.send_result(msg["id"], {
+        "settings": runtime.settings.snapshot(),
+        "effective": runtime.settings.effective(),
+    })
+
+
+@websocket_api.websocket_command({
+    probatio.Required("type"): "deploy_relay_v2_dev/settings/save",
+    probatio.Required("mode"): str,
+    probatio.Required("max_readonly_jobs"): int,
+    probatio.Required("max_worker_processes"): int,
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def async_settings_save(hass, connection, msg):
+    runtime = _runtime(hass)
+    if runtime is None:
+        connection.send_error(msg["id"], "not_ready", "Einstellungen nicht bereit")
+        return
+    try:
+        result = await runtime.settings.save({
+            "mode": msg["mode"],
+            "max_readonly_jobs": msg["max_readonly_jobs"],
+            "max_worker_processes": msg["max_worker_processes"],
+        })
+    except SettingsError:
+        connection.send_error(msg["id"], "invalid_settings", "Einstellungen nicht gespeichert")
+        return
+    connection.send_result(msg["id"], {
+        "settings": result, "effective": runtime.settings.effective()
+    })
+
+
+@websocket_api.websocket_command({
+    probatio.Required("type"): "deploy_relay_v2_dev/projects/preselect",
+    probatio.Required("repository"): str,
+    probatio.Required("enabled"): bool,
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def async_projects_preselect(hass, connection, msg):
+    runtime = _runtime(hass)
+    if runtime is None:
+        connection.send_error(msg["id"], "not_ready", "Projektverwaltung nicht bereit")
+        return
+    try:
+        record = await runtime.projects.set_batch_preselect(
+            msg["repository"], msg["enabled"])
+    except CatalogError:
+        connection.send_error(msg["id"], "invalid_project", "Vorauswahl nicht gespeichert")
+        return
+    connection.send_result(msg["id"], {
+        "project": record, "projects": runtime.projects.list()
+    })
+
+
+@websocket_api.websocket_command({
+    probatio.Required("type"): "deploy_relay_v2_dev/batch/preview",
+    probatio.Required("repositories"): list,
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def async_batch_preview(hass, connection, msg):
+    runtime = _runtime(hass)
+    if runtime is None:
+        connection.send_error(msg["id"], "not_ready", "Projektverwaltung nicht bereit")
+        return
+    try:
+        snapshot = runtime.projects.batch_preview(msg["repositories"])
+    except CatalogError:
+        connection.send_error(msg["id"], "invalid_selection", "Auswahl nicht gültig")
+        return
+    connection.send_result(msg["id"], snapshot)
+
 def async_register_commands(hass: HomeAssistant) -> None:
     state = hass.data.setdefault(DOMAIN, {})
     if state.get("commands_registered"):
@@ -345,6 +434,7 @@ def async_register_commands(hass: HomeAssistant) -> None:
                     async_all, async_get, async_git_configure, async_git_export,
                     async_projects_list, async_projects_v1_preview,
                     async_projects_import_v1, async_projects_add,
-                    async_projects_retention):
+                    async_projects_retention, async_projects_preselect,
+                    async_settings_get, async_settings_save, async_batch_preview):
         websocket_api.async_register_command(hass, handler)
     state["commands_registered"] = True
