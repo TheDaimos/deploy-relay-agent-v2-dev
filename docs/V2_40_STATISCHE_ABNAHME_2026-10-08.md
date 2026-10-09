@@ -246,3 +246,31 @@ DRA V1 meldet `Keine ausgewählten Projekte benötigen eine Installation.`, `✓
 - **Ursachengrenze:** Schreibspitzen lassen sich aus der Darstellung weder DRA V2 noch der HA-Datenbank oder dem Recorder konkret zuweisen. Ohne synchronisierte gleich lange Zeitfenster mit/ohne V2, Proxmox-Rohwerte und HA-Latenzmessung kann das Diagramm einen isolierten zusätzlichen V2-I/O-Verbrauch **nicht** belegen.
 - **Teilstatus:** I/O-Sichtbarkeit und qualitative Beobachtung **DOKUMENTIERT**, aber **keine quantitative I/O-Delta-Abnahme**. CPU-/Speicher- und 0.1.7-Gesamttest-Nachweise sowie V1-Sammelprüfung bleiben bestanden; V2-40-50 **OFFEN** (mindestens reproduzierbare HA-Reaktionszeit, zeitgleiche Belastungs- und Leerlaufvergleichswerte für I/O).
 - **Keine Aktion an HA-DEV**: kein Installationsauftrag, kein Neustart, keine Änderung an DRA V1/V2-PUB und keine Aufhebung des globalen Schreib-Locks.
+
+
+### HA-DEV – Zweiter V2-0.1.7-Gesamtexport mit Proxmox-CPU/I/O-Bildern (09.10.2026)
+
+**Ergebnis im öffentlichen Git:** `.deploy-relay/diagnostics/v2-dev/2026-10-09/20261009T060845Z-72481065.json`, Commit `accc6571db5fc6f5e1e4aec57855a35d13aa970e`, `dra-v2-dev-git-suite.v1`, V2 DEV **0.1.7**. Exportzeit `2026-10-09T06:08:45Z` = **08:08:45 MESZ**. Der Zeitpunkt bezeichnet den **Export**, **nicht** garantiert den exakten Start/das Ende des Testauftrags. Voriger Gesamtexport: 05:45:05 UTC = 07:45:05 MESZ.
+
+| Messwert | Erster Gesamtexport | Zweiter Gesamtexport |
+| --- | ---: | ---: |
+| Auftragsmodus | `full` | `full` |
+| CPU-/RAM-Phase | 40.057 ms | 40.212 ms |
+| CPU-Zeit Basis / Last / Nachlauf (gesamter HA-Prozess) | 733 / 1.235 / 718 ms | 878 / 1.106 / 571 ms |
+| Maximale Zeitsteuerungsverzögerung | 1 ms | 33 ms |
+| Synthetische Hashes | 640 | 640 |
+| HA-Prozess-RSS Start → Ende (KiB) | 1.933.464 → 1.930.212 | 1.917.548 → 1.921.216 |
+| Änderung HA-Prozess-RSS | −3.252 KiB (ca. −3,18 MiB) | +3.668 KiB (ca. +3,58 MiB) |
+| Linux effektiv belegt Start → Ende (KiB) | 3.296.584 → 3.281.000 | 3.256.624 → 3.271.844 |
+| Mehrkernstufe 1 Prozess | 400.000 Runden / 94 ms / 67 ms CPU | 400.000 / 87 ms / 68 ms CPU |
+| Mehrkernstufe 2 Prozesse | 800.000 / 89 ms / 138 ms CPU | 800.000 / 92 ms / 138 ms CPU |
+| Mehrkernstufe 4 Prozesse | 1.600.000 / 96 ms / 294 ms CPU | 1.600.000 / 95 ms / 292 ms CPU |
+
+**Erneute Mehrkernfunktion PASS:** alle drei Stufen `ok`, `logical_cpus_visible=12`, `affinity_cpus_visible=12`. Aggregierter Vergleichsdurchsatz aus `iterations_total / wall_ms` gegenüber 1 Prozess: ca. **1,89×** (2 Prozesse) und **3,66×** (4 Prozesse). Die Stufen sind nur ca. 0,1 Sekunden lang; keine allgemeine Dauerlast- oder V2-spezifische CPU-Skalierung daraus ableiten. Kein separater DRA-V1-/DRA-V2-RAM: die Felder bleiben `null` bei gemeinsamem HA-Python-Prozess.
+
+**Neue Proxmox-Bildnachweise der bestätigten VM 109** (CPU usage und Disk IO; Achsen vom 09.10.2026, ungefähr **06:58 bis nach 08:04** MESZ, rechts abgeschnittene Randzeit nicht exakt belegbar):
+- **CPU:** meist ungefähr **1,5–1,9 %** laut Proxmox-Prozentskala, einzelne Spitzen bis etwa **2,1 %**. Keine sichtbare dauerhafte hohe CPU-Auslastung auf dieser VM im gezeigten Verlauf. Das ist VM-weit, keine getrennte DRA-CPU-Quote.
+- **Datenträger:** `diskwrite` (blau) hat mehrere kurze Spitzen. Die Proxmox-Sprechblase belegt **`diskwrite: 3.36 M` um 07:01:00 Uhr MESZ** (ausdrücklich `GMT+0200`). Kleinere wiederkehrende Schreibaktivität; `diskread` (grün) überwiegend niedrig. Die Grafik benennt **keine ausgeschriebene Einheit** und liefert keine IOPS-/Gesamtvolumenwerte; `3.36 M` deswegen nicht ungeprüft in MB/s umdeuten.
+- Die Exportzeiten 07:45:05 und 08:08:45 MESZ liegen innerhalb beziehungsweise nahe dem Zeitbereich der Grafiken. **Der Git-Export enthält keine synchronisierten absoluten Start-/Endzeitstempel des Auftrags oder der einzelnen Phasen.** Die Nutzerbilder zeigen nicht die eindeutig abgegrenzten Sekunden eines Testlaufs. Daher dürfen **weder die CPU-Spitzen noch Schreibspitzen einer konkreten Phase oder DRA V2 ursächlich zugeordnet** werden. Besonders der hervorgehobene Ausschlag um 07:01 Uhr ist zeitlich weit vor den beiden Exporten.
+
+**Abnahme:** Zweiter echter Gesamttest und öffentlicher Git-Export **PASS**; CPU-/Datenträger-VM-Verlauf **als qualitative Beobachtung dokumentiert**. V2-40-50 **bleibt OPEN**, solange exakt zeitlich abgegrenzte Referenz-/Lastfenster für I/O und eine belastbare HA-Reaktionszeitmessung fehlen. Keine Freigabe von V2-Installationen/Schreibparallelität, keine Änderung von DRA V1 oder V2-PUB, kein HA-Neustart.
