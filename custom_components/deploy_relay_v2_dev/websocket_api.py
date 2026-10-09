@@ -183,6 +183,32 @@ async def async_get(hass, connection, msg):
 
 
 @websocket_api.websocket_command({
+    probatio.Required("type"): "deploy_relay_v2_dev/archive_repository/configure",
+    probatio.Required("repository"): str,
+    probatio.Required("token"): str,
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def async_archive_repository_configure(hass, connection, msg):
+    """Accept secret only in one authenticated WS request; never echo it."""
+    runtime = _runtime(hass)
+    if runtime is None:
+        connection.send_error(msg["id"], "not_ready", "Archivverwaltung nicht bereit")
+        return
+    try:
+        status = await runtime.git_export.configure_archive(
+            msg["repository"], msg["token"],
+        )
+    except GitMeasurementError:
+        connection.send_error(
+            msg["id"], "archive_configuration_failed",
+            "Privates Repository nicht erreichbar, Token ungueltig oder Speicherung fehlgeschlagen.",
+        )
+        return
+    connection.send_result(msg["id"], status)
+
+
+@websocket_api.websocket_command({
     probatio.Required("type"): "deploy_relay_v2_dev/archive_repository/set",
     probatio.Required("repository"): str,
 })
@@ -633,6 +659,7 @@ def async_register_commands(hass: HomeAssistant) -> None:
                     async_batch_preview, async_projects_source_preview,
                     async_git_read_configure, async_git_read_clear,
                     async_archive_repository_set, async_archive_repository_clear,
+                    async_archive_repository_configure,
                     async_download_json):
         websocket_api.async_register_command(hass, handler)
     state["commands_registered"] = True
