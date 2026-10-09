@@ -301,3 +301,22 @@ DRA V1 meldet `Keine ausgewählten Projekte benötigen eine Installation.`, `✓
 **Proxmox-Bilder vor/um Testbeginn:** CPU lange grob 1,6–1,9 %, einzelne Spitzen um ca. 08:23 und 08:29 auf etwa 5–5,3 %. RAM-VM-Anzeige bis ungefähr 08:22 um 5,8 GiB, dann ein deutlicher Rückgang bis ungefähr 1,9 GiB mit Wiederanstieg gegen Ende des sichtbaren Fensters. Disk-I/O: gleichzeitig scharfe Leseaktivität mit ungefähr 14 M auf der Diagrammskala, kurzzeitige Schreibaktivität bis grob 4 M. Im Bildschirm ist die vollständige I/O-Einheit nicht belegt; kein MB/s-/IOPS-Wert erfinden. Das Zeitmuster ist **mit HA-Neustart vereinbar**, belegt aber ohne Prozesseinzelmessung keine konkrete Ursache jeder Spitze. Vor allem reicht die sichtbare Kurve **nicht** bis zu allen sieben Mehrkernstufen nach 08:29 Uhr; sie ist **kein direkter CPU-/I/O-Dauerlastnachweis** des 12-Prozesse-Tests.
 
 **Teilabnahme:** V2 DEV 0.1.8 Realtest (neues siebenteiliges Schema, alle sieben `ok`, vollständiger `full`-Bericht, anonymisierter Git-Export) **PASS für genau diesen einen Lauf**. Nach dem Neustart **noch keine erneute V1-Sammelprüfung belegt**, daher V1-Funktionskontrolle für diesen Neustart nicht als geprüft behaupten. **V2-40-50 bleibt OFFEN**, weil zeitlich exakt korrelierte Disk-I/O- und HA-Reaktionszeitmessungen sowie länger dauernde Last-/Wiederholungsprüfungen nicht vorliegen. Keine produktive Mutations-/Parallelfreigabe und kein weiterer Neustart veranlasst.
+
+
+### HA-DEV – DRA-V1-Sammelprüfung nach Neustart und V2 DEV 0.1.8 (09.10.2026)
+
+**Direkter Nutzerbeleg:** DRA-V1-Dialog `Sammelaktualisierung` auf der bestätigten HA-DEV-Instanz nach dem vom Nutzer durchgeführten HA-Neustart und erfolgreichen V2-DEV-0.1.8-Gesamttest. Alle fünf Projektzeilen wurden abgefragt; `✓ Prüfung abgeschlossen` erscheint. Die angezeigten Kurzkennungen und Statuswerte sind:
+
+| Projekt | Anzeige in DRA V1 | Quell-Commit (Kurzkennung) | Änderungen |
+| --- | --- | --- | ---: |
+| Deploy Relay (V1) | `✓ Aktuell` | `5550b40de7b7` | 0 |
+| DRA V2 DEV – Nur Testlabor | `✓ Aktuell` | `ab45aadc9335` | 0 |
+| Gewitterradar | `✓ Aktuell` | `d0eb570d6ce6` | 0 |
+| WeatherRouter | `✓ Bereit` | `e11fba70698d` | **4** |
+| WeatherRouter Private Extensions | `✓ Aktuell` | `6977e7c99f21` | 0 |
+
+**Wesentliche Abgrenzung zum vorherigen V1-Nachweis:** Bei dieser Prüfung haben **nicht** alle fünf Projekte null Änderungen. DRA V1 erkennt beim WeatherRouter korrekt einen **ausstehenden Projektunterschied mit vier Änderungen**, ohne die erfolgreiche Leseprüfung zu blockieren. Die Schaltflächen `Schreibzugriff freigeben` sowie `1 Projekt installieren` sind eingeblendet; **im vorliegenden Schritt wurde weder Schreibzugriff freigegeben noch eine Installation bestätigt**. Ob und wann das WeatherRouter-Update aus einem anderen Projekt freizugeben ist, ist **nicht Gegenstand** dieser DRA-V2-Abnahme. Keine automatische Aktualisierung des WeatherRouter anstoßen.
+
+**Ergebnis:** DRA V1 startet, listet und prüft alle fünf Projekte **nach dem HA-Neustart im V1/V2-Parallelbetrieb PASS (nur schreibgeschützte Sammelprüfung)**. Auch die Erkennung eines ausstehenden Updatebedarfs funktioniert. Dies **ersetzt** die frühere Notiz „nach Neustart noch keine V1-Sammelprüfung belegt“ hinsichtlich dieses einen Nachweises; sie bleibt als historische Momentaufnahme erhalten. Weder V1-Schreibinstallation noch tatsächliche HA-Eventloop-Latenz oder isolierte DRA-V2-Datenträgerlast sind hierdurch abgenommen.
+
+**V2-40-50 bleibt offen:** Weiterhin fehlen zeitlich korrelierte Festplattenmessung und nachvollziehbare HA-Reaktionszeit unter Testlast. Keine V1-/V2-PUB-Änderung, kein V2-Schreibauftrag, kein Neustart und keine Aufhebung des globalen Schreib-Locks.
