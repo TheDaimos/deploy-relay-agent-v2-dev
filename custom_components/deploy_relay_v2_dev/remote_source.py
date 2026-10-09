@@ -22,7 +22,81 @@ from .source_preflight import (
 
 API = "https://api.github.com"
 MAX_RESPONSE = 4 * 1024 * 1024
+READ_AUTH_SCHEMA = "dra-v2-dev-git-read-auth.v1"
 
+
+
+class GitReadAuthError(ValueError):
+    """Redacted private GitHub read-auth configuration error."""
+
+
+class GitReadAuth:
+    """Private V2 HA Store, never V1 token or V2 measurement export credential."""
+
+    def __init__(self, store):
+        self._store = store
+        self._lock = asyncio.Lock()
+        self._token = None
+        self._loaded = False
+
+    @property
+    def configured(self):
+        return self._loaded and self._token is not None
+
+    @property
+    def token(self):
+        # Internal server use only. Never put token into websocket result.
+        if not self._loaded:
+            return None
+        return self._token
+
+    async def load(self):
+        try:
+            obj = await self._store.async_load()
+        except Exception:
+            raise GitReadAuthError("GitHub read-auth not available") from None
+        if obj is None:
+            self._token = None
+            self._loaded = True
+            return
+        if type(obj) is not dict or set(obj) != {"schema", "token"} or obj["schema"] != READ_AUTH_SCHEMA:
+            raise GitReadAuthError("invalid GitHub read-auth store")
+        token = obj["token"]
+        if token is not None and not self._valid_token(token):
+            raise GitReadAuthError("invalid GitHub read-auth token")
+        self._token = token
+        self._loaded = True
+
+    @staticmethod
+    def _valid_token(value):
+        return (
+            type(value) is str
+            and 10 <= len(value) <= 512
+            and all(c.isascii() and not c.isspace() and c.isprintable() for c in value)
+            and "/" not in value and "\\" not in value and ":" not in value
+        )
+
+    async def configure(self, token):
+        if not self._valid_token(token):
+            raise GitReadAuthError("invalid GitHub read-auth value")
+        async with self._lock:
+            if not self._loaded:
+                raise GitReadAuthError("GitHub read-auth unavailable")
+            try:
+                await self._store.async_save({"schema": READ_AUTH_SCHEMA, "token": token})
+            except Exception:
+                raise GitReadAuthError("GitHub read-auth save failed") from None
+            self._token = token
+
+    async def clear(self):
+        async with self._lock:
+            if not self._loaded:
+                raise GitReadAuthError("GitHub read-auth unavailable")
+            try:
+                await self._store.async_save({"schema": READ_AUTH_SCHEMA, "token": None})
+            except Exception:
+                raise GitReadAuthError("GitHub read-auth clear failed") from None
+            self._token = None
 
 def source_ref(value: object) -> str:
     if type(value) is not str or len(value) > 100:
@@ -102,17 +176,22 @@ def _local_inventory(config_root: Path, groups: list[dict], *, max_files: int, m
     return found
 
 
-async def _get(session, url: str) -> dict:
+async def _get(session, url: str, *, token: str | None = None) -> dict:
     """No redirects, no tokens, fixed HTTPS GitHub API, short bounded response."""
     if not url.startswith(API + "/"):
         raise PreflightError("invalid source endpoint")
     try:
+        headers = {
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+            "User-Agent": "Deploy-Relay-V2-Read-Only-Preflight",
+        }
+        if token is not None:
+            if not GitReadAuth._valid_token(token):
+                raise PreflightError("GitHub read-auth invalid")
+            headers["Authorization"] = "Bearer " + token
         async with asyncio.timeout(12):
-            async with session.get(url, allow_redirects=False, headers={
-                "Accept": "application/vnd.github+json",
-                "X-GitHub-Api-Version": "2022-11-28",
-                "User-Agent": "Deploy-Relay-V2-Read-Only-Preflight",
-            }) as response:
+            async with session.get(url, allow_redirects=False, headers=headers) as response:
                 if response.status != 200:
                     if response.status in (401, 403, 404, 429):
                         raise PreflightError("GitHub source unavailable or inaccessible")
@@ -135,7 +214,7 @@ async def _get(session, url: str) -> dict:
     return obj
 
 
-async def inspect_public_repository(session, config_root: Path, repository: str, ref: str = "") -> dict:
+async def inspect_public_repository(session, config_root: Path, repository: str, ref: str = "", *, token: str | None = None) -> dict:
     """Actual pinned remote tree versus read-only HA inventory; no write capability.
 
     An unavailable source is reported as unavailable, never as up-to-date.
@@ -147,14 +226,14 @@ async def inspect_public_repository(session, config_root: Path, repository: str,
     ref = source_ref(ref)
     owner, name = repository.split("/")
     base = f"{API}/repos/{quote(owner, safe='')}/{quote(name, safe='')}"
-    meta = await _get(session, base)
+    meta = await _get(session, base, token=token)
     branch = meta.get("default_branch")
     if type(branch) is not str or not source_ref(branch):
         raise PreflightError("repository has no supported default branch")
     if meta.get("archived") is True or meta.get("disabled") is True:
         raise PreflightError("repository is not an active installation source")
     selected = ref or branch
-    commit = await _get(session, base + "/commits/" + quote(selected, safe=""))
+    commit = await _get(session, base + "/commits/" + quote(selected, safe=""), token=token)
     sha = commit.get("sha")
     tree = commit.get("commit", {}).get("tree") if type(commit.get("commit")) is dict else None
     tree_sha = tree.get("sha") if type(tree) is dict else None
@@ -163,7 +242,7 @@ async def inspect_public_repository(session, config_root: Path, repository: str,
         raise PreflightError("source commit was not pinned")
     if type(tree_sha) is not str or not SHA.fullmatch(tree_sha):
         raise PreflightError("source tree was not pinned")
-    manifest_obj = await _get(session, base + "/contents/deploy-relay.json?ref=" + sha)
+    manifest_obj = await _get(session, base + "/contents/deploy-relay.json?ref=" + sha, token=token)
     if manifest_obj.get("encoding") != "base64" or type(manifest_obj.get("content")) is not str:
         raise PreflightError("manifest is not an encoded file")
     try:
@@ -175,7 +254,7 @@ async def inspect_public_repository(session, config_root: Path, repository: str,
             manifest_obj.get("sha") != git_blob_sha(manifest_bytes)):
         raise PreflightError("manifest content integrity failed")
     manifest = parse_manifest(manifest_bytes, repository=repository)
-    tree_obj = await _get(session, base + "/git/trees/" + tree_sha + "?recursive=1")
+    tree_obj = await _get(session, base + "/git/trees/" + tree_sha + "?recursive=1", token=token)
     if tree_obj.get("truncated") is not False or type(tree_obj.get("tree")) is not list:
         raise PreflightError("GitHub tree is incomplete")
     remote = inspect_tree(manifest, tree_obj["tree"])
@@ -185,6 +264,6 @@ async def inspect_public_repository(session, config_root: Path, repository: str,
     )
     report = compare_blobs(manifest, remote, local, source_commit=sha)
     report["source_ref"] = selected
-    report["source_name"] = "GitHub public (no V1 credentials)"
+    report["source_name"] = "GitHub V2 read-only access" if token else "GitHub public (no V1 credentials)"
     report["total_local_files"] = len(local)
     return report
