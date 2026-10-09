@@ -16,6 +16,7 @@ const shadow = () => {
     querySelector(selector) {
       return selector === "#remaining" ? remaining : null;
     },
+    querySelectorAll() { return []; },
   };
 };
 class FakeElement {
