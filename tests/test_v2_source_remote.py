@@ -117,6 +117,19 @@ class SourceRemoteTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(all("Authorization" not in kwargs["headers"] for _, kwargs in session.calls))
         self.assertTrue(any("/contents/deploy-relay.json?ref=" + COMMIT in url for url, _ in session.calls))
 
+    async def test_private_read_token_only_reaches_fixed_github_host(self):
+        session = Session(payloads())
+        token = "github_pat_READ_ONLY_DEMONSTRATION"
+        result = await m.inspect_public_repository(
+            session, self.root, REPO, token=token,
+        )
+        self.assertEqual(result["source_name"], "GitHub V2 read-only access")
+        self.assertNotIn(token, str(result))
+        self.assertTrue(all(k["headers"].get("Authorization") == "Bearer " + token
+                            for _, k in session.calls))
+        self.assertTrue(all(url.startswith("https://api.github.com/repos/")
+                            for url, _ in session.calls))
+
     async def test_missing_project_directory_is_no_local_files(self):
         session = Session(payloads())
         report = await m.inspect_public_repository(session, self.root, REPO)
