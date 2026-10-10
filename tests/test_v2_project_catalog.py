@@ -201,7 +201,7 @@ class V2ProjectCatalogTests(unittest.IsolatedAsyncioTestCase):
         await self.catalog.add("TheDaimos/one", "One")
         await self.catalog.add("TheDaimos/two", "Two")
         self.assertIs((await self.catalog.set_batch_preselect("TheDaimos/two", False))["batch_preselect"], False)
-        prev = self.catalog.batch_preview(["TheDaimos/two", "TheDaimos/one"])
+        prev = self.catalog.batch_preview(["TheDaimos/one", "TheDaimos/two"])
         self.assertEqual([r["repository"] for r in prev["selected"]],
                          ["TheDaimos/two", "TheDaimos/one"])
         self.assertEqual([r["status"] for r in prev["selected"]],
