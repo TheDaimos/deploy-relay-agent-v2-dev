@@ -46,7 +46,7 @@ class LabIsolationContracts(unittest.TestCase):
         self.assertIn('PANEL_ELEMENT: Final = "dra-v2-dev-lab-panel"', const)
         self.assertEqual(len(re.findall(r'probatio.Required\("type"\): "deploy_relay_v2_dev/test/', sockets)), 9)
         self.assertEqual(len(re.findall(r'probatio.Required\("type"\): "deploy_relay_v2_dev/projects/', sockets)), 7)
-        self.assertEqual(sockets.count("@websocket_api.require_admin"), 26)
+        self.assertEqual(sockets.count("@websocket_api.require_admin"), 25)
         self.assertNotIn('"deploy_relay/panel/', sockets)
         self.assertNotIn('"deploy_relay/panel/', frontend)
         self.assertNotIn("deploy-relay-panel", frontend)
@@ -73,17 +73,16 @@ class LabIsolationContracts(unittest.TestCase):
         ):
             self.assertNotIn(forbidden, source)
         self.assertIn('project_key="lab_readonly_preview"', source)
-        self.assertIn("await asyncio.sleep(1)", source)
         self.assertIn('store["runtime"]', (LAB_ROOT / "__init__.py").read_text(encoding="utf-8"))
 
     def test_async_ws_handlers_are_scheduled_and_admin_guarded(self):
         sockets = (LAB_ROOT / "websocket_api.py").read_text(encoding="utf-8")
-        self.assertEqual(sockets.count("@websocket_api.async_response"), 26)
-        self.assertEqual(sockets.count("@websocket_api.require_admin"), 26)
-        self.assertEqual(sockets.count("@websocket_api.websocket_command("), 26)
+        self.assertEqual(sockets.count("@websocket_api.async_response"), 25)
+        self.assertEqual(sockets.count("@websocket_api.require_admin"), 25)
+        self.assertEqual(sockets.count("@websocket_api.websocket_command("), 25)
         self.assertIn("import probatio", sockets)
         self.assertNotIn("import voluptuous", sockets)
-        for handler in ("async_state", "async_start", "async_measure", "async_multicore",
+        for handler in ("async_state", "async_measure", "async_multicore",
                         "async_all", "async_get", "async_archive_repository_check",
                         "async_git_export", "async_git_retry", "async_download_json",
                         "async_projects_list", "async_projects_v1_preview",
@@ -144,10 +143,9 @@ class LabIsolationContracts(unittest.TestCase):
         const = (LAB_ROOT / "const.py").read_text(encoding="utf-8")
         sockets = (LAB_ROOT / "websocket_api.py").read_text(encoding="utf-8")
         frontend = (LAB_ROOT / "frontend/lab.js").read_text(encoding="utf-8")
-        self.assertIn("READONLY_TEST_STEPS: Final = 40", const)
-        self.assertIn("for index in range(1, READONLY_TEST_STEPS + 1):", sockets)
-        self.assertIn("await asyncio.sleep(1)", sockets)
-        self.assertIn("await progress(OperationPhase.INVENTORY, index, READONLY_TEST_STEPS)", sockets)
+        self.assertNotIn("READONLY_TEST_STEPS", const)
+        self.assertNotIn("deploy_relay_v2_dev/test/start", sockets)
+        self.assertNotIn("async def async_start(", sockets)
         self.assertNotIn('id="start"', frontend)
         self.assertNotIn('querySelector("#start")', frontend)
         self.assertIn("CPU-/RAM-Messung", frontend)
@@ -157,7 +155,7 @@ class LabIsolationContracts(unittest.TestCase):
         self.assertIn("No project or file access", (LAB_ROOT / "readonly_benchmark.py").read_text(encoding="utf-8"))
         self.assertNotIn("20-Sekunden-Test", frontend)
         self.assertNotIn("for index in range(1, 21):", sockets)
-        self.assertEqual(sockets.count("@websocket_api.require_admin"), 26)
+        self.assertEqual(sockets.count("@websocket_api.require_admin"), 25)
 
 
 if __name__ == "__main__":
