@@ -538,13 +538,6 @@ class DRAV2DevLabPanel extends HTMLElement {
       this._render();
       return;
     }
-    const tokenInput = this._projectSettingsRepo === repository ?
-      this.shadowRoot?.querySelector("#manage-token") : null;
-    if (tokenInput?.value) {
-      this._sourceChecks.set(repository, {status:"failure", message:"Neuen Token zuerst speichern, dann prüfen."});
-      this._render();
-      return;
-    }
     this._connectionBusy = true;
     this._sourceChecks.set(repository, {status:"checking",message:"Verbindung wird geprüft …"});
     this._render();
@@ -1086,6 +1079,46 @@ class DRAV2DevLabPanel extends HTMLElement {
          .project-management-table .source-check.success { background:#28743b; color:white; }
          .project-management-table .source-check.error { background:#a43838; color:white; }
          .project-management-table .project-move, .project-management-table .project-settings-open { min-width:38px; padding:8px; }
+         /* Explicit connectivity statuses, no source-manifest failure mislabelled as offline. */
+         .project-management-table .source-check {
+           display:inline-flex; align-items:center; justify-content:center; gap:6px;
+           min-width:132px; font-size:13px; font-weight:600; padding:9px 8px;
+           color:#f5f7f9; border:1px solid transparent; border-radius:8px;
+         }
+         .project-management-table .source-check.unverified {
+           background:#39434c; color:#fff; border-color:#65737e;
+         }
+         .project-management-table .source-check.checking {
+           background:#455765; color:#fff; border-color:#7b92a3;
+         }
+         .project-management-table .source-check.success {
+           background:#237640; color:#fff; border-color:#62bd7e;
+         }
+         .project-management-table .source-check.failure {
+           background:#a3333b; color:#fff; border-color:#e77378;
+         }
+         .project-management-table .project-icon { display:block; flex:none; }
+         .project-management-table .project-settings-open,
+         .project-management-table .project-move {
+           display:inline-flex; align-items:center; justify-content:center;
+           min-width:38px; min-height:38px; padding:8px;
+         }
+         .project-management-table td:nth-child(5) {
+           white-space:nowrap; min-width:90px;
+         }
+         .project-token-actions {display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;}
+         .project-token-actions button {margin:0; white-space:nowrap;}
+         select.project-text {
+           display:block; box-sizing:border-box; width:100%; min-height:42px;
+           background:var(--primary-background-color,#151515); color:inherit;
+           border:1px solid var(--divider-color,#555); border-radius:8px;
+           padding:8px; margin:5px 0;
+         }
+         .connection-feedback { padding:10px 12px; border:1px solid; border-radius:8px; font-weight:600; overflow-wrap:anywhere; }
+         .connection-feedback.success { color:#c3f5d0; border-color:#45b876; background:#143822; }
+         .connection-feedback.failure { color:#ffd8d8; border-color:#df7272; background:#481e22; }
+         .connection-feedback.checking { color:#fff; border-color:#8ba2b2; background:#324652; }
+
          .project-card td { vertical-align:top; }
          .project-card td:first-child { min-width:180px; white-space:normal; overflow-wrap:anywhere; }
          .project-card td button { margin:4px; white-space:nowrap; }
