@@ -618,7 +618,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   assert.equal(actualRequests,1);
   assert.equal(batch._mainBatchPreview.count,2);
   assert.match(batch._mainBatchMessage,/Quellstände noch nicht geprüft/);
-  assert.match(batch.shadowRoot.innerHTML,/Bestätigte Projekte: 2/);
+  assert.match(batch.shadowRoot.innerHTML,/Gruppenauswahl bestätigt: 2 Projekte/);
   assert.match(batch.shadowRoot.innerHTML,/data-stage="1"/);
   assert.equal(batch._batchDialogOpen,false);
   console.log("DRA V2 collective read-only batch identity preview PASS");
