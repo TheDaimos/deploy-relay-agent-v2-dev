@@ -1377,6 +1377,7 @@ class DRAV2DevLabPanel extends HTMLElement {
              white-space:normal; text-align:center;
            }
            .project-management-dialog #backup-dialog-open {grid-column:1 / -1;}
+           .project-management-dialog #project-check-all {grid-column:1 / -1;}
          }
          .batch-options { max-height:55vh; overflow:auto; }
          .backup-dialog { width:min(100%,760px); }
