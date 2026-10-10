@@ -194,6 +194,18 @@ class LabIsolationContracts(unittest.TestCase):
         self.assertIn('class="import-choice"', frontend)
         self.assertIn('this._submitProjectImport()', frontend)
 
+    def test_v1_inspired_dashboard_preserves_separate_diagnostics(self):
+        frontend = (LAB_ROOT / "frontend/lab.js").read_text(encoding="utf-8")
+        self.assertIn('this._view = "main"', frontend)
+        self.assertIn('id="dra-main-view"', frontend)
+        self.assertIn('id="dra-settings-view"', frontend)
+        self.assertIn('id="dra-toggle"', frontend)
+        self.assertIn('id="dra-select"', frontend)
+        self.assertIn('Geführter Ablauf', frontend)
+        self.assertIn('3 · Schreibzugriff freigeben</button>', frontend)
+        self.assertIn('Diagnose & Einstellungen', frontend)
+        self.assertIn('@media(max-width:760px)', frontend)
+
     def test_config_flow_uses_test_domain_not_v1_domain(self):
         source = (LAB_ROOT / "config_flow.py").read_text(encoding="utf-8")
         self.assertIn("ConfigFlow, domain=DOMAIN", source)
