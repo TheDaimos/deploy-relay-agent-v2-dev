@@ -189,7 +189,10 @@ class LabIsolationContracts(unittest.TestCase):
         self.assertEqual(frontend.count('class="section-body"'), 6)
         self.assertIn('class="section-body" ', frontend)
         self.assertIn('this._expandedSections.has(id)', frontend)
-        self.assertIn('Projekte aus DRA V1 übernehmen', frontend)
+        self.assertIn('>Projektimport</button>', frontend)
+        self.assertIn('id="project-import-all"', frontend)
+        self.assertIn('class="import-choice"', frontend)
+        self.assertIn('this._submitProjectImport()', frontend)
 
     def test_config_flow_uses_test_domain_not_v1_domain(self):
         source = (LAB_ROOT / "config_flow.py").read_text(encoding="utf-8")
