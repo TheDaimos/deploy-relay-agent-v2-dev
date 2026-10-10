@@ -422,6 +422,8 @@ async def async_projects_import_v1(hass, connection, msg):
     probatio.Required("type"): "deploy_relay_v2_dev/projects/add",
     probatio.Required("repository"): str,
     probatio.Required("name"): str,
+    probatio.Optional("note"): str,
+    probatio.Optional("active"): bool,
 })
 @websocket_api.require_admin
 @websocket_api.async_response
@@ -431,7 +433,8 @@ async def async_projects_add(hass, connection, msg):
         connection.send_error(msg["id"], "not_ready", "Projektverwaltung nicht bereit")
         return
     try:
-        record = await runtime.projects.add(msg["repository"], msg["name"])
+        record = await runtime.projects.add(msg["repository"], msg["name"],
+                                            msg.get("note", ""), msg.get("active", True))
     except CatalogError:
         connection.send_error(msg["id"], "invalid_project", "Projekt konnte nicht angelegt werden")
         return
