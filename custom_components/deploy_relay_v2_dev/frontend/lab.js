@@ -1063,6 +1063,8 @@ class DRAV2DevLabPanel extends HTMLElement {
         ? "Quellprüfung abgeschlossen. Schritt 2 ist bis zur Sicherheitsabnahme gesperrt."
         : this._sourceRepository === mainProject?.repository && this._sourceMessage
           ? this._sourceMessage : "Noch keine Vorschau berechnet.";
+    // Consistent, resolution-independent 24x24 vector icons: never emoji or icon fonts.
+    const iconSvg = (body, size=22) => `<svg class="project-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true">${body}</svg>`;
     const deploymentIcons = [
       iconSvg('<circle cx="11" cy="11" r="7"/><path d="m16 16 5 5"/>',21),
       iconSvg('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><path d="m9 12 2 2 4-4"/>',21),
@@ -1070,8 +1072,6 @@ class DRAV2DevLabPanel extends HTMLElement {
       iconSvg('<path d="M20 6 9 17l-5-5"/>',21),
     ];
 
-    // Consistent, resolution-independent 24x24 vector icons: never emoji or icon fonts.
-    const iconSvg = (body, size=22) => `<svg class="project-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true">${body}</svg>`;
     const gearIcon = iconSvg('<path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/>');
     const upIcon = iconSvg('<path d="M12 19V5"/><path d="m5 12 7-7 7 7"/>');
     const downIcon = iconSvg('<path d="M12 5v14"/><path d="m5 12 7 7 7-7"/>');
