@@ -158,6 +158,25 @@ class ProjectReadAuth:
                 raise GitReadAuthError("project token store failed") from None
             self._tokens = new
 
+    async def rename(self, old_repository, new_repository):
+        from .project_catalog import normalize_repo
+        old = normalize_repo(old_repository).casefold()
+        new = normalize_repo(new_repository).casefold()
+        if old == new:
+            return
+        async with self._lock:
+            if self._tokens is None or new in self._tokens:
+                raise GitReadAuthError("project auth rename unavailable")
+            copy = dict(self._tokens)
+            secret = copy.pop(old, None)
+            if secret is not None:
+                copy[new] = secret
+            try:
+                await self._store.async_save({"schema":self.SCHEMA,"tokens":copy})
+            except Exception:
+                raise GitReadAuthError("project auth rename failed") from None
+            self._tokens = copy
+
     async def delete(self, repository):
         from .project_catalog import normalize_repo
         key = normalize_repo(repository).casefold()
