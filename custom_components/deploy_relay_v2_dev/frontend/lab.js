@@ -1279,6 +1279,16 @@ class DRAV2DevLabPanel extends HTMLElement {
         .dra-picker-entry-repository {font-size:12px;color:#a7b4be;overflow-wrap:anywhere;}
         .dra-picker-check {flex:none;display:flex;color:#9eafbc;}
         .dra-picker-entry.selected .dra-picker-check {color:#8ce7c4;}
+        .dra-picker-entry.dra-picker-batch-entry {
+          border-left:3px solid #7bafcb;
+          background:linear-gradient(115deg,rgba(46,105,139,.20),rgba(23,42,59,.16));
+        }
+        .dra-picker-entry.dra-picker-batch-entry.selected {
+          border-left-color:#72d7b4;
+          background:linear-gradient(95deg,rgba(29,111,86,.24),rgba(35,74,99,.2));
+          box-shadow:inset 3px 0 0 #69cda9;
+        }
+
         .dra-picker-inactive {font-size:11px;color:#ff8c9a;font-weight:800;}
         .dra-picker-footer {flex:0 0 auto;padding-top:10px;}
         .dra-picker-divider {
@@ -2123,9 +2133,26 @@ class DRAV2DevLabPanel extends HTMLElement {
                 </button>
               </header>
               <div class="dra-picker-list" role="list" aria-label="Registrierte Projekte">
-                ${this._projects.map((p,i) => {
+                ${this._pickerEntries().map((entry,i) => {
+                  if (entry.kind === "batch") {
+                    const selected = this._mainBatchMode;
+                    return `<button type="button" id="dra-picker-batch"
+                      class="dra-picker-entry dra-picker-batch-entry ${selected ? "selected" : ""}"
+                      aria-current="${selected}" aria-label="Sammelupdate als Projektauswahl">
+                      <span class="dra-picker-entry-number">${i+1}</span>
+                      <span class="dra-picker-entry-content">
+                        <strong>Sammelupdate</strong>
+                        <span class="dra-picker-entry-repository">${this._mainBatchProjects().length} aktivierte Projekte gemeinsam auswählen · Installation gesperrt</span>
+                      </span>
+                      <span class="dra-picker-check" aria-hidden="true">
+                        ${selected ? iconSvg('<circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/>',22) :
+                          iconSvg('<circle cx="12" cy="12" r="9"/>',22)}
+                      </span>
+                    </button>`;
+                  }
+                  const p = entry.project;
                   const inactive = p.active === false;
-                  const current = mainProject?.repository === p.repository;
+                  const current = !this._mainBatchMode && mainProject?.repository === p.repository;
                   return `<button type="button" class="dra-picker-entry ${current ? "selected" : ""}"
                     data-repo="${this._escapeProject(p.repository)}" ${inactive ? "disabled" : ""}
                     aria-current="${current ? "true" : "false"}"
@@ -2144,15 +2171,7 @@ class DRAV2DevLabPanel extends HTMLElement {
                 }).join("")}
               </div>
               <p class="dra-picker-batch-message" role="status">${this._escapeProject(this._pickerBatchMessage)}</p>
-              <div class="dra-picker-footer">
-                <div class="dra-picker-divider" aria-hidden="true"></div>
-                <button id="dra-picker-batch" class="dra-picker-batch">
-                  ${iconSvg('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 14h8"/>',21)}
-                  <span><strong>Sammelupdate</strong>
-                    <small>${this._mainBatchProjects().length} aktivierte Projekte gemeinsam auswählen · Installation gesperrt</small></span>
-                  ${iconSvg('<path d="m9 18 6-6-6-6"/>',19)}
-                </button>
-              </div>
+
             </section>
           </div>` : ""}
         ${this._projectDialogOpen ? `
