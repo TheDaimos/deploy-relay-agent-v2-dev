@@ -121,3 +121,7 @@ Aufgrund der HA-Nutzerrückmeldung nach V2 DEV 0.1.16 wurden drei konkrete Fehlf
 ## V2 DEV 0.1.19 – Bereinigung der Teststeuerung (10.10.2026)
 
 Die veraltete Schaltfläche „Testauftrag starten“ für die künstliche 40-Sekunden-Auftragsprüfung wurde aus der normalen Benutzeroberfläche entfernt. CPU-/RAM-Messlauf, Mehrkern-Diagnose und Gesamttest bleiben bedienbar. Der interne schreibgeschützte Testauftrag und sein serverseitiger Prüfvertrag bleiben für Entwicklung und Regressionstests vorhanden. Keine Änderung an Git-Export, V1 oder HA-Neustartverhalten.
+
+## V2 DEV 0.1.20 – Künstlichen Altauftrag vollständig entfernt (10.10.2026)
+
+Der alte schreibgeschützte 40-Sekunden-Warteauftrag einschließlich WebSocket-Route und Frontend-Startmethode entfällt vollständig. Der echte 40-Sekunden-CPU-/RAM-Messlauf verwendet weiterhin die serverseitige Auftragsverwaltung und funktioniert unabhängig vom Browser. Mehrkern-Diagnose, Gesamttest und Diagnoseexport bleiben erhalten. Frühere Journal-Einträge werden nicht gelöscht. Keine HA-Installation oder automatischer Neustart.
