@@ -347,6 +347,34 @@ class LabIsolationContracts(unittest.TestCase):
         self.assertIn('color:#ff6876; font-weight:800', frontend)
         self.assertIn('prefers-reduced-motion:reduce', frontend)
 
+    def test_access_mode_is_inline_to_saved_token_and_only_rendered_once(self):
+        frontend = (LAB_ROOT / "frontend/lab.js").read_text(encoding="utf-8")
+        start = frontend.index('<div class="project-token-summary">')
+        end = frontend.index('<div class="project-token-actions">', start)
+        summary = frontend[start:end]
+        self.assertIn('Gespeicherter Token:', summary)
+        self.assertIn('class="safe"', summary)
+        self.assertIn('Zugriffsart:', summary)
+        self.assertIn('id="manage-access-mode"', summary)
+        self.assertEqual(frontend.count('id="manage-access-mode"'), 1)
+        self.assertIn('justify-content:space-between', frontend)
+        self.assertIn('.project-token-access select.project-text', frontend)
+        self.assertIn('this._saveProjectSettings()', frontend)
+        self.assertIn('access_mode', frontend)
+
+    def test_project_rows_selectable_independently_of_reorder_buttons(self):
+        frontend = (LAB_ROOT / "frontend/lab.js").read_text(encoding="utf-8")
+        self.assertIn('_selectProjectRow(repo) {', frontend)
+        self.assertIn('tabindex="0" aria-current=', frontend)
+        self.assertIn('aria-label="Projekt ${this._escapeProject(p.name)} markieren"', frontend)
+        self.assertIn('querySelectorAll(".project-row").forEach(row', frontend)
+        self.assertIn('row.addEventListener("click", select)', frontend)
+        self.assertIn('row.addEventListener("keydown"', frontend)
+        self.assertIn('this._selectProjectRow(row.dataset.projectRepo)', frontend)
+        self.assertIn('event.target?.closest?.("button, a, input, select, textarea, label")', frontend)
+        self.assertIn('.project-row:focus-visible', frontend)
+        self.assertIn('this._scrollToMovedProject = false', frontend)
+
     def test_config_flow_uses_test_domain_not_v1_domain(self):
         source = (LAB_ROOT / "config_flow.py").read_text(encoding="utf-8")
         self.assertIn("ConfigFlow, domain=DOMAIN", source)
