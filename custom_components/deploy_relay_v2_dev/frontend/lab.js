@@ -882,8 +882,8 @@ class DRAV2DevLabPanel extends HTMLElement {
       const icon = state === "success" ? onlineIcon : state === "failure" ? failureIcon : pendingIcon;
       const selected = this._highlightMovedRepo?.toLowerCase() === p.repository.toLowerCase();
       return `<tr class="project-row connection-${state}${selected ? " recently-moved" : ""}" data-project-repo="${this._escapeProject(p.repository)}" tabindex="0" aria-current="${selected ? "true" : "false"}" aria-label="Projekt ${this._escapeProject(p.name)} markieren"><td>${i+1}</td>
-        <td><strong>${this._escapeProject(p.name)}</strong><div class="note">${this._escapeProject(p.repository)}</div>
-          ${p.active === false ? '<div class="project-inactive-label">Status: <strong>Inaktiv</strong></div>' : ""}</td>
+        <td class="${p.active === false ? "project-entry-inactive" : ""}"><strong>${this._escapeProject(p.name)}</strong><div class="note">${this._escapeProject(p.repository)}</div>
+          ${p.active === false ? '<span class="project-inactive-label" aria-label="Projekt inaktiv">Inaktiv</span>' : ""}</td>
         <td><button class="source-check ${state}" data-repo="${this._escapeProject(p.repository)}"
           ${this._connectionBusy || this._checkAllBusy || this._projectBusy ? "disabled" : ""} aria-label="GitHub-Verbindung für ${this._escapeProject(p.name)} prüfen" title="Verbindung prüfen">${icon}<span class="project-status-label">${label}</span></button></td>
         <td><button class="project-settings-open project-metal-button" data-repo="${this._escapeProject(p.repository)}" ${this._checkAllBusy ? "disabled" : ""} aria-label="Einstellungen für ${this._escapeProject(p.name)}" title="Projekteinstellungen">${metalSvg(gearIcon,"settings",i)}</button></td>
@@ -1487,12 +1487,26 @@ class DRAV2DevLabPanel extends HTMLElement {
            cursor:default; transform:none;
          }
          .project-management-dialog .project-management-table button.project-metal-button:disabled::after {opacity:0;}
-         .project-management-dialog .project-management-table .project-inactive-label {
-           display:block; margin-top:5px; font-size:12px;
-           color:#ff858e; font-weight:600; line-height:1.25;
+         /* Inactive state is an overlay in the top-right project header, never an extra line. */
+         .project-management-dialog .project-management-table td.project-entry-inactive {
+           position:relative; padding-right:76px;
          }
-         .project-management-dialog .project-management-table .project-inactive-label strong {
-           color:#ff6876; font-weight:800; letter-spacing:.01em;
+         .project-management-dialog .project-management-table .project-inactive-label {
+           position:absolute; top:2px; right:8px;
+           display:inline-flex; align-items:center; justify-content:center;
+           white-space:nowrap; margin:0; padding:3px 7px;
+           font-size:12px; line-height:1.2; font-weight:800; letter-spacing:.015em;
+           color:#ff8998; border:1px solid rgba(234,104,124,.52);
+           border-radius:7px; background:linear-gradient(145deg,rgba(125,32,51,.36),rgba(85,22,37,.13));
+           text-shadow:0 1px 1px rgba(15,0,0,.48);
+         }
+         @media (max-width:760px) {
+           .project-management-dialog .project-management-table td.project-entry-inactive {
+             padding-right:71px;
+           }
+           .project-management-dialog .project-management-table .project-inactive-label {
+             top:0; right:0; font-size:11px; padding:3px 6px;
+           }
          }
          @media(prefers-reduced-motion:reduce) {
            .project-management-dialog .project-management-table button.project-metal-button {transition:none;}
