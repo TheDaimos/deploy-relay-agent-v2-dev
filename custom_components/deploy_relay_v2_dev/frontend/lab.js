@@ -35,6 +35,8 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._sourcePreview = null;
     this._sourceChecks = new Map();
     this._connectionBusy = false;
+    this._highlightMovedRepo = null;
+    this._scrollToMovedProject = false;
     this._gitReadConfigured = false;
     this._gitReadBusy = false;
     this._gitReadMessage = "";
@@ -574,6 +576,7 @@ class DRAV2DevLabPanel extends HTMLElement {
   _closeProjectDialog() {
     if (this._projectBusy || this._sourceBusy || this._gitReadBusy) return;
     this._projectDialogOpen = false;
+    this._highlightMovedRepo = null;
     this._render();
   }
   _openProjectSettings(repo) {
@@ -597,9 +600,16 @@ class DRAV2DevLabPanel extends HTMLElement {
         type:"deploy_relay_v2_dev/projects/manage", action, repository:repo, ...extras
       });
       this._projects = result.projects;
-      this._sourceChecks.delete(repo);
-      if (action === "configure" && extras.new_repository) this._sourceChecks.delete(extras.new_repository);
-      this._projectMessage = "Projektverwaltung gespeichert.";
+      if (action === "move") {
+        this._highlightMovedRepo = repo;
+        this._scrollToMovedProject = true;
+        this._projectMessage = "Reihenfolge gespeichert. Verschobenes Projekt hervorgehoben.";
+      } else {
+        this._sourceChecks.delete(repo);
+        if (extras.new_repository) this._sourceChecks.delete(extras.new_repository);
+        if (action === "remove" || action === "configure") this._highlightMovedRepo = null;
+        this._projectMessage = "Projektverwaltung gespeichert.";
+      }
       if (action !== "move") this._projectSettingsRepo = null;
       this._projectDeleteConfirm = false;
     } catch (_error) {
@@ -812,14 +822,15 @@ class DRAV2DevLabPanel extends HTMLElement {
     const projectRows = this._projects.map((p,i) => {
       const test = this._sourceChecks.get(p.repository);
       const state = test?.status || "unverified";
-      const label = state === "success" ? "Online" : state === "failure" ? "Fehlgeschlagen" :
-        state === "checking" ? "Prüfung läuft" : "Nicht geprüft";
+      const label = state === "success" ? "Online" : state === "failure" ? "Offline" :
+        state === "checking" ? "Prüft …" : "Prüfen";
       const icon = state === "success" ? onlineIcon : state === "failure" ? failureIcon : pendingIcon;
-      return `<tr><td>${i+1}</td>
+      const selected = this._highlightMovedRepo?.toLowerCase() === p.repository.toLowerCase();
+      return `<tr class="project-row connection-${state}${selected ? " recently-moved" : ""}" data-project-repo="${this._escapeProject(p.repository)}"><td>${i+1}</td>
         <td><strong>${this._escapeProject(p.name)}</strong><div class="note">${this._escapeProject(p.repository)}</div>
           ${p.active === false ? '<span class="note">Inaktiv</span>' : ""}</td>
         <td><button class="source-check ${state}" data-repo="${this._escapeProject(p.repository)}"
-          ${this._connectionBusy || this._projectBusy ? "disabled" : ""} aria-label="GitHub-Verbindung für ${this._escapeProject(p.name)} prüfen" title="Verbindung prüfen">${icon}<span>${label}</span></button></td>
+          ${this._connectionBusy || this._projectBusy ? "disabled" : ""} aria-label="GitHub-Verbindung für ${this._escapeProject(p.name)} prüfen" title="Verbindung prüfen">${icon}<span class="project-status-label">${label}</span></button></td>
         <td><button class="project-settings-open" data-repo="${this._escapeProject(p.repository)}" aria-label="Einstellungen für ${this._escapeProject(p.name)}" title="Projekteinstellungen">${gearIcon}</button></td>
         <td><button class="project-move" data-repo="${this._escapeProject(p.repository)}" data-direction="-1" ${i===0 || this._projectBusy ? "disabled" : ""} aria-label="${this._escapeProject(p.name)} nach oben verschieben" title="Nach oben">${upIcon}</button>
         <button class="project-move" data-repo="${this._escapeProject(p.repository)}" data-direction="1" ${i===this._projects.length-1 || this._projectBusy ? "disabled" : ""} aria-label="${this._escapeProject(p.name)} nach unten verschieben" title="Nach unten">${downIcon}</button></td></tr>`;
@@ -927,6 +938,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     const label = op ? (states[op.status] || "Unbekannt") : "Noch kein Test gestartet";
     const progress = op && Number.isInteger(op.phase_percent) ? op.phase_percent + " % der Testschritte" : "Noch keine Messung";
     const safeId = op && /^[0-9a-f]{32}$/.test(op.operation_id) ? op.operation_id : "—";
+    const previousProjectScroll = s.querySelector("#project-management-dialog")?.scrollTop ?? 0;
     s.innerHTML = `
       <style>
         :host { display:block; min-height:100%; color:var(--primary-text-color, #f2f2f2); background:var(--primary-background-color, #111); font-family:var(--paper-font-body1_-_font-family, sans-serif); }
@@ -1171,6 +1183,63 @@ class DRAV2DevLabPanel extends HTMLElement {
            .project-management-table .source-check.note {
              background:var(--secondary-background-color,#414b53);
              border:1px solid var(--divider-color,#555); color:var(--primary-text-color,#fff);
+           }
+         }
+         /* The entire card expresses Git reachability; the selection glow is independent. */
+         .project-management-dialog.project-card .project-row {
+           transition: background .25s ease, border-color .25s ease, box-shadow .25s ease;
+         }
+         .project-management-dialog.project-card .project-row.connection-unverified,
+         .project-management-dialog.project-card .project-row.connection-checking {
+           background:linear-gradient(125deg,rgba(60,76,92,.14),rgba(20,26,32,.04));
+           box-shadow:inset 3px 0 0 rgba(126,149,171,.35);
+         }
+         .project-management-dialog.project-card .project-row.connection-success {
+           background:linear-gradient(120deg,rgba(26,117,72,.23),rgba(19,71,55,.13) 54%,rgba(20,37,34,.05));
+           box-shadow:inset 3px 0 0 #47b877, inset 0 0 28px rgba(26,146,84,.075);
+         }
+         .project-management-dialog.project-card .project-row.connection-failure {
+           background:linear-gradient(120deg,rgba(154,47,63,.23),rgba(99,38,49,.13) 54%,rgba(38,25,30,.05));
+           box-shadow:inset 3px 0 0 #df6876, inset 0 0 28px rgba(171,40,58,.075);
+         }
+         .project-management-dialog.project-card .project-row.recently-moved {
+           position:relative;
+           border-color:#efc66a;
+           outline:2px solid rgba(245,192,75,.7);
+           outline-offset:1px;
+           box-shadow:inset 4px 0 0 #f2c869, 0 0 0 3px rgba(238,179,55,.17),
+             0 0 24px rgba(245,185,48,.21);
+           animation:project-moved-glow .8s ease-out both;
+         }
+         @keyframes project-moved-glow {
+           0% {filter:brightness(1.4);transform:scale(.992);}
+           55% {filter:brightness(1.12);transform:scale(1.006);}
+           100% {filter:brightness(1);transform:scale(1);}
+         }
+         @media (prefers-reduced-motion:reduce) {
+           .project-management-dialog.project-card .project-row {transition:none;}
+           .project-management-dialog.project-card .project-row.recently-moved {animation:none;}
+         }
+         .project-management-dialog .project-management-table .source-check {
+           width:154px; max-width:100%; min-width:0; min-height:44px; height:44px;
+           display:inline-flex; justify-content:center; align-items:center;
+           padding:8px 6px; gap:7px; text-align:center; flex-wrap:nowrap;
+           font-variant-numeric:tabular-nums;
+         }
+         .project-management-dialog .project-management-table .source-check .project-status-label {
+           text-align:center; white-space:nowrap; line-height:1.15; font-weight:650;
+         }
+         @media (max-width:760px) {
+           .project-management-dialog .project-management-table td:nth-child(3) button.source-check {
+             width:154px; max-width:100%; min-width:0; height:44px;
+             display:inline-flex; justify-content:center; align-items:center;
+             padding:7px 5px; text-align:center;
+           }
+           .project-management-dialog.project-card .project-row.connection-success {
+             border-color:rgba(71,184,119,.6);
+           }
+           .project-management-dialog.project-card .project-row.connection-failure {
+             border-color:rgba(223,104,118,.6);
            }
          }
          /* DRA V2 icon system: resolution-independent vectors and light-touch surfaces. */
@@ -1796,6 +1865,16 @@ class DRAV2DevLabPanel extends HTMLElement {
         if (event.key === "Escape") this._closeGitDialog();
       });
     }
+    const projectDialog = s.querySelector("#project-management-dialog");
+    if (projectDialog) {
+      projectDialog.scrollTop = previousProjectScroll;
+      if (this._scrollToMovedProject) {
+        const movedRow = [...projectDialog.querySelectorAll(".project-row")]
+          .find(row => row.dataset.projectRepo === this._highlightMovedRepo);
+        movedRow?.scrollIntoView({block:"nearest", behavior:"smooth"});
+      }
+    }
+    this._scrollToMovedProject = false;
     this._syncCountdownTimer();
   }
 }
