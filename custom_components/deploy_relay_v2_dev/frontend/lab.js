@@ -25,6 +25,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._projectBusy = false;
     this._projectSettingsRepo = null;
     this._projectDeleteConfirm = false;
+    this._projectDialogOpen = false;
     this._projectSaved = new Map();
     this._backupDialogOpen = false;
     this._projectMessage = "";
@@ -527,6 +528,15 @@ class DRAV2DevLabPanel extends HTMLElement {
     }
   }
 
+  _openProjectDialog() {
+    this._projectDialogOpen = true;
+    this._render();
+  }
+  _closeProjectDialog() {
+    if (this._projectBusy || this._sourceBusy || this._gitReadBusy) return;
+    this._projectDialogOpen = false;
+    this._render();
+  }
   _openProjectSettings(repo) {
     if (this._projectBusy) return;
     this._projectSettingsRepo = repo;
@@ -929,6 +939,9 @@ class DRAV2DevLabPanel extends HTMLElement {
           background:var(--card-background-color,#222); border:1px solid var(--divider-color,#555);
           border-radius:14px; padding:18px; box-shadow:0 14px 38px #0009; }
         .git-dialog header { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+        .project-management-dialog { width:min(100%,1080px); }
+        .project-management-dialog .project-management-footer { justify-content:flex-end; margin-top:18px; }
+        .project-management-dialog .project-management-footer button { min-width:130px; }
         .git-dialog button.git-check-success { background:var(--success-color,#2e994e);
           color:#fff; border-color:var(--success-color,#2e994e); }
         .git-dialog button.git-check-error { background:var(--error-color,#c62828);
@@ -1225,9 +1238,28 @@ class DRAV2DevLabPanel extends HTMLElement {
           </div>
         </article>
 
-        <article class="section-card project-card">
-          <h2 class="section-toggle-title"><button class="section-toggle" data-section="5" aria-expanded="${this._expandedSections.has('5')}" aria-controls="section-body-5"><span>05 · Projektverwaltung</span><span aria-hidden="true">${this._expandedSections.has('5') ? "▾" : "▸"}</span></button></h2><div id="section-body-5" class="section-body" ${this._expandedSections.has('5') ? "" : "hidden"}>
-          <p class="note">Reihenfolge: Anzeige, Standardprojekt und Priorität der späteren Sammelaktualisierung. Git-Status nur nach expliziter Prüfung.</p>
+        <article class="section-card">
+          <h2 class="section-toggle-title"><button class="section-toggle" data-section="5" aria-expanded="${this._expandedSections.has('5')}" aria-controls="section-body-5"><span>05 · Sammelaktualisierung</span><span aria-hidden="true">${this._expandedSections.has('5') ? "▾" : "▸"}</span></button></h2><div id="section-body-5" class="section-body" ${this._expandedSections.has('5') ? "" : "hidden"}>
+          <p class="note">Projektvorauswahl für spätere Sammelaktualisierungen. Keine Installation.</p>
+          <button id="batch-open" ${this._projects.length === 0 ? "disabled" : ""}>Projektauswahl bearbeiten</button>
+          <p class="note">${this._projects.filter(p => p.active !== false && p.batch_preselect !== false).length} von ${this._projects.filter(p => p.active !== false).length} aktiven Projekten ausgewählt.</p>
+          <p class="note" role="status">${this._escapeProject(this._batchDialogOpen ? "" : this._batchMessage)}</p>
+          </div>
+        </article>
+
+        </div>
+        </section>
+        ${this._projectDialogOpen ? `
+          <div class="git-dialog-backdrop" id="project-management-backdrop">
+            <section class="git-dialog project-management-dialog project-card"
+              id="project-management-dialog" role="dialog" aria-modal="true"
+              aria-labelledby="project-management-title" tabindex="-1">
+              <header>
+                <h2 id="project-management-title">Projektverwaltung</h2>
+                <button id="project-management-close" aria-label="Projektverwaltung schließen"
+                  ${this._projectBusy || this._sourceBusy || this._gitReadBusy ? "disabled" : ""}>✕</button>
+              </header>
+              <p class="note">Reihenfolge: Anzeige, Standardprojekt und Priorität der späteren Sammelaktualisierung. Git-Status nur nach expliziter Prüfung.</p>
           ${this._projects.length ? `<div class="table-wrap"><table class="project-management-table"><thead><tr><th>Nr.</th><th>Projekt</th><th>Git-Status</th><th>Einstellungen</th><th>Reihenfolge</th></tr></thead><tbody>${projectRows}</tbody></table></div>` : '<p class="note">Noch keine Projekte in V2 hinterlegt.</p>'}
           <div class="project-actions">
             <button id="project-add-open">+ Projekt hinzufügen</button>
@@ -1267,18 +1299,13 @@ class DRAV2DevLabPanel extends HTMLElement {
           <p class="note"><strong>Backup-Richtlinie:</strong> 10 gesicherte Stände je Projekt, individuell 3–100.
           Neue Einträge sind zunächst ungeprüft. Installation, tatsächliche Sicherung,
           Rotation und Wiederherstellung bleiben bis zur separaten Transaktionsabnahme gesperrt.</p>
-          </div>
-        </article>
-        <article class="section-card">
-          <h2 class="section-toggle-title"><button class="section-toggle" data-section="6" aria-expanded="${this._expandedSections.has('6')}" aria-controls="section-body-6"><span>06 · Sammelaktualisierung</span><span aria-hidden="true">${this._expandedSections.has('6') ? "▾" : "▸"}</span></button></h2><div id="section-body-6" class="section-body" ${this._expandedSections.has('6') ? "" : "hidden"}>
-          <p class="note">Projektvorauswahl für spätere Sammelaktualisierungen. Keine Installation.</p>
-          <button id="batch-open" ${this._projects.length === 0 ? "disabled" : ""}>Projektauswahl bearbeiten</button>
-          <p class="note">${this._projects.filter(p => p.active !== false && p.batch_preselect !== false).length} von ${this._projects.filter(p => p.active !== false).length} aktiven Projekten ausgewählt.</p>
-          <p class="note" role="status">${this._escapeProject(this._batchDialogOpen ? "" : this._batchMessage)}</p>
-          </div>
-        </article>
 
-        </div>
+              <div class="dialog-actions project-management-footer">
+                <button id="project-management-dismiss"
+                  ${this._projectBusy || this._sourceBusy || this._gitReadBusy ? "disabled" : ""}>Schließen</button>
+              </div>
+            </section>
+          </div>` : ""}
         ${(managed || this._projectSettingsRepo === "__new__") ? `
           <div class="git-dialog-backdrop"><section class="git-dialog" role="dialog" aria-modal="true" aria-labelledby="manage-project-title">
             <header><h2 id="manage-project-title">${managed ? "Projekteinstellungen" : "Projekt hinzufügen"}</h2>
@@ -1304,7 +1331,6 @@ class DRAV2DevLabPanel extends HTMLElement {
               <button id="manage-remove-cancel">Abbrechen</button>
               <button id="manage-remove-confirm" class="danger">Ja, Projekt entfernen</button></div>` : ""}
           </section></div>` : ""}
-        </section>
         ${this._importDialogOpen ? `
           <div class="git-dialog-backdrop">
             <section class="git-dialog" id="project-import-dialog" role="dialog" aria-modal="true" aria-labelledby="project-import-title">
@@ -1449,10 +1475,10 @@ class DRAV2DevLabPanel extends HTMLElement {
     s.querySelector("#dra-refresh")?.addEventListener("click",()=>this._refresh());
     s.querySelector("#dra-select")?.addEventListener("change",e=>{this._selectedMainRepo=e.target.value;this._sourcePreview=null;this._render();});
     s.querySelector("#dra-main-ref")?.addEventListener("input",e=>{this._mainSourceRef=e.target.value;});
-    s.querySelector("#dra-project-manage")?.addEventListener("click",()=>{this._view="settings";this._expandedSections.add("5");this._render();});
-    s.querySelector("#dra-settings-project")?.addEventListener("click",()=>{if(mainProject){this._view="settings";this._expandedSections.add("5");this._openProjectSettings(mainProject.repository);}});
+    s.querySelector("#dra-project-manage")?.addEventListener("click",()=>this._openProjectDialog());
+    s.querySelector("#dra-settings-project")?.addEventListener("click",()=>{if(mainProject){this._projectDialogOpen=true;this._openProjectSettings(mainProject.repository);}});
     for(const id of ["dra-preview","dra-step2"]){s.querySelector("#"+id)?.addEventListener("click",()=>{if(mainProject)this._sourceCheck({dataset:{repo:mainProject.repository}});});}
-    s.querySelector("#dra-source")?.addEventListener("click",()=>{this._view="settings";this._expandedSections.add("5");this._render();});
+    s.querySelector("#dra-source")?.addEventListener("click",()=>this._openProjectDialog());
     s.querySelector("#dra-step1")?.addEventListener("click",()=>s.querySelector("#dra-select")?.focus());
     s.querySelector("#dra-open-diagnostics")?.addEventListener("click",()=>{this._view="settings";this._render();});
     s.querySelector("#measure")?.addEventListener("click", () => this._measure());
@@ -1500,6 +1526,14 @@ class DRAV2DevLabPanel extends HTMLElement {
       this._importSelection = [...s.querySelectorAll(".import-choice")].filter(x => x.checked).map(x => x.dataset.repo);
       this._render();
     }));
+    s.querySelector("#project-management-close")?.addEventListener("click",()=>this._closeProjectDialog());
+    s.querySelector("#project-management-dismiss")?.addEventListener("click",()=>this._closeProjectDialog());
+    s.querySelector("#project-management-dialog")?.addEventListener("keydown",event=>{
+      if(event.key === "Escape" && !this._projectBusy && !this._sourceBusy && !this._gitReadBusy) {
+        event.preventDefault();
+        this._closeProjectDialog();
+      }
+    });
     s.querySelector("#project-add-open")?.addEventListener("click", () => this._openProjectSettings("__new__"));
     s.querySelectorAll(".project-settings-open").forEach(b => b.addEventListener("click", () => this._openProjectSettings(b.dataset.repo)));
     s.querySelectorAll(".project-move").forEach(b => b.addEventListener("click", () => this._manageProject("move", {repository:b.dataset.repo,direction:Number(b.dataset.direction)})));
