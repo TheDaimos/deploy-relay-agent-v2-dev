@@ -1,0 +1,13 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "DRA V2 DEV – Testlabor",
+        "description": "Getrennte Testintegration ohne Installation oder Wiederherstellung."
+      }
+    },
+    "abort": {
+      "already_configured": "Das V2-DEV-Testlabor wurde bereits eingerichtet."
+    }
+  }
+}

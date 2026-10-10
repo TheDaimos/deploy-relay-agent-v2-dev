@@ -6,6 +6,11 @@ on:
     paths:
       - "custom_components/**"
       - "tests/**"
+      - "docs/V2_40_*.md"
+      - "docs/V2_STUFENPLAN.md"
+      - "docs/V2_30_*.md"
+      - "docs/V2_DEV_LAB_SINGLE_HA_PLAN.md"
+      - "docs/V2_PARALLELBETRIEB_V1_SCHUTZREGELN.md"
       - ".github/workflows/v2-validate.yml"
       - "LICENSE"
       - "BRANDING.md"
@@ -15,6 +20,11 @@ on:
     paths:
       - "custom_components/**"
       - "tests/**"
+      - "docs/V2_40_*.md"
+      - "docs/V2_STUFENPLAN.md"
+      - "docs/V2_30_*.md"
+      - "docs/V2_DEV_LAB_SINGLE_HA_PLAN.md"
+      - "docs/V2_PARALLELBETRIEB_V1_SCHUTZREGELN.md"
       - ".github/workflows/v2-validate.yml"
       - "LICENSE"
       - "BRANDING.md"
@@ -43,16 +53,20 @@ jobs:
       - name: Standardbibliothek-Vertragstests
         run: python -m unittest discover -s tests -p 'test_*.py' -v
       - name: Python-Syntax
-        run: python -m compileall -q custom_components/deploy_relay tests
+        run: python -m compileall -q custom_components/deploy_relay custom_components/deploy_relay_v2_dev tests
       - name: JavaScript-Syntax
         shell: bash
         run: |
-          find custom_components/deploy_relay/frontend -type f -name '*.js' -print0 \
+          find custom_components -type f -name '*.js' -print0 \
             | xargs -0 -r -n1 node --check
+      - name: Sekunden-Countdown im isolierten V2-Testlabor
+        run: node tests/test_v2_countdown.js
       - name: Keine Artefakte oder V2-Installation veroeffentlichen
         run: |
           test ! -e hacs.json
-          test ! -e .deploy-relay
+          # The strict stdlib test above permits only anonymous, size-bounded
+          # V2 measurement JSON in the reserved public Git diagnostic directory.
+          # All other local runtime/configuration payloads are still rejected.
           test ! -e .storage
           test ! -e secrets.yaml
           echo "Quellpruefung abgeschlossen; kein Artefaktupload."

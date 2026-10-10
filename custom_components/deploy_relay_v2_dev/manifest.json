@@ -1,0 +1,14 @@
+{
+  "domain": "deploy_relay_v2_dev",
+  "name": "DRA V2 DEV – Testlabor",
+  "version": "0.1.54",
+  "documentation": "https://github.com/TheDaimos/deploy-relay-agent-v2-dev",
+  "issue_tracker": "https://github.com/TheDaimos/deploy-relay-agent-v2-dev/issues",
+  "codeowners": ["@TheDaimos"],
+  "config_flow": true,
+  "dependencies": ["http", "websocket_api"],
+  "integration_type": "service",
+  "iot_class": "local_push",
+  "single_config_entry": true,
+  "requirements": []
+}
