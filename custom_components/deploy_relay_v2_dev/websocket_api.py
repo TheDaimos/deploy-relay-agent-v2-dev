@@ -84,6 +84,7 @@ async def async_state(hass, connection, msg):
         "git_available": runtime.git_export.available,
         "git_read_configured": runtime.source_auth.configured,
         "projects": _project_list(runtime),
+        "picker_batch_position": runtime.projects.picker_batch_position,
         "settings": runtime.settings.snapshot(),
         "settings_effective": runtime.settings.effective(),
         "cpu_status": runtime.settings.core_status(),
@@ -372,6 +373,7 @@ async def async_projects_list(hass, connection, msg):
         return
     connection.send_result(msg["id"], {
         "projects": _project_list(runtime),
+        "picker_batch_position": runtime.projects.picker_batch_position,
         "deployment_enabled": False,
         "backup_mutation_enabled": False,
     })
@@ -468,6 +470,10 @@ async def async_projects_manage(hass, connection, msg):
         action = msg["action"]
         if action == "move":
             await runtime.projects.move(msg["repository"], msg.get("direction", 0))
+        elif action == "move_batch":
+            if msg["repository"] != "__batch_picker__":
+                raise CatalogError("invalid batch picker identity")
+            await runtime.projects.move_picker_batch(msg.get("direction", 0))
         elif action == "configure":
             if not all(k in msg for k in ("new_repository", "name", "note", "active")):
                 raise CatalogError("incomplete settings")
@@ -516,6 +522,7 @@ async def async_projects_manage(hass, connection, msg):
         connection.send_error(msg["id"], "invalid_project_action", "Projektaktion abgelehnt")
         return
     connection.send_result(msg["id"], {"projects": _project_list(runtime),
+                                       "picker_batch_position": runtime.projects.picker_batch_position,
                                        "installation_enabled": False})
 
 
