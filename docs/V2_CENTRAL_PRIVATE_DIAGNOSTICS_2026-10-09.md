@@ -133,3 +133,7 @@ Die Projektliste erhält eigene Spalten für Sammelupdate und Git-Quelle, mobil 
 ## V2 DEV 0.1.22 – Sammelupdate nur im eigenen Bereich (10.10.2026)
 
 Der redundante Sammelupdate-Ein/Aus-Knopf wurde aus der Projektliste in Abschnitt 05 entfernt. Die gespeicherte Vorauswahl und die Kontrollkästchen samt schreibgeschützter Auswahlprüfung bleiben unverändert ausschließlich in Abschnitt 06 · Sammelaktualisierung. Quellprüfung und Projektmetadaten bleiben separate Vorgänge. Der geplante größere Oberflächenumbau nach der DRA-V1-Optik ist hiervon unabhängig und noch nicht umgesetzt.
+
+## V2 DEV 0.1.23 – Sammelaktualisierung als Dialog (10.10.2026)
+
+Abschnitt 06 zeigt nur „Projektauswahl bearbeiten“ und die Anzahl aktivierter Projekte. Das Fenster zeigt die Auswahl mit Häkchen und den Aktionen „Speichern“ und „Abbrechen“. Ein Abbruch verwirft ungespeicherte Änderungen; der Speichervorgang verwendet vorhandene Administrator-WebSocket-Routen und bestätigt jedes Projekt. Bei einer Teilstörung bleibt das Fenster mit Fehlermeldung offen; die bereits bestätigten Einträge bleiben gespeichert und ein erneuter Speicherversuch ist möglich. „Auswahl prüfen (ohne Installation)“ wird nicht mehr in der Benutzeroberfläche angeboten. Es werden keine Updates oder Installationen ausgelöst.
