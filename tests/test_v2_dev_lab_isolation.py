@@ -182,6 +182,15 @@ class LabIsolationContracts(unittest.TestCase):
         self.assertIn('id="settings-save"', frontend)
         self.assertNotIn('>Vorgaben speichern</button>', frontend)
 
+    def test_diagnostics_sections_are_collapsible(self):
+        frontend = (LAB_ROOT / "frontend/lab.js").read_text(encoding="utf-8")
+        self.assertIn('this._expandedSections = new Set()', frontend)
+        self.assertEqual(frontend.count('class="section-toggle"'), 6)
+        self.assertEqual(frontend.count('class="section-body"'), 6)
+        self.assertIn('class="section-body" ', frontend)
+        self.assertIn('this._expandedSections.has(id)', frontend)
+        self.assertIn('Projekte aus DRA V1 übernehmen', frontend)
+
     def test_config_flow_uses_test_domain_not_v1_domain(self):
         source = (LAB_ROOT / "config_flow.py").read_text(encoding="utf-8")
         self.assertIn("ConfigFlow, domain=DOMAIN", source)
