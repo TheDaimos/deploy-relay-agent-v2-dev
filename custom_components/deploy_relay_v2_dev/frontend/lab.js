@@ -552,6 +552,22 @@ class DRAV2DevLabPanel extends HTMLElement {
       if (this.isConnected) this._render();
     }
   }
+  async _saveProjectToken() {
+    const token = this.shadowRoot.querySelector("#manage-token")?.value || "";
+    if (!token || !this._projectSettingsRepo || !this._hass || this._projectBusy) return;
+    this._projectBusy = true;
+    try {
+      const result = await this._hass.callWS({type:"deploy_relay_v2_dev/projects/token",
+        repository:this._projectSettingsRepo,token});
+      this._projects = result.projects;
+      this._projectMessage = "Projekttoken gespeichert.";
+    } catch (_error) {
+      this._projectMessage = "Projekttoken konnte nicht gespeichert werden.";
+    } finally {
+      this._projectBusy = false;
+      this._render();
+    }
+  }
   _saveProjectSettings() {
     const s = this.shadowRoot;
     const previous = this._projectSettingsRepo;
@@ -707,6 +723,12 @@ class DRAV2DevLabPanel extends HTMLElement {
     const s = this.shadowRoot;
     // The HA test status can refresh while this dialog is open. Preserve the
     // unsent secret only in the transient password input, never component state.
+    const settingsDraft = this._projectSettingsRepo && s?.querySelector("#manage-repository") ?
+      { repository:s.querySelector("#manage-repository").value,
+        name:s.querySelector("#manage-name").value,
+        note:s.querySelector("#manage-note").value,
+        active:s.querySelector("#manage-active").checked,
+        token:s.querySelector("#manage-token")?.value || "" } : null;
     const unsentToken = this._gitDialogOpen ?
       s?.querySelector("#git-dialog-token")?.value || "" : "";
     const previousRepo = this._gitDialogOpen ?
@@ -1123,8 +1145,11 @@ class DRAV2DevLabPanel extends HTMLElement {
             <label>GitHub-Repository (Eigentümer/Repository)
               <input id="manage-repository" class="project-text" value="${this._escapeProject(managed?.repository || "")}" autocomplete="off" /></label>
             <p class="note">Bei einer Repositoryänderung ist eine gesonderte, sichere Projektmigration erforderlich.</p>
-            <label>GitHub-Token <input class="project-text" type="password" disabled placeholder="Projektspezifischer Tokenspeicher noch nicht verfügbar" /></label>
-            <p class="note">Gespeicherter Token: Nicht eingerichtet. Der bisherige gemeinsame V2-Lesezugang wird nicht als projektspezifischer Token ausgegeben.</p>
+            <label>GitHub-Token <input id="manage-token" class="project-text" type="password" autocomplete="new-password" placeholder="Neuen Token eingeben (optional)" /></label>
+            <p class="note">Gespeicherter Token: ${managed?.token_configured && managed?.token_suffix ?
+              `•••••<span class="success"><strong>${this._escapeProject(managed.token_suffix)}</strong></span>` : "Nicht eingerichtet"}</p>
+            <button id="manage-token-save" ${!managed || this._projectBusy ? "disabled" : ""}>Token speichern</button>
+            <p class="note">Das Passwort bleibt serverseitig. Leer lassen, um den bisherigen Token beizubehalten.</p>
             <label>Notiz <textarea id="manage-note" class="project-text" rows="3">${this._escapeProject(managed?.note || "")}</textarea></label>
             <label>Anzeigename (optional) <input id="manage-name" class="project-text" value="${this._escapeProject(managed?.name || "")}" /></label>
             <label><input id="manage-active" type="checkbox" ${managed?.active !== false ? "checked" : ""} /> Projekt aktiv</label>
@@ -1326,6 +1351,14 @@ class DRAV2DevLabPanel extends HTMLElement {
     s.querySelector("#project-add-open")?.addEventListener("click", () => this._openProjectSettings("__new__"));
     s.querySelectorAll(".project-settings-open").forEach(b => b.addEventListener("click", () => this._openProjectSettings(b.dataset.repo)));
     s.querySelectorAll(".project-move").forEach(b => b.addEventListener("click", () => this._manageProject("move", {repository:b.dataset.repo,direction:Number(b.dataset.direction)})));
+    if (settingsDraft && s.querySelector("#manage-repository")) {
+      s.querySelector("#manage-repository").value = settingsDraft.repository;
+      s.querySelector("#manage-name").value = settingsDraft.name;
+      s.querySelector("#manage-note").value = settingsDraft.note;
+      s.querySelector("#manage-active").checked = settingsDraft.active;
+      s.querySelector("#manage-token").value = settingsDraft.token;
+    }
+    s.querySelector("#manage-token-save")?.addEventListener("click", () => this._saveProjectToken());
     s.querySelector("#manage-close")?.addEventListener("click", () => this._closeProjectSettings());
     s.querySelector("#manage-cancel")?.addEventListener("click", () => this._closeProjectSettings());
     s.querySelector("#manage-save")?.addEventListener("click", () => {
