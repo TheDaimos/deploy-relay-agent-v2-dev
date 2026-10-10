@@ -861,7 +861,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     s.innerHTML = `
       <style>
         :host { display:block; min-height:100%; color:var(--primary-text-color, #f2f2f2); background:var(--primary-background-color, #111); font-family:var(--paper-font-body1_-_font-family, sans-serif); }
-        main { margin:auto; width:100%; max-width:1600px; box-sizing:border-box; padding:24px clamp(12px,2.5vw,36px) 56px; }
+        main { margin:auto; width:100%; max-width:none; box-sizing:border-box; padding:24px clamp(12px,2.5vw,36px) 56px; }
         [hidden] {display:none !important;}
         .dra-head {display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;border-bottom:1px solid var(--divider-color,#555);padding-bottom:12px}
         .dra-head strong {font-size:20px}.dra-head button {margin:2px}
