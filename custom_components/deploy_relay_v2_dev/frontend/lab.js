@@ -1169,6 +1169,34 @@ class DRAV2DevLabPanel extends HTMLElement {
          .project-management-table td:nth-child(5) {
            white-space:nowrap; min-width:90px;
          }
+         /* Token suffix at left, declared access mode at far right on the same row. */
+         .project-token-summary {
+           display:flex; align-items:center; justify-content:space-between;
+           width:100%; min-width:0; gap:12px; margin:10px 0 12px;
+         }
+         .project-token-info {flex:1 1 auto; min-width:0; overflow-wrap:anywhere;}
+         .project-token-summary .safe strong {color:var(--success-color,#43d568);font-weight:800;}
+         .project-token-access {
+           display:flex; align-items:center; justify-content:flex-end;
+           flex:0 0 auto; gap:7px; min-width:0;
+         }
+         .project-token-access label {margin:0; white-space:nowrap;font-size:13px;}
+         .project-token-access select.project-text {
+           box-sizing:border-box; flex:none; width:135px;
+           min-height:36px; margin:0; padding:6px 8px; font-size:13px;
+         }
+         .project-access-help {font-size:12px;}
+         @media (max-width:560px) {
+           .project-token-summary {gap:8px;align-items:center;}
+           .project-token-info {font-size:12px;line-height:1.4;}
+           .project-token-access {flex-direction:column;align-items:flex-end;gap:3px;}
+           .project-token-access label {font-size:12px;}
+           .project-token-access select.project-text {width:126px;min-height:36px;}
+         }
+         @media (max-width:350px) {
+           .project-token-summary {flex-wrap:wrap;}
+           .project-token-access {margin-left:auto;}
+         }
          .project-token-actions {display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;}
          .project-token-actions button {margin:0; white-space:nowrap;}
          select.project-text {
@@ -1713,8 +1741,17 @@ class DRAV2DevLabPanel extends HTMLElement {
               <input id="manage-repository" class="project-text" value="${this._escapeProject(managed?.repository || "")}" autocomplete="off" /></label>
             <p class="note">Ein geändertes Repository wird vor dem Speichern schreibgeschützt geprüft. Schlägt die Prüfung fehl, bleibt das bisherige Repository erhalten.</p>
             <label>GitHub-Token <input id="manage-token" class="project-text" type="password" autocomplete="new-password" placeholder="Neuen Token eingeben (optional)" /></label>
-            <p class="note">Gespeicherter Token: ${managed?.token_configured && managed?.token_suffix ?
-              `•••••<span class="safe"><strong>${this._escapeProject(managed.token_suffix)}</strong></span>` : "Nicht eingerichtet"}</p>
+            <div class="project-token-summary">
+              <div class="project-token-info note">Gespeicherter Token: ${managed?.token_configured && managed?.token_suffix ?
+                `•••••<span class="safe"><strong>${this._escapeProject(managed.token_suffix)}</strong></span>` : "Nicht eingerichtet"}</div>
+              <div class="project-token-access">
+                <label for="manage-access-mode">Zugriffsart:</label>
+                <select id="manage-access-mode" class="project-text" title="Informative Zugriffsart; ändert keine GitHub-Berechtigungen">
+                  <option value="read_only" ${managed?.access_mode !== "read_write" ? "selected" : ""}>Read-Only</option>
+                  <option value="read_write" ${managed?.access_mode === "read_write" ? "selected" : ""}>Read-Write</option>
+                </select>
+              </div>
+            </div>
             <div class="project-token-actions">
               <button id="manage-token-save" ${!managed || this._projectBusy ? "disabled" : ""}>Token speichern</button>
               <button id="manage-connection-check" ${!managed || this._connectionBusy || this._projectBusy ? "disabled" : ""}>Verbindung prüfen</button>
@@ -1722,13 +1759,7 @@ class DRAV2DevLabPanel extends HTMLElement {
             ${managed && this._sourceChecks.get(managed.repository) ? `<p class="connection-feedback ${this._sourceChecks.get(managed.repository).status}" role="status">${this._escapeProject(this._sourceChecks.get(managed.repository).message)}</p>` : '<p class="note" role="status">Verbindung noch nicht geprüft.</p>'}
             <p class="note">Die Verbindungsprüfung verwendet den bereits gespeicherten Token. Eine neue Eingabe bitte zuvor speichern.</p>
             <p class="note">Der Token bleibt serverseitig. Leer lassen, um den bisherigen Token beizubehalten.</p>
-            <label for="manage-access-mode">Zugriffsart (hinterlegte Angabe)
-              <select id="manage-access-mode" class="project-text">
-                <option value="read_only" ${managed?.access_mode !== "read_write" ? "selected" : ""}>Read-Only</option>
-                <option value="read_write" ${managed?.access_mode === "read_write" ? "selected" : ""}>Read-Write</option>
-              </select>
-            </label>
-            <p class="note">Die Angabe dient der Übersicht. Tatsächliche Berechtigungen legt GitHub fest; es werden keine Schreibvorgänge getestet.</p>
+            <p class="note project-access-help">Zugriffsart ist nur eine Angabe zur Übersicht; die GitHub-Berechtigungen bleiben unverändert. Änderungen werden mit „Speichern“ übernommen.</p>
             <label>Notiz <textarea id="manage-note" class="project-text" rows="3">${this._escapeProject(managed?.note || "")}</textarea></label>
             <label>Anzeigename (optional) <input id="manage-name" class="project-text" value="${this._escapeProject(managed?.name || "")}" /></label>
             <label><input id="manage-active" type="checkbox" ${managed?.active !== false ? "checked" : ""} /> Projekt aktiv</label>
