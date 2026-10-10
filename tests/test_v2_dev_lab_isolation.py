@@ -77,7 +77,7 @@ class LabIsolationContracts(unittest.TestCase):
 
     def test_async_ws_handlers_are_scheduled_and_admin_guarded(self):
         sockets = (LAB_ROOT / "websocket_api.py").read_text(encoding="utf-8")
-        self.assertEqual(sockets.count("@websocket_api.async_response"), 25)
+        self.assertEqual(sockets.count("@websocket_api.async_response"), 26)
         self.assertEqual(sockets.count("@websocket_api.require_admin"), 26)
         self.assertEqual(sockets.count("@websocket_api.websocket_command("), 25)
         self.assertIn("import probatio", sockets)
