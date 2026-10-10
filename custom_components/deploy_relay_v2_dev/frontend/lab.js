@@ -36,6 +36,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._projectDeleteConfirm = false;
     this._projectDialogOpen = false;
     this._v2SettingsOpen = false;
+    this._v2AdvancedOpen = false;
     this._v2SourceRef = "";
     this._projectSaved = new Map();
     this._backupDialogOpen = false;
@@ -1394,6 +1395,19 @@ class DRAV2DevLabPanel extends HTMLElement {
         .project-v2-settings-scroll {box-sizing:border-box;flex:1 1 auto;min-height:0;overflow-y:auto;
           overflow-x:hidden;overscroll-behavior:contain;padding:12px 3px 0 0;scrollbar-gutter:stable;}
         .project-v2-settings-scroll h3 {margin:11px 0 8px;font-size:16px;}
+        .v2-token-buttons {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:11px 0;}
+        .v2-token-buttons button {width:100%;min-width:0;margin:0;padding:10px 8px;
+          min-height:42px;white-space:normal;font-weight:600;line-height:1.25;font-size:13px;}
+        .v2-token-buttons button:not(:disabled):active {transform:translateY(2px) scale(.98);filter:brightness(.83);}
+        .v2-source-advanced {border:1px solid #455865;border-radius:10px;padding:9px 12px;margin-top:13px;}
+        .v2-source-advanced summary {cursor:pointer;font-weight:600;color:#c6e3f0;min-height:25px;}
+        .v2-source-advanced label {margin-top:14px;}
+        .v2-source-advanced > .note {margin:9px 0;}
+        @media(max-width:410px) {
+          .v2-token-buttons {gap:7px;}
+          .v2-token-buttons button {font-size:12px;padding:9px 5px;}
+        }
+
         .project-v2-settings-scroll label {display:block;}
         .project-v2-settings-scroll .project-text {width:100%;box-sizing:border-box;}
         @media(max-width:760px) {
@@ -2166,16 +2180,17 @@ class DRAV2DevLabPanel extends HTMLElement {
           <label>V2-Lesetoken (wird nicht wieder angezeigt)
             <input id="source-read-token" class="project-text" type="password"
             autocomplete="new-password" placeholder="Separater GitHub-Token" /></label>
-          <button id="git-read-save" ${this._gitReadBusy ? "disabled" : ""}>Lesezugang speichern</button>
-          <button id="git-read-clear" ${!this._gitReadConfigured || this._gitReadBusy ? "disabled" : ""}>Lesezugang entfernen</button>
+          <div class="v2-token-buttons">
+            <button id="git-read-save" ${this._gitReadBusy ? "disabled" : ""}>Lesezugang speichern</button>
+            <button id="git-read-clear" ${!this._gitReadConfigured || this._gitReadBusy ? "disabled" : ""}>Lesezugang entfernen</button>
+          </div>
           <p class="note">V2-Lesezugang: ${this._gitReadConfigured ? "eingerichtet" : "nicht eingerichtet"}.
           ${this._escapeProject(this._gitReadMessage)}</p>
-          <h3>GitHub-Quellprüfung (nur lesend)</h3>
+          <details id="v2-source-advanced" class="v2-source-advanced" ${this._v2AdvancedOpen ? "open" : ""}>
+          <summary>Erweiterte Quellprüfung (optional)</summary>
           <label>Quellzweig (optional; leer = Standardzweig)
             <input id="source-ref" class="project-text" placeholder="deploy/dev" value="${this._escapeProject(this._v2SourceRef)}" autocomplete="off" /></label>
-          <p class="note">Über „Git-Quelle prüfen“ beim jeweiligen Projekt wird die
-          öffentliche GitHub-Quelle geprüft. Keine V1-Zugangsdaten, keine Installation.
-          Private Repositories benötigen den separat eingerichteten V2-Lesezugang.</p>
+          <p class="note">Die Referenz gilt nur für die schreibgeschützte Quellprüfung. Die Quellwahl im Hauptmenü bleibt davon unabhängig.</p>
           <p class="note">${this._escapeProject(this._sourceMessage)}</p>
           ${sourceReport ? `<div class="source-report"><strong>Prüfung: ${this._escapeProject(sourceReport.repository)}</strong>
             <p>Quellzweig: ${this._escapeProject(sourceReport.source_ref)}
@@ -2187,9 +2202,7 @@ class DRAV2DevLabPanel extends HTMLElement {
             <p><strong>Bei einer späteren Installation zu entfernen</strong></p><ul>${sourceList(sourceReport.remove)}</ul>
             <p class="note">Nur Vorschau – Installation gesperrt. Projektübernahme
             und unabhängige Sicherung müssen vor jedem Schreibauftrag geprüft werden.</p></div>` : ""}
-          <p class="note"><strong>Backup-Richtlinie:</strong> 10 gesicherte Stände je Projekt, individuell 3–100.
-          Neue Einträge sind zunächst ungeprüft. Installation, tatsächliche Sicherung,
-          Rotation und Wiederherstellung bleiben bis zur separaten Transaktionsabnahme gesperrt.</p>
+          </details>
 
 
                 <div class="dialog-actions">
@@ -2431,6 +2444,7 @@ class DRAV2DevLabPanel extends HTMLElement {
       }
     });
     s.querySelector("#source-ref")?.addEventListener("input", event => {this._v2SourceRef = event.target.value;});
+    s.querySelector("#v2-source-advanced")?.addEventListener("toggle", event => {this._v2AdvancedOpen = event.target.open;});
     s.querySelector("#batch-close")?.addEventListener("click", () => this._cancelBatchDialog());
     s.querySelector("#batch-cancel")?.addEventListener("click", () => this._cancelBatchDialog());
     s.querySelector("#batch-save")?.addEventListener("click", () => this._saveBatchDialog());
