@@ -463,3 +463,40 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   assert.match(settingsContent,/Während eines laufenden Tests wird/);
   console.log("DRA V2 focused main view and diagnostics-only notes PASS");
 })();
+
+(() => {
+  const p = new Panel();
+  p._view = "main";
+  p._projects = [
+    {repository:"TheDaimos/alpha",name:"Alpha",active:true,batch_preselect:true},
+    {repository:"TheDaimos/beta",name:"Beta",active:true,batch_preselect:false},
+  ];
+  p._projectDialogOpen = true;
+  p._render();
+  const projectHTML = p.shadowRoot.innerHTML;
+  const management = projectHTML.indexOf('id="project-management-dialog"');
+  const checkAll = projectHTML.indexOf('id="project-check-all"',management);
+  const batch = projectHTML.indexOf('id="project-batch-title"',management);
+  const v2Card = projectHTML.indexOf('class="project-v2-card"',management);
+  const footer = projectHTML.indexOf('id="project-management-dismiss"',management);
+  assert(management>=0 && checkAll<batch && batch<v2Card && v2Card<footer);
+  assert.match(projectHTML,/1 von 2 aktiven Projekten ausgewählt/);
+  assert.match(projectHTML,/id="project-v2-settings-open"/);
+  assert.doesNotMatch(projectHTML,/<h3>Privater GitHub-Lesezugang für V2<\/h3>/);
+  p._openV2Settings();
+  assert.equal(p._v2SettingsOpen,true);
+  const settingHTML = p.shadowRoot.innerHTML;
+  assert.match(settingHTML,/id="project-v2-settings-dialog"/);
+  assert.match(settingHTML,/id="source-read-token"/);
+  assert.match(settingHTML,/id="git-read-save"/);
+  assert.match(settingHTML,/GitHub-Quellprüfung/);
+  assert.match(settingHTML,/Backup-Richtlinie/);
+  assert.equal((settingHTML.match(/id="source-read-token"/g)||[]).length,1);
+  p._closeV2Settings();
+  assert.equal(p._v2SettingsOpen,false);
+  p._openBatchDialog();
+  assert.match(p.shadowRoot.innerHTML,/id="batch-dialog"/);
+  assert.equal(p._batchSelection.length,1);
+  p._cancelBatchDialog();
+  console.log("DRA V2 management batch card and compact settings modal PASS");
+})();
