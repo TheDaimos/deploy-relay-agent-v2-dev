@@ -851,6 +851,20 @@ class DRAV2DevLabPanel extends HTMLElement {
     const checkAllIcon = iconSvg('<circle cx="12" cy="12" r="9"/><path d="M8 12l2.5 2.5L16 9"/><path d="M3 4h4M4 3v4"/>', 20);
     const backupIcon = iconSvg('<rect x="2" y="3" width="20" height="5" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/>', 20);
     const closeIcon = iconSvg('<path d="M18 6 6 18M6 6l12 12"/>', 20);
+    // Unique gradient IDs per project prevent SVG-definition collisions.
+    const metalSvg = (svg, kind, index) => {
+      const id = `dra-metal-${kind}-${index}`;
+      const gradient = `<defs><linearGradient id="${id}" x1="0%" y1="0%" x2="85%" y2="100%">
+        <stop offset="0%" stop-color="#ffffff"/>
+        <stop offset="20%" stop-color="#d8f4ff"/>
+        <stop offset="44%" stop-color="#85a6b6"/>
+        <stop offset="57%" stop-color="#e0f6ff"/>
+        <stop offset="77%" stop-color="#668a9b"/>
+        <stop offset="100%" stop-color="#e0ecf2"/>
+      </linearGradient></defs>`;
+      return svg.replace('stroke="currentColor"', `stroke="url(#${id})"`)
+        .replace('</svg>', gradient + '</svg>');
+    };
     const projectRows = this._projects.map((p,i) => {
       const test = this._sourceChecks.get(p.repository);
       const state = test?.status || "unverified";
@@ -860,12 +874,12 @@ class DRAV2DevLabPanel extends HTMLElement {
       const selected = this._highlightMovedRepo?.toLowerCase() === p.repository.toLowerCase();
       return `<tr class="project-row connection-${state}${selected ? " recently-moved" : ""}" data-project-repo="${this._escapeProject(p.repository)}"><td>${i+1}</td>
         <td><strong>${this._escapeProject(p.name)}</strong><div class="note">${this._escapeProject(p.repository)}</div>
-          ${p.active === false ? '<span class="note">Inaktiv</span>' : ""}</td>
+          ${p.active === false ? '<div class="project-inactive-label">Status: <strong>Inaktiv</strong></div>' : ""}</td>
         <td><button class="source-check ${state}" data-repo="${this._escapeProject(p.repository)}"
           ${this._connectionBusy || this._checkAllBusy || this._projectBusy ? "disabled" : ""} aria-label="GitHub-Verbindung für ${this._escapeProject(p.name)} prüfen" title="Verbindung prüfen">${icon}<span class="project-status-label">${label}</span></button></td>
-        <td><button class="project-settings-open" data-repo="${this._escapeProject(p.repository)}" ${this._checkAllBusy ? "disabled" : ""} aria-label="Einstellungen für ${this._escapeProject(p.name)}" title="Projekteinstellungen">${gearIcon}</button></td>
-        <td><button class="project-move" data-repo="${this._escapeProject(p.repository)}" data-direction="-1" ${i===0 || this._projectBusy || this._checkAllBusy ? "disabled" : ""} aria-label="${this._escapeProject(p.name)} nach oben verschieben" title="Nach oben">${upIcon}</button>
-        <button class="project-move" data-repo="${this._escapeProject(p.repository)}" data-direction="1" ${i===this._projects.length-1 || this._projectBusy || this._checkAllBusy ? "disabled" : ""} aria-label="${this._escapeProject(p.name)} nach unten verschieben" title="Nach unten">${downIcon}</button></td></tr>`;
+        <td><button class="project-settings-open project-metal-button" data-repo="${this._escapeProject(p.repository)}" ${this._checkAllBusy ? "disabled" : ""} aria-label="Einstellungen für ${this._escapeProject(p.name)}" title="Projekteinstellungen">${metalSvg(gearIcon,"settings",i)}</button></td>
+        <td><button class="project-move project-metal-button" data-repo="${this._escapeProject(p.repository)}" data-direction="-1" ${i===0 || this._projectBusy || this._checkAllBusy ? "disabled" : ""} aria-label="${this._escapeProject(p.name)} nach oben verschieben" title="Nach oben">${metalSvg(upIcon,"up",i)}</button>
+        <button class="project-move project-metal-button" data-repo="${this._escapeProject(p.repository)}" data-direction="1" ${i===this._projects.length-1 || this._projectBusy || this._checkAllBusy ? "disabled" : ""} aria-label="${this._escapeProject(p.name)} nach unten verschieben" title="Nach unten">${metalSvg(downIcon,"down",i)}</button></td></tr>`;
     }).join("");
     const managed = this._projects.find(p => p.repository === this._projectSettingsRepo);
     const batchRows = this._projects.map(p => {
@@ -1378,6 +1392,69 @@ class DRAV2DevLabPanel extends HTMLElement {
            }
            .project-management-dialog #backup-dialog-open {grid-column:1 / -1;}
            .project-management-dialog #project-check-all {grid-column:1 / -1;}
+         }
+         /* Metallic surfaces: brushed steel, beveled edges, reflected light and depth. */
+         .project-management-dialog .project-management-table button.project-metal-button {
+           position:relative; isolation:isolate; overflow:hidden;
+           background:
+             linear-gradient(162deg,rgba(252,255,255,.22) 0%,rgba(202,233,247,.085) 11%,transparent 43%),
+             linear-gradient(143deg,#526d7e 0%,#344e5c 20%,#172e3a 48%,#385263 73%,#142631 100%);
+           border:1px solid #748fa0; border-radius:10px;
+           color:#e4f5fe;
+           box-shadow:inset 0 1px 0 rgba(255,255,255,.57),
+             inset 1px 0 0 rgba(228,246,255,.19),
+             inset 0 -2px 3px rgba(1,10,18,.65),
+             0 2px 6px rgba(0,0,0,.4),0 0 0 1px rgba(9,21,28,.47);
+           transition:transform .14s ease,filter .14s ease,box-shadow .14s ease;
+         }
+         .project-management-dialog .project-management-table button.project-metal-button::before {
+           content:""; position:absolute; pointer-events:none; inset:1px 3px auto;
+           height:43%; border-radius:9px 9px 45% 45%;
+           background:linear-gradient(180deg,rgba(255,255,255,.3),rgba(255,255,255,.07) 36%,transparent);
+           opacity:.77; z-index:0;
+         }
+         .project-management-dialog .project-management-table button.project-metal-button::after {
+           content:""; position:absolute; pointer-events:none;
+           top:-30%; left:-48%; width:58%; height:165%; transform:skewX(-25deg);
+           background:linear-gradient(90deg,transparent,rgba(255,255,255,.15),transparent);
+           opacity:.66; z-index:0;
+         }
+         .project-management-dialog .project-management-table button.project-metal-button .project-icon {
+           position:relative; z-index:1; stroke-width:1.9;
+           filter:drop-shadow(0 1px 1px rgba(0,8,16,.95))
+             drop-shadow(0 -1px .65px rgba(240,252,255,.3));
+         }
+         .project-management-dialog .project-management-table button.project-metal-button:not(:disabled):hover {
+           filter:brightness(1.18);
+           box-shadow:inset 0 1px 0 rgba(255,255,255,.84),
+             inset 0 -2px 3px rgba(0,8,16,.6),0 3px 10px rgba(1,14,25,.55),
+             0 0 8px rgba(139,209,241,.25);
+         }
+         .project-management-dialog .project-management-table button.project-metal-button:not(:disabled):active {
+           transform:translateY(2px) scale(.975); filter:brightness(.83);
+           box-shadow:inset 0 3px 6px rgba(0,5,13,.85),
+             inset 0 -1px 0 rgba(207,235,249,.18),0 1px 2px rgba(0,0,0,.35);
+         }
+         .project-management-dialog .project-management-table button.project-metal-button:focus-visible {
+           outline:2px solid #f1c76d; outline-offset:3px;
+         }
+         .project-management-dialog .project-management-table button.project-metal-button:disabled {
+           background:linear-gradient(155deg,#2e383e,#1a252b 65%,#222b30);
+           border-color:#40505a; opacity:.48; filter:saturate(.25);
+           box-shadow:inset 0 1px 0 rgba(255,255,255,.1),
+             inset 0 2px 4px rgba(0,0,0,.44);
+           cursor:default; transform:none;
+         }
+         .project-management-dialog .project-management-table button.project-metal-button:disabled::after {opacity:0;}
+         .project-management-dialog .project-management-table .project-inactive-label {
+           display:block; margin-top:5px; font-size:12px;
+           color:#ff858e; font-weight:600; line-height:1.25;
+         }
+         .project-management-dialog .project-management-table .project-inactive-label strong {
+           color:#ff6876; font-weight:800; letter-spacing:.01em;
+         }
+         @media(prefers-reduced-motion:reduce) {
+           .project-management-dialog .project-management-table button.project-metal-button {transition:none;}
          }
          .batch-options { max-height:55vh; overflow:auto; }
          .backup-dialog { width:min(100%,760px); }
