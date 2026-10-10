@@ -130,7 +130,7 @@ class LabIsolationContracts(unittest.TestCase):
         self.assertEqual(frontend.count('id="git-export"'), 1)
         self.assertEqual(frontend.count('id="json-download"'), 1)
         self.assertLess(frontend.index("02 · Diagnoseexport"), frontend.index("04 · Auftragsverarbeitung"))
-        self.assertLess(frontend.index("03 · Messergebnisse"), frontend.index("05 · Projektverwaltung"))
+        self.assertLess(frontend.index("03 · Messergebnisse"), frontend.index("05 · Sammelaktualisierung"))
 
     def test_source_check_has_visible_per_project_feedback_and_columns(self):
         frontend = (LAB_ROOT / "frontend/lab.js").read_text(encoding="utf-8")
@@ -185,14 +185,32 @@ class LabIsolationContracts(unittest.TestCase):
     def test_diagnostics_sections_are_collapsible(self):
         frontend = (LAB_ROOT / "frontend/lab.js").read_text(encoding="utf-8")
         self.assertIn('this._expandedSections = new Set()', frontend)
-        self.assertEqual(frontend.count('class="section-toggle"'), 6)
-        self.assertEqual(frontend.count('class="section-body"'), 6)
+        self.assertEqual(frontend.count('class="section-toggle"'), 5)
+        self.assertEqual(frontend.count('class="section-body"'), 5)
         self.assertIn('class="section-body" ', frontend)
         self.assertIn('this._expandedSections.has(id)', frontend)
         self.assertIn('>Import aus DRA-V1</button>', frontend)
         self.assertIn('id="project-import-all"', frontend)
         self.assertIn('class="import-choice"', frontend)
         self.assertIn('this._submitProjectImport()', frontend)
+
+    def test_project_management_is_a_modal_outside_diagnostics(self):
+        frontend = (LAB_ROOT / "frontend/lab.js").read_text(encoding="utf-8")
+        self.assertIn('this._projectDialogOpen = false;', frontend)
+        self.assertIn('id="project-management-dialog" role="dialog" aria-modal="true"', frontend)
+        self.assertIn('id="project-management-close"', frontend)
+        self.assertIn('id="project-management-dismiss"', frontend)
+        self.assertIn('id="project-management-title">Projektverwaltung', frontend)
+        self.assertIn('this._openProjectDialog()', frontend)
+        self.assertIn('id="project-add-open"', frontend)
+        self.assertIn('id="backup-dialog-open"', frontend)
+        self.assertNotIn('05 · Projektverwaltung', frontend)
+        self.assertNotIn('<article class="section-card project-card">', frontend)
+        self.assertIn('05 · Sammelaktualisierung', frontend)
+        self.assertLess(frontend.index('id="dra-settings-view"'),
+                        frontend.index('id="project-management-dialog"'))
+        self.assertLess(frontend.index('</section>\\n        ${this._projectDialogOpen'),
+                        frontend.index('id="project-management-dialog"'))
 
     def test_v1_inspired_dashboard_preserves_separate_diagnostics(self):
         frontend = (LAB_ROOT / "frontend/lab.js").read_text(encoding="utf-8")
