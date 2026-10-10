@@ -145,3 +145,7 @@ Die Aufbewahrungsvorgaben wurden aus der breiten Projektliste in ein eigenständ
 ## V2 DEV 0.1.25 – Einstellungen in drei Spalten (10.10.2026)
 
 Die drei Felder Betriebsart, parallele Leseaufträge und DRA-Arbeitsprozesse werden im Abschnitt 04 auf ausreichend breiten Ansichten nebeneinander in gleich breiten Spalten mit eigenen Überschriften dargestellt. Bei höchstens 850 px verfügbarer Breite folgt eine einspaltige Darstellung. Die Speicher- und Prüfregeln bleiben unverändert; keinerlei Freigabe realer Schreibaufträge.
+
+## V2 DEV 0.1.26 – Einheitliche Schaltflächenrückmeldung (10.10.2026)
+
+„Vorgaben speichern“ in der Auftragsverarbeitung heißt nur noch „Speichern“. Sämtliche aktivierten Schaltflächen des V2-Testlabors erhalten optische Hover-, gedrückt- und Tastaturfokuszustände. Beim Drücken werden sie geringfügig nach unten verschoben und abgedunkelt; deaktivierte Schaltflächen reagieren nicht. Reduzierte Animation wird über die Betriebssystemeinstellung berücksichtigt. Die Änderung betrifft nur die Oberfläche, nicht die Auftragsausführung, Sicherungen oder Schreibberechtigungen.
