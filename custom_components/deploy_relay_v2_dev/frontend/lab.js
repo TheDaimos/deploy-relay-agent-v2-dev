@@ -20,6 +20,8 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._batchBusy = false;
     this._batchMessage = "";
     this._projectBusy = false;
+    this._projectSettingsRepo = null;
+    this._projectDeleteConfirm = false;
     this._projectSaved = new Map();
     this._backupDialogOpen = false;
     this._projectMessage = "";
@@ -519,6 +521,47 @@ class DRAV2DevLabPanel extends HTMLElement {
     }
   }
 
+  _openProjectSettings(repo) {
+    if (this._projectBusy) return;
+    this._projectSettingsRepo = repo;
+    this._projectDeleteConfirm = false;
+    this._render();
+  }
+  _closeProjectSettings() {
+    this._projectSettingsRepo = null;
+    this._projectDeleteConfirm = false;
+    this._render();
+  }
+  async _manageProject(action, extras = {}) {
+    if (!this._hass || this._projectBusy || !this._projectSettingsRepo && action !== "move") return;
+    this._projectBusy = true;
+    this._projectMessage = "Projektverwaltung wird gespeichert …";
+    const repo = extras.repository || this._projectSettingsRepo;
+    try {
+      const result = await this._hass.callWS({
+        type:"deploy_relay_v2_dev/projects/manage", action, repository:repo, ...extras
+      });
+      this._projects = result.projects;
+      this._projectMessage = "Projektverwaltung gespeichert.";
+      if (action !== "move") this._projectSettingsRepo = null;
+      this._projectDeleteConfirm = false;
+    } catch (_error) {
+      this._projectMessage = "Projektaktion fehlgeschlagen. Keine Änderung gespeichert.";
+    } finally {
+      this._projectBusy = false;
+      if (this.isConnected) this._render();
+    }
+  }
+  _saveProjectSettings() {
+    const s = this.shadowRoot;
+    const previous = this._projectSettingsRepo;
+    const repository = s.querySelector("#manage-repository")?.value.trim() || "";
+    const name = s.querySelector("#manage-name")?.value.trim() || "";
+    const note = s.querySelector("#manage-note")?.value || "";
+    const active = s.querySelector("#manage-active")?.checked === true;
+    // A changed repository must pass a separate identity migration.
+    return this._manageProject("configure", {repository:previous, new_repository:repository, name, note, active});
+  }
   _cancelProjectImport() {
     if (this._projectBusy) return;
     this._importDialogOpen = false;
@@ -671,22 +714,19 @@ class DRAV2DevLabPanel extends HTMLElement {
     // Unmounted inputs return undefined. Assigning that to an HTML input.value
     // turns it into the literal text "undefined" (seen on Android/desktop).
     const unsentRepository = typeof previousRepo === "string" ? previousRepo : null;
-    const projectRows = this._projects.map(p => {
-      const saved = this._projectSaved.get(p.repository) === p.backup_retention;
-      const selected = this._sourceRepository === p.repository;
-      const result = selected && this._sourcePreview;
-      const state = selected ? `<div class="source-inline" role="status">
-        <strong>${this._sourceBusy ? "Prüfung läuft …" : result ? "Quelle geprüft" : "Prüfung nicht erfolgreich"}</strong>
-        <p>${this._escapeProject(this._sourceMessage)}</p>
-        ${result ? `<p>Commit: ${this._escapeProject(result.source_commit?.slice(0,12))}
-        · Neu: ${result.add.length} · Geändert: ${result.change.length}
-        · Entfernt: ${result.remove.length} · Unverändert: ${result.unchanged_count}</p>` : ""}
-      </div>` : "";
-      return `<tr><td>${this._escapeProject(p.name)}<div class="note">${this._escapeProject(p.repository)}</div>${state}</td>
-        <td>${p.origin === "v1_import" ? "DRA V1" : "Manuell"}</td>
-        <td><button class="source-check" data-repo="${this._escapeProject(p.repository)}"
-        ${this._sourceBusy ? "disabled" : ""}>${selected && this._sourceBusy ? "Prüft …" : "Prüfen"}</button></td></tr>`;
+    const projectRows = this._projects.map((p,i) => {
+      const state = this._sourceRepository === p.repository ?
+        (this._sourceBusy ? "Prüfung läuft" : this._sourcePreview ? "Online" : "Nicht verfügbar") : "Nicht geprüft";
+      const color = state === "Online" ? "success" : state === "Nicht verfügbar" ? "error" : "note";
+      return `<tr><td>${i+1}</td>
+        <td><strong>${this._escapeProject(p.name)}</strong><div class="note">${this._escapeProject(p.repository)}</div>
+          ${p.active === false ? '<span class="note">Inaktiv</span>' : ""}</td>
+        <td class="${color}">${state}</td>
+        <td><button class="project-settings-open" data-repo="${this._escapeProject(p.repository)}" aria-label="Einstellungen für ${this._escapeProject(p.name)}">⚙</button></td>
+        <td><button class="project-move" data-repo="${this._escapeProject(p.repository)}" data-direction="-1" ${i===0 || this._projectBusy ? "disabled" : ""} aria-label="Nach oben">↑</button>
+        <button class="project-move" data-repo="${this._escapeProject(p.repository)}" data-direction="1" ${i===this._projects.length-1 || this._projectBusy ? "disabled" : ""} aria-label="Nach unten">↓</button></td></tr>`;
     }).join("");
+    const managed = this._projects.find(p => p.repository === this._projectSettingsRepo);
     const batchRows = this._projects.map(p => {
       const checked = this._batchSelection === null ? p.batch_preselect !== false : this._batchSelection.includes(p.repository);
       return `<label class="batch-line"><input type="checkbox" class="batch-choice" data-repo="${this._escapeProject(p.repository)}" ${checked ? "checked" : ""} /> ${this._escapeProject(p.name)}</label>`;
@@ -865,6 +905,11 @@ class DRAV2DevLabPanel extends HTMLElement {
 
          .source-inline { margin-top:12px; padding:10px; border:1px solid var(--divider-color,#555); border-left:3px solid var(--primary-color,#396a96); border-radius:8px; white-space:normal; overflow-wrap:anywhere; }
          .source-inline p { margin:5px 0; }
+         .project-actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; }
+         .project-management-table th,.project-management-table td { white-space:normal; vertical-align:middle; }
+         .project-management-table .success { color:var(--success-color,#6c6); }
+         .project-management-table .error { color:var(--error-color,#e55); }
+         button.danger { background:var(--error-color,#b33); }
          .project-card td { vertical-align:top; }
          .project-card td:first-child { min-width:180px; white-space:normal; overflow-wrap:anywhere; }
          .project-card td button { margin:4px; white-space:nowrap; }
@@ -1018,18 +1063,15 @@ class DRAV2DevLabPanel extends HTMLElement {
         </article>
 
         <article class="section-card project-card">
-          <h2 class="section-toggle-title"><button class="section-toggle" data-section="5" aria-expanded="${this._expandedSections.has('5')}" aria-controls="section-body-5"><span>05 · Meine Projekte</span><span aria-hidden="true">${this._expandedSections.has('5') ? "▾" : "▸"}</span></button></h2><div id="section-body-5" class="section-body" ${this._expandedSections.has('5') ? "" : "hidden"}>
-          <button id="backup-dialog-open">Backup &amp; Retention</button>
-          <p class="note">Projektmetadaten getrennt von DRA V1 verwalten. V1 bleibt unverändert.
-          Übernahme kopiert weder Git-Zugangsdaten noch Installationsstände oder Sicherungsdateien.</p>
-          <button id="project-preview" ${this._projectBusy ? "disabled" : ""}>Projektimport</button>
-          <p><strong>Neues Projekt hinterlegen</strong></p>
-          <label>GitHub-Repository (Eigentümer/Repository)<input id="project-repo" class="project-text" placeholder="TheDaimos/projekt-dev" autocomplete="off" /></label>
-          <label>Anzeigename (optional)<input id="project-name" class="project-text" placeholder="Mein Projekt" autocomplete="off" /></label>
-          <button id="project-add" ${this._projectBusy ? "disabled" : ""}>Projekt vormerken</button>
-          <p class="note">${this._escapeProject(this._projectMessage)}</p>
-          ${this._projects.length ? `<div class="table-wrap"><table><thead><tr><th>Projekt</th><th>Herkunft</th><th>Git-Quelle</th></tr></thead>
-          <tbody>${projectRows}</tbody></table></div>` : `<p class="note">Noch keine Projekte in V2 hinterlegt.</p>`}
+          <h2 class="section-toggle-title"><button class="section-toggle" data-section="5" aria-expanded="${this._expandedSections.has('5')}" aria-controls="section-body-5"><span>05 · Projektverwaltung</span><span aria-hidden="true">${this._expandedSections.has('5') ? "▾" : "▸"}</span></button></h2><div id="section-body-5" class="section-body" ${this._expandedSections.has('5') ? "" : "hidden"}>
+          <p class="note">Reihenfolge: Anzeige, Standardprojekt und Priorität der späteren Sammelaktualisierung. Git-Status nur nach expliziter Prüfung.</p>
+          ${this._projects.length ? `<div class="table-wrap"><table class="project-management-table"><thead><tr><th>Nr.</th><th>Projekt</th><th>Git-Status</th><th>Einstellungen</th><th>Reihenfolge</th></tr></thead><tbody>${projectRows}</tbody></table></div>` : '<p class="note">Noch keine Projekte in V2 hinterlegt.</p>'}
+          <div class="project-actions">
+            <button id="project-add-open">+ Projekt hinzufügen</button>
+            <button id="project-preview" ${this._projectBusy ? "disabled" : ""}>Import aus DRA-V1</button>
+            <button id="backup-dialog-open">Backup &amp; Retention</button>
+          </div>
+          <p class="note" role="status">${this._escapeProject(this._projectMessage)}</p>
           <p><strong>Privater GitHub-Lesezugang für V2</strong></p>
           <p class="note">Optional für private Projekt-Repositories. Nur einen
           eigenen GitHub-Token mit möglichst minimalem Leserecht auf die
@@ -1074,6 +1116,28 @@ class DRAV2DevLabPanel extends HTMLElement {
         </article>
 
         </div>
+        ${(managed || this._projectSettingsRepo === "__new__") ? `
+          <div class="git-dialog-backdrop"><section class="git-dialog" role="dialog" aria-modal="true" aria-labelledby="manage-project-title">
+            <header><h2 id="manage-project-title">${managed ? "Projekteinstellungen" : "Projekt hinzufügen"}</h2>
+            <button id="manage-close" aria-label="Schließen">✕</button></header>
+            <label>GitHub-Repository (Eigentümer/Repository)
+              <input id="manage-repository" class="project-text" value="${this._escapeProject(managed?.repository || "")}" autocomplete="off" /></label>
+            <p class="note">Bei einer Repositoryänderung ist eine gesonderte, sichere Projektmigration erforderlich.</p>
+            <label>GitHub-Token <input class="project-text" type="password" disabled placeholder="Projektspezifischer Tokenspeicher noch nicht verfügbar" /></label>
+            <p class="note">Gespeicherter Token: Nicht eingerichtet. Der bisherige gemeinsame V2-Lesezugang wird nicht als projektspezifischer Token ausgegeben.</p>
+            <label>Notiz <textarea id="manage-note" class="project-text" rows="3">${this._escapeProject(managed?.note || "")}</textarea></label>
+            <label>Anzeigename (optional) <input id="manage-name" class="project-text" value="${this._escapeProject(managed?.name || "")}" /></label>
+            <label><input id="manage-active" type="checkbox" ${managed?.active !== false ? "checked" : ""} /> Projekt aktiv</label>
+            <div class="dialog-actions">
+              ${managed ? '<button id="manage-remove-start" class="danger">Projekt entfernen</button>' : ""}
+              <button id="manage-cancel">Abbrechen</button>
+              <button id="manage-save">Speichern</button>
+            </div>
+            ${this._projectDeleteConfirm ? `<div class="warning-cpu" role="alert"><strong>Projekt wirklich entfernen?</strong>
+              <p>Nur die Registrierung in DRA V2 wird entfernt. V1, GitHub und installierte Anwendungen bleiben unangetastet.</p>
+              <button id="manage-remove-cancel">Abbrechen</button>
+              <button id="manage-remove-confirm" class="danger">Ja, Projekt entfernen</button></div>` : ""}
+          </section></div>` : ""}
         ${this._importDialogOpen ? `
           <div class="git-dialog-backdrop">
             <section class="git-dialog" id="project-import-dialog" role="dialog" aria-modal="true" aria-labelledby="project-import-title">
@@ -1259,6 +1323,22 @@ class DRAV2DevLabPanel extends HTMLElement {
       this._importSelection = [...s.querySelectorAll(".import-choice")].filter(x => x.checked).map(x => x.dataset.repo);
       this._render();
     }));
+    s.querySelector("#project-add-open")?.addEventListener("click", () => this._openProjectSettings("__new__"));
+    s.querySelectorAll(".project-settings-open").forEach(b => b.addEventListener("click", () => this._openProjectSettings(b.dataset.repo)));
+    s.querySelectorAll(".project-move").forEach(b => b.addEventListener("click", () => this._manageProject("move", {repository:b.dataset.repo,direction:Number(b.dataset.direction)})));
+    s.querySelector("#manage-close")?.addEventListener("click", () => this._closeProjectSettings());
+    s.querySelector("#manage-cancel")?.addEventListener("click", () => this._closeProjectSettings());
+    s.querySelector("#manage-save")?.addEventListener("click", () => {
+      if (this._projectSettingsRepo === "__new__") {
+        const repo = s.querySelector("#manage-repository")?.value.trim();
+        const name = s.querySelector("#manage-name")?.value.trim() || "";
+        this._projectAction("add", {repository:repo,name});
+        this._projectSettingsRepo = null;
+      } else this._saveProjectSettings();
+    });
+    s.querySelector("#manage-remove-start")?.addEventListener("click", () => { this._projectDeleteConfirm=true;this._render(); });
+    s.querySelector("#manage-remove-cancel")?.addEventListener("click", () => { this._projectDeleteConfirm=false;this._render(); });
+    s.querySelector("#manage-remove-confirm")?.addEventListener("click", () => this._manageProject("remove", {confirmed:true}));
     s.querySelector("#project-add")?.addEventListener("click", () => this._addProject());
     s.querySelectorAll(".retention-save")?.forEach(button => {
       button.addEventListener("click", () => this._retention(button));
