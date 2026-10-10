@@ -1034,6 +1034,8 @@ class DRAV2DevLabPanel extends HTMLElement {
     const progress = op && Number.isInteger(op.phase_percent) ? op.phase_percent + " % der Testschritte" : "Noch keine Messung";
     const safeId = op && /^[0-9a-f]{32}$/.test(op.operation_id) ? op.operation_id : "—";
     const previousProjectScroll = s.querySelector("#project-management-scroll")?.scrollTop ?? 0;
+    const previousV2SettingsScroll = s.querySelector(".project-v2-settings-scroll")?.scrollTop ?? 0;
+    const pendingV2ReadToken = s.querySelector("#source-read-token")?.value || "";
     s.innerHTML = `
       <style>
         :host { display:block; min-height:100%; color:var(--primary-text-color, #f2f2f2); background:var(--primary-background-color, #111); font-family:var(--paper-font-body1_-_font-family, sans-serif); }
@@ -1215,6 +1217,60 @@ class DRAV2DevLabPanel extends HTMLElement {
           .project-management-dialog .project-management-table td:first-child { width:auto; }
           .project-management-dialog .project-actions {gap:6px;}
           .project-management-dialog .project-actions button {margin:0;}
+        }
+        /* Compact batch control and V2 system card, styled consistently with project rows. */
+        .project-batch-card,.project-v2-card {box-sizing:border-box;margin-top:14px;border-radius:12px;
+          border:1px solid #536d7b;background:linear-gradient(120deg,rgba(46,73,90,.27),rgba(22,29,36,.17));
+          box-shadow:inset 3px 0 0 #6594ac,inset 0 1px 0 rgba(225,243,255,.07);}
+        .project-batch-card {padding:12px 14px;}
+        .project-batch-head,.project-v2-card {display:flex;align-items:center;gap:13px;}
+        .project-batch-icon {display:flex;flex:none;color:#c7eaf7;}
+        .project-batch-text,.project-v2-details {display:flex;flex:1 1 auto;min-width:0;flex-direction:column;gap:4px;}
+        .project-batch-text strong,.project-v2-details strong {font-size:15px;}
+        .project-batch-text .note,.project-v2-details .note {font-size:12px;overflow-wrap:anywhere;}
+        .project-batch-count {font-size:12px;color:#bde5d8;font-weight:600;}
+        .project-batch-edit {display:inline-flex;align-items:center;justify-content:center;gap:7px;
+          flex:none;min-height:42px;margin:0;padding:9px 11px;white-space:nowrap;
+          border:1px solid #7095a6;border-radius:10px;
+          background:linear-gradient(155deg,#355667,#1c3340);color:#e9f7ff;font-weight:600;}
+        .project-batch-card > p.note {margin:8px 0 0;}
+        .project-batch-card > p.note:empty {display:none;}
+        .project-v2-card {padding:11px 13px;border-color:#6d8e9d;box-shadow:inset 3px 0 0 #7db3ce,inset 0 1px 0 rgba(227,247,255,.13);}
+        .project-v2-status {font-size:12px;font-weight:700;border:1px solid;padding:7px 9px;
+          border-radius:8px;white-space:nowrap;}
+        .project-v2-status.configured {color:#c5efdb;border-color:#4d9d79;background:rgba(19,103,64,.24);}
+        .project-v2-status.unconfigured {color:#d6dce3;border-color:#6a7d8c;background:rgba(81,96,108,.19);}
+        .project-v2-settings-button {display:inline-flex;align-items:center;justify-content:center;flex:none;
+          width:44px;height:44px;min-width:44px;margin:0;padding:8px;
+          background:linear-gradient(155deg,#526d7e,#203744 56%,#142632);
+          border:1px solid #829dad;border-radius:10px;
+          box-shadow:inset 0 1px 0 rgba(255,255,255,.55),inset 0 -2px 3px rgba(0,0,0,.6),0 2px 5px #0006;
+          color:#d6f5ff;}
+        .project-v2-settings-button .project-icon {filter:drop-shadow(0 1px 2px #000a);}
+        .project-v2-settings-button:not(:disabled):hover,.project-batch-edit:not(:disabled):hover {filter:brightness(1.18);}
+        .project-v2-settings-button:not(:disabled):active,.project-batch-edit:not(:disabled):active {transform:translateY(2px) scale(.97);filter:brightness(.83);}
+        .project-v2-settings-dialog {box-sizing:border-box;display:flex;flex-direction:column;overflow:hidden;
+          width:min(100%,690px);max-height:92dvh;border:1px solid #7197aa;
+          box-shadow:0 20px 55px #000a,inset 0 1px 0 #dff4ff30;}
+        .project-v2-settings-dialog > header {display:flex;align-items:center;justify-content:space-between;
+          gap:12px;flex:0 0 auto;padding-bottom:12px;border-bottom:1px solid #567281;}
+        .project-v2-settings-dialog > header h2 {font-size:19px;margin:0 0 4px;}
+        .project-v2-settings-dialog > header p {margin:0;}
+        .project-v2-settings-dialog > header button {margin:0;min-width:43px;width:43px;height:43px;
+          display:inline-flex;align-items:center;justify-content:center;padding:8px;flex:none;}
+        .project-v2-settings-scroll {box-sizing:border-box;flex:1 1 auto;min-height:0;overflow-y:auto;
+          overflow-x:hidden;overscroll-behavior:contain;padding:12px 3px 0 0;scrollbar-gutter:stable;}
+        .project-v2-settings-scroll h3 {margin:11px 0 8px;font-size:16px;}
+        .project-v2-settings-scroll label {display:block;}
+        .project-v2-settings-scroll .project-text {width:100%;box-sizing:border-box;}
+        @media(max-width:760px) {
+          .project-batch-head {flex-wrap:wrap;gap:9px;}
+          .project-batch-edit {width:100%;}
+          .project-v2-card {flex-wrap:wrap;gap:9px;}
+          .project-v2-details {flex-basis:calc(100% - 60px);}
+          .project-v2-status {order:3;font-size:11px;}
+          .project-v2-settings-button {margin-left:auto;}
+          .project-v2-settings-dialog {max-height:94dvh;padding:14px;}
         }
         .project-management-dialog .project-management-footer { justify-content:flex-end; margin-top:18px; }
         .project-management-dialog .project-management-footer button { min-width:130px; }
@@ -2209,6 +2265,15 @@ class DRAV2DevLabPanel extends HTMLElement {
     s.querySelector("#backup-close")?.addEventListener("click", () => this._closeBackupDialog());
     s.querySelector("#backup-dismiss")?.addEventListener("click", () => this._closeBackupDialog());
     s.querySelector("#batch-open")?.addEventListener("click", () => this._openBatchDialog());
+    s.querySelector("#project-v2-settings-open")?.addEventListener("click", () => this._openV2Settings());
+    s.querySelector("#project-v2-settings-close")?.addEventListener("click", () => this._closeV2Settings());
+    s.querySelector("#project-v2-settings-dismiss")?.addEventListener("click", () => this._closeV2Settings());
+    s.querySelector("#project-v2-settings-dialog")?.addEventListener("keydown", event => {
+      if (event.key === "Escape" && !this._gitReadBusy && !this._sourceBusy) {
+        event.preventDefault(); this._closeV2Settings();
+      }
+    });
+    s.querySelector("#source-ref")?.addEventListener("input", event => {this._v2SourceRef = event.target.value;});
     s.querySelector("#batch-close")?.addEventListener("click", () => this._cancelBatchDialog());
     s.querySelector("#batch-cancel")?.addEventListener("click", () => this._cancelBatchDialog());
     s.querySelector("#batch-save")?.addEventListener("click", () => this._saveBatchDialog());
@@ -2300,6 +2365,10 @@ class DRAV2DevLabPanel extends HTMLElement {
         if (event.key === "Escape") this._closeGitDialog();
       });
     }
+    const v2SettingsScroll = s.querySelector(".project-v2-settings-scroll");
+    if (v2SettingsScroll) v2SettingsScroll.scrollTop = previousV2SettingsScroll;
+    const v2ReadInput = s.querySelector("#source-read-token");
+    if (v2ReadInput) v2ReadInput.value = pendingV2ReadToken;
     const projectScroll = s.querySelector("#project-management-scroll");
     if (projectScroll) {
       projectScroll.scrollTop = previousProjectScroll;
