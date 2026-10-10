@@ -209,6 +209,19 @@ class LabIsolationContracts(unittest.TestCase):
         self.assertIn('this._mainSourceRef = ""', frontend)
         self.assertIn('this._sourceCheck({dataset:{repo:mainProject.repository}})', frontend)
 
+    def test_mobile_header_and_project_settings_actions_stay_on_one_row(self):
+        frontend = (LAB_ROOT / "frontend/lab.js").read_text(encoding="utf-8")
+        self.assertIn('class="dialog-actions manage-dialog-actions', frontend)
+        self.assertIn('grid-template-columns:minmax(0,1.5fr) repeat(2,minmax(0,1fr))', frontend)
+        self.assertIn('.dra-actions #dra-refresh {grid-column:1;}', frontend)
+        self.assertIn('.dra-actions #dra-toggle {grid-column:2;}', frontend)
+        self.assertIn('.git-dialog .manage-dialog-actions button', frontend)
+        self.assertIn('white-space:nowrap;', frontend)
+        self.assertIn('@media (max-width:360px)', frontend)
+        self.assertEqual(frontend.count('id="manage-remove-start"'), 1)
+        self.assertEqual(frontend.count('id="manage-cancel"'), 1)
+        self.assertEqual(frontend.count('id="manage-save"'), 1)
+
     def test_config_flow_uses_test_domain_not_v1_domain(self):
         source = (LAB_ROOT / "config_flow.py").read_text(encoding="utf-8")
         self.assertIn("ConfigFlow, domain=DOMAIN", source)
