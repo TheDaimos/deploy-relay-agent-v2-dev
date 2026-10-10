@@ -143,6 +143,17 @@ class LabIsolationContracts(unittest.TestCase):
         self.assertIn('class="batch-choice"', frontend)
         self.assertIn('@media (max-width:760px)', frontend)
 
+    def test_batch_selection_uses_save_cancel_dialog(self):
+        frontend = (LAB_ROOT / "frontend/lab.js").read_text(encoding="utf-8")
+        self.assertIn('id="batch-open"', frontend)
+        self.assertIn('id="batch-dialog"', frontend)
+        self.assertIn('id="batch-save"', frontend)
+        self.assertIn('id="batch-cancel"', frontend)
+        self.assertNotIn('id="batch-preview"', frontend)
+        self.assertIn('this._batchDialogOpen = false', frontend)
+        self.assertIn('projects/preselect', frontend)
+        self.assertIn('batch_preselect === enabled', frontend)
+
     def test_config_flow_uses_test_domain_not_v1_domain(self):
         source = (LAB_ROOT / "config_flow.py").read_text(encoding="utf-8")
         self.assertIn("ConfigFlow, domain=DOMAIN", source)
