@@ -117,3 +117,7 @@ Aufgrund der HA-Nutzerrückmeldung nach V2 DEV 0.1.16 wurden drei konkrete Fehlf
 - Maximale Inhaltsbreite 1600 px mit zweispaltiger Desktopanordnung ab 1100 px und einspaltiger Mobilansicht; keine Änderung an Export-Backend, Tokenpersistenz, Privatsperre oder den V1-Integrationen.
 - Benutzer meldete am 09.10.2026 einen erfolgreichen privaten Git-Export in der HA-Oberfläche (sichtbare Export-ID und Zielpfad). Das ist eine Benutzerbestätigung, keine vom Entwicklungsprozess unabhängig abgeglichene GitHub-Dateiverifikation.
 - Die Freigabe für die Installation über DRA V1 bleibt eine gesonderte Benutzerhandlung; dieser Commit installiert oder startet Home Assistant nicht neu.
+
+## V2 DEV 0.1.19 – Bereinigung der Teststeuerung (10.10.2026)
+
+Die veraltete Schaltfläche „Testauftrag starten“ für die künstliche 40-Sekunden-Auftragsprüfung wurde aus der normalen Benutzeroberfläche entfernt. CPU-/RAM-Messlauf, Mehrkern-Diagnose und Gesamttest bleiben bedienbar. Der interne schreibgeschützte Testauftrag und sein serverseitiger Prüfvertrag bleiben für Entwicklung und Regressionstests vorhanden. Keine Änderung an Git-Export, V1 oder HA-Neustartverhalten.
