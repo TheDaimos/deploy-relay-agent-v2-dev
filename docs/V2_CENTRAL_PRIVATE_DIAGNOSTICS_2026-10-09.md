@@ -149,3 +149,7 @@ Die drei Felder Betriebsart, parallele Leseaufträge und DRA-Arbeitsprozesse wer
 ## V2 DEV 0.1.26 – Einheitliche Schaltflächenrückmeldung (10.10.2026)
 
 „Vorgaben speichern“ in der Auftragsverarbeitung heißt nur noch „Speichern“. Sämtliche aktivierten Schaltflächen des V2-Testlabors erhalten optische Hover-, gedrückt- und Tastaturfokuszustände. Beim Drücken werden sie geringfügig nach unten verschoben und abgedunkelt; deaktivierte Schaltflächen reagieren nicht. Reduzierte Animation wird über die Betriebssystemeinstellung berücksichtigt. Die Änderung betrifft nur die Oberfläche, nicht die Auftragsausführung, Sicherungen oder Schreibberechtigungen.
+
+## V2 DEV 0.1.28 – Einklappbare Diagnose- und Einstellungsbereiche (10.10.2026)
+
+Alle sechs vorhandenen Bereiche der bisherigen V2-Laboransicht sind nun unabhängig auf- und zuklappbar und zunächst geschlossen. Der Öffnungszustand bleibt während der laufenden Statusaktualisierung im aktuellen Browser erhalten. Unter „Meine Projekte“ lautet die frühere Schaltfläche „V1-Projekte ansehen“ nun „Projekte aus DRA V1 übernehmen“; die sichere zweistufige Vorschau und ausdrückliche Übernahme bleiben technisch identisch. Die gesamte bisherige Laboroberfläche gehört fachlich künftig unter „Diagnose & Einstellungen“, nicht zur eigentlichen noch zu gestaltenden DRA-V2-Hauptoberfläche. Keine neue Installationsfreigabe.
