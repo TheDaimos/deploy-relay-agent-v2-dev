@@ -10,6 +10,7 @@ from pathlib import Path
 
 from .remote_source import inspect_public_repository, inspect_repository_connection, GitReadAuthError
 from .source_preflight import PreflightError
+from .target_ownership import TargetClaimError, assess_target_claims
 
 from .const import DOMAIN, VERSION
 from .operation_model import OperationContractError, OperationPhase
@@ -753,7 +754,10 @@ async def async_projects_source_preview(hass, connection, msg):
                 ),
                 timeout=45,
             )
-    except (PreflightError, TimeoutError, OSError, ValueError):
+            # A validated preview is still not proof of exclusive V2 ownership.
+            # External V1 ownership/locks and backup verification remain unknown.
+            report["target_claims"] = assess_target_claims([report])
+    except (PreflightError, TargetClaimError, TimeoutError, OSError, ValueError):
         connection.send_error(
             msg["id"], "source_unavailable",
             "Quellprüfung nicht möglich oder Quelle nicht vertrauenswürdig",
