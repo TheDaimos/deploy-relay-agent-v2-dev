@@ -14,6 +14,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._cpuStatus = {available_cores:null,warning:null};
     this._cpuBusy = false;
     this._batchSelection = null;
+    this._batchDialogOpen = false;
     this._batchPreview = null;
     this._batchBusy = false;
     this._batchMessage = "";
@@ -568,6 +569,48 @@ class DRAV2DevLabPanel extends HTMLElement {
     }
   }
 
+  _openBatchDialog() {
+    if (this._batchBusy) return;
+    this._batchSelection = this._projects.filter(p => p.batch_preselect !== false).map(p => p.repository);
+    this._batchMessage = "";
+    this._batchDialogOpen = true;
+    this._render();
+  }
+  _cancelBatchDialog() {
+    if (this._batchBusy) return;
+    this._batchDialogOpen = false;
+    this._batchSelection = null;
+    this._batchMessage = "";
+    this._render();
+  }
+  async _saveBatchDialog() {
+    if (!this._hass || this._batchBusy || !this._batchDialogOpen) return;
+    const chosen = new Set(this._batchSelection || []);
+    this._batchBusy = true;
+    this._batchMessage = "Auswahl wird gespeichert …";
+    this._render();
+    try {
+      for (const project of [...this._projects]) {
+        const enabled = chosen.has(project.repository);
+        if (project.batch_preselect === enabled) continue;
+        const result = await this._hass.callWS({
+          type:"deploy_relay_v2_dev/projects/preselect", repository:project.repository, enabled,
+        });
+        if (!Array.isArray(result.projects)) throw new Error("not confirmed");
+        this._projects = result.projects;
+        if (!this._projects.some(p => p.repository === project.repository && p.batch_preselect === enabled))
+          throw new Error("not confirmed");
+      }
+      this._batchDialogOpen = false;
+      this._batchSelection = null;
+      this._batchMessage = "Sammelupdate-Auswahl gespeichert.";
+    } catch (_error) {
+      this._batchMessage = "Speicherung nicht vollständig. Bitte Auswahl prüfen und erneut speichern.";
+    } finally {
+      this._batchBusy = false;
+      if (this.isConnected) this._render();
+    }
+  }
   _togglePreselect(button) {
     return this._projectAction("preselect", {repository:button.dataset.repo,
       enabled:button.dataset.enabled === "true"});
@@ -801,6 +844,7 @@ class DRAV2DevLabPanel extends HTMLElement {
            .project-card td:nth-child(3)::before { content:"Sicherungen behalten"; display:block; font-weight:bold; margin-bottom:4px; }
            .project-card td:nth-child(4)::before { content:"Git-Quelle"; display:block; font-weight:bold; }
          }
+         .batch-options { max-height:55vh; overflow:auto; }
          .section-card { min-width:0; border:1px solid var(--divider-color,#555); box-shadow:0 2px 12px rgba(0,0,0,.08); }
          .section-card h2 { font-size:18px; margin:0 0 12px; padding-bottom:12px; border-bottom:1px solid var(--divider-color,#555); }
          .inner-panel { border:1px solid var(--divider-color,#555); background:var(--secondary-background-color,rgba(127,127,127,.07)); border-radius:10px; padding:12px 14px; margin-top:14px; }
@@ -971,16 +1015,27 @@ class DRAV2DevLabPanel extends HTMLElement {
         </article>
         <article class="section-card">
           <h2>06 · Sammelaktualisierung</h2>
-          <p class="note">Die gespeicherte Vorauswahl wird nur beim Öffnen dieser
-          Ansicht verwendet. Häkchen gelten für den aktuellen Vorgang.</p>
-          ${this._projects.length ? batchRows : "<p>Bitte erst Projekte anlegen oder aus V1 übernehmen.</p>"}
-          <button id="batch-preview" ${this._batchBusy || this._projects.length === 0 ? "disabled" : ""}>Auswahl prüfen (ohne Installation)</button>
-          <p class="note">${this._escapeProject(this._batchMessage)}</p>
-          ${this._batchPreview ? `<p>${this._batchPreview.count} Projekte ausgewählt. Git-Stand
-          noch nicht überprüft; keine Installation möglich.</p><ul>${batchReport}</ul>` : ""}
+          <p class="note">Projektvorauswahl für spätere Sammelaktualisierungen. Keine Installation.</p>
+          <button id="batch-open" ${this._projects.length === 0 ? "disabled" : ""}>Projektauswahl bearbeiten</button>
+          <p class="note">${this._projects.filter(p => p.batch_preselect !== false).length} von ${this._projects.length} Projekten ausgewählt.</p>
+          <p class="note" role="status">${this._escapeProject(this._batchDialogOpen ? "" : this._batchMessage)}</p>
         </article>
 
         </div>
+        ${this._batchDialogOpen ? `
+          <div class="git-dialog-backdrop">
+            <section class="git-dialog" id="batch-dialog" role="dialog" aria-modal="true" aria-labelledby="batch-title">
+              <header><h2 id="batch-title">Sammelaktualisierung · Projekte</h2>
+              <button id="batch-close" aria-label="Schließen" ${this._batchBusy ? "disabled" : ""}>✕</button></header>
+              <p class="note">Projekte durch Häkchen auswählen. Erst „Speichern“ übernimmt die Auswahl.</p>
+              <div class="batch-options">${batchRows}</div>
+              <p class="note" role="status">${this._escapeProject(this._batchMessage)}</p>
+              <div class="dialog-actions">
+                <button id="batch-save" ${this._batchBusy ? "disabled" : ""}>Speichern</button>
+                <button id="batch-cancel" ${this._batchBusy ? "disabled" : ""}>Abbrechen</button>
+              </div>
+            </section>
+          </div>` : ""}
         ${this._gitDialogOpen ? `
           <div class="git-dialog-backdrop">
             <section class="git-dialog" id="git-export-dialog"
@@ -1074,11 +1129,13 @@ class DRAV2DevLabPanel extends HTMLElement {
     s.querySelector("#git-retry")?.addEventListener("click", () => this._exportGit(true));
     s.querySelector("#settings-save")?.addEventListener("click", () => this._saveSettings());
     s.querySelector("#cpu-warning-ack")?.addEventListener("click", () => this._ackCpuWarning());
-    s.querySelector("#batch-preview")?.addEventListener("click", () => this._previewBatch());
+    s.querySelector("#batch-open")?.addEventListener("click", () => this._openBatchDialog());
+    s.querySelector("#batch-close")?.addEventListener("click", () => this._cancelBatchDialog());
+    s.querySelector("#batch-cancel")?.addEventListener("click", () => this._cancelBatchDialog());
+    s.querySelector("#batch-save")?.addEventListener("click", () => this._saveBatchDialog());
     s.querySelectorAll(".batch-choice")?.forEach(input => input.addEventListener("change", () => {
       this._batchSelection = [...s.querySelectorAll(".batch-choice")].filter(x => x.checked).map(x => x.dataset.repo);
-      this._batchPreview = null;
-      this._batchMessage = "Auswahl geändert – Vorschau erneut prüfen.";
+
     }));
     s.querySelectorAll(".source-check")?.forEach(button => button.addEventListener("click", () => this._sourceCheck(button)));
     s.querySelector("#git-read-save")?.addEventListener("click", () => this._configureGitRead(false));
