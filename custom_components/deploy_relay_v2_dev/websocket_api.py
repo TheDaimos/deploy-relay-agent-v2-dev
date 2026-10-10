@@ -8,7 +8,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from pathlib import Path
 
-from .remote_source import inspect_public_repository, GitReadAuthError
+from .remote_source import inspect_public_repository, inspect_repository_connection, GitReadAuthError
 from .source_preflight import PreflightError
 
 from .const import DOMAIN, VERSION
@@ -424,6 +424,7 @@ async def async_projects_import_v1(hass, connection, msg):
     probatio.Required("name"): str,
     probatio.Optional("note"): str,
     probatio.Optional("active"): bool,
+    probatio.Optional("access_mode"): str,
 })
 @websocket_api.require_admin
 @websocket_api.async_response
@@ -434,7 +435,8 @@ async def async_projects_add(hass, connection, msg):
         return
     try:
         record = await runtime.projects.add(msg["repository"], msg["name"],
-                                            msg.get("note", ""), msg.get("active", True))
+                                            msg.get("note", ""), msg.get("active", True),
+                                            msg.get("access_mode", "read_only"))
     except CatalogError:
         connection.send_error(msg["id"], "invalid_project", "Projekt konnte nicht angelegt werden")
         return
@@ -452,6 +454,7 @@ async def async_projects_add(hass, connection, msg):
     probatio.Optional("name"): str,
     probatio.Optional("note"): str,
     probatio.Optional("active"): bool,
+    probatio.Optional("access_mode"): str,
     probatio.Optional("confirmed"): bool,
 })
 @websocket_api.require_admin
@@ -488,7 +491,8 @@ async def async_projects_manage(hass, connection, msg):
                 if report.get("sources_verified") is not True or report.get("installation_enabled") is not False:
                     raise CatalogError("new repository unverified")
                 await runtime.projects.configure(old_repo, new_repo,
-                                                 msg["name"], msg["note"], msg["active"])
+                                                 msg["name"], msg["note"], msg["active"],
+                                                 msg.get("access_mode"))
                 try:
                     await runtime.project_auth.rename(old_repo, new_repo)
                 except GitReadAuthError:
@@ -670,6 +674,42 @@ async def async_batch_preview(hass, connection, msg):
 
 
 @websocket_api.websocket_command({
+    probatio.Required("type"): "deploy_relay_v2_dev/projects/connection_check",
+    probatio.Required("repository"): str,
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def async_projects_connection_check(hass, connection, msg):
+    """GET /repos for selected registered project. Never tests or enables writes."""
+    runtime = _runtime(hass)
+    if runtime is None:
+        connection.send_error(msg["id"], "not_ready", "Projektverwaltung nicht bereit")
+        return
+    repo = msg["repository"]
+    if not any(p["repository"].casefold() == repo.casefold() for p in runtime.projects.list()):
+        connection.send_error(msg["id"], "not_registered", "Projekt nicht registriert")
+        return
+    if runtime.source_scan_lock.locked():
+        connection.send_error(msg["id"], "busy", "Eine GitHub-Prüfung läuft bereits")
+        return
+    try:
+        async with runtime.source_scan_lock:
+            result = await asyncio.wait_for(
+                inspect_repository_connection(
+                    async_get_clientsession(hass), repo,
+                    token=runtime.project_auth.token(repo) or runtime.source_auth.token,
+                ), timeout=20)
+    except (PreflightError, TimeoutError, OSError, ValueError):
+        connection.send_result(msg["id"], {
+            "connected": False, "repository": repo,
+            "reason": "Repository nicht erreichbar oder Zugriff verweigert",
+            "write_tested": False,
+        })
+        return
+    connection.send_result(msg["id"], result)
+
+
+@websocket_api.websocket_command({
     probatio.Required("type"): "deploy_relay_v2_dev/projects/source_preview",
     probatio.Required("repository"): str,
     probatio.Required("ref"): str,
@@ -765,7 +805,8 @@ def async_register_commands(hass: HomeAssistant) -> None:
                     async_projects_token,
                     async_projects_retention, async_projects_preselect,
                     async_settings_get, async_settings_save, async_settings_ack_cpu_warning,
-                    async_batch_preview, async_projects_source_preview,
+                    async_batch_preview, async_projects_connection_check,
+                    async_projects_source_preview,
                     async_git_read_configure, async_git_read_clear,
                     async_archive_repository_set, async_archive_repository_clear,
                     async_archive_repository_configure,
