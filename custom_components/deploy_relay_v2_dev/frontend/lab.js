@@ -1368,7 +1368,9 @@ class DRAV2DevLabPanel extends HTMLElement {
       if (this._projectSettingsRepo === "__new__") {
         const repo = s.querySelector("#manage-repository")?.value.trim();
         const name = s.querySelector("#manage-name")?.value.trim() || "";
-        this._projectAction("add", {repository:repo,name});
+        const note = s.querySelector("#manage-note")?.value || "";
+        const active = s.querySelector("#manage-active")?.checked === true;
+        this._projectAction("add", {repository:repo,name,note,active});
         this._projectSettingsRepo = null;
       } else this._saveProjectSettings();
     });
