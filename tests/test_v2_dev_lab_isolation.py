@@ -132,6 +132,15 @@ class LabIsolationContracts(unittest.TestCase):
         self.assertLess(frontend.index("02 · Diagnoseexport"), frontend.index("04 · Auftragsverarbeitung"))
         self.assertLess(frontend.index("03 · Messergebnisse"), frontend.index("05 · Meine Projekte"))
 
+    def test_source_check_has_visible_per_project_feedback_and_columns(self):
+        frontend = (LAB_ROOT / "frontend/lab.js").read_text(encoding="utf-8")
+        self.assertIn('this._sourceRepository = repository;', frontend)
+        self.assertIn('class="source-inline" role="status"', frontend)
+        self.assertIn('Prüfung läuft …', frontend)
+        self.assertIn('Prüfung nicht erfolgreich', frontend)
+        self.assertIn('<th>Sammelupdate</th><th>Git-Quelle</th>', frontend)
+        self.assertIn('@media (max-width:760px)', frontend)
+
     def test_config_flow_uses_test_domain_not_v1_domain(self):
         source = (LAB_ROOT / "config_flow.py").read_text(encoding="utf-8")
         self.assertIn("ConfigFlow, domain=DOMAIN", source)
