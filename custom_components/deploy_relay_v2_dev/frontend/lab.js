@@ -1004,14 +1004,50 @@ class DRAV2DevLabPanel extends HTMLElement {
          .project-card td:first-child { min-width:180px; white-space:normal; overflow-wrap:anywhere; }
          .project-card td button { margin:4px; white-space:nowrap; }
          @media (max-width:760px) {
-           .project-card table, .project-card tbody, .project-card tr, .project-card td { display:block; width:100%; box-sizing:border-box; }
+           /* A project is one compact two-row card, not five vertically stacked table cells. */
+           .project-card .table-wrap { overflow-x:visible; }
+           .project-card table, .project-card tbody { display:block; width:100%; box-sizing:border-box; }
            .project-card thead { display:none; }
-           .project-card tr { border:1px solid var(--divider-color,#555); border-radius:10px; margin-bottom:12px; padding:8px; }
-           .project-card td { border:none; padding:7px; white-space:normal; min-width:0 !important; }
-           .project-card td:nth-child(2)::before { content:"Projekt: "; font-weight:bold; }
-           .project-card td:nth-child(3)::before { content:"Git-Status"; display:block; font-weight:bold; }
-           .project-card td:nth-child(4)::before { content:"Einstellungen"; display:block; font-weight:bold; }
-           .project-card td:nth-child(5)::before { content:"Reihenfolge"; display:block; font-weight:bold; }
+           .project-card tr {
+             display:grid; width:100%; box-sizing:border-box;
+             grid-template-columns:28px minmax(0,1fr) 42px 90px;
+             grid-template-areas:"number project project project" "status status settings order";
+             align-items:center; gap:9px 7px;
+             border:1px solid var(--divider-color,#555);
+             border-radius:10px; margin-bottom:9px; padding:10px;
+           }
+           .project-card td {
+             display:block; width:auto; min-width:0 !important; box-sizing:border-box;
+             border:0; padding:0; white-space:normal; overflow-wrap:anywhere;
+           }
+           .project-card td::before { content:none !important; display:none !important; }
+           .project-card td:nth-child(1) {
+             grid-area:number; text-align:center; font-weight:700;
+             color:var(--secondary-text-color,#bbb);
+           }
+           .project-card td:nth-child(2) { grid-area:project; }
+           .project-card td:nth-child(2) strong { display:block; }
+           .project-card td:nth-child(2) .note { font-size:12px; overflow-wrap:anywhere; }
+           .project-card td:nth-child(3) { grid-area:status; }
+           .project-card td:nth-child(4) { grid-area:settings; }
+           .project-card td:nth-child(5) {
+             grid-area:order; display:flex; gap:4px; align-items:center;
+           }
+           .project-card td button {
+             box-sizing:border-box; margin:0; min-height:38px;
+             padding:8px 5px; white-space:nowrap; max-width:100%;
+           }
+           .project-card td:nth-child(3) button {
+             display:block; width:100%; min-width:0; font-size:clamp(10px,2.9vw,13px);
+           }
+           .project-card td:nth-child(4) button { width:40px; }
+           .project-card td:nth-child(5) button {
+             flex:1 1 0; min-width:0; padding:8px 3px;
+           }
+           .project-management-table .source-check.note {
+             background:var(--secondary-background-color,#414b53);
+             border:1px solid var(--divider-color,#555); color:var(--primary-text-color,#fff);
+           }
          }
          .batch-options { max-height:55vh; overflow:auto; }
          .backup-dialog { width:min(100%,760px); }
