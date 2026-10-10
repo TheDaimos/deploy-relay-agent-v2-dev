@@ -247,7 +247,7 @@ class V2ProjectCatalogTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(m.CatalogError):
             await self.catalog.configure("TheDaimos/one", "TheDaimos/two", "One", "", True)
         with self.assertRaises(m.CatalogError):
-            await self.catalog.configure("TheDaimos/one", "TheDaimos/one", "One", "\\x00", True)
+            await self.catalog.configure("TheDaimos/one", "TheDaimos/one", "One", chr(0), True)
         self.assertEqual(len(self.catalog.list()), 2)
 
     async def test_catalog_limit_is_hard(self):
