@@ -312,6 +312,24 @@ class LabIsolationContracts(unittest.TestCase):
         self.assertIn('connection-failure', frontend)
         self.assertNotIn('"Fehlgeschlagen" :', frontend)
 
+    def test_all_project_connection_check_is_sequential_and_reports_progress(self):
+        frontend = (LAB_ROOT / "frontend/lab.js").read_text(encoding="utf-8")
+        for marker in (
+            'this._checkAllBusy = false;',
+            'this._checkAllProgress = "";',
+            'async _checkAllProjectConnections()',
+            'const repositories = this._projects.map(p => p.repository)',
+            'await this._checkProjectConnection(repository, true)',
+            'this._checkAllBusy && !fromBulk',
+            'Prüfung abgeschlossen:',
+            'role="status" aria-live="polite"',
+            'id="project-check-all"',
+            'Alle Projekte prüfen',
+            'this._checkAllProjectConnections()',
+            '#project-check-all {grid-column:1 / -1;}',
+        ):
+            self.assertIn(marker, frontend)
+
     def test_config_flow_uses_test_domain_not_v1_domain(self):
         source = (LAB_ROOT / "config_flow.py").read_text(encoding="utf-8")
         self.assertIn("ConfigFlow, domain=DOMAIN", source)
