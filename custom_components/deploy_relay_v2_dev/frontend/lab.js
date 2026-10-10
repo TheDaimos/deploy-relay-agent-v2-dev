@@ -46,6 +46,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._sourceRepository = null;
     this._sourceMessage = "";
     this._sourcePreview = null;
+    this._deploymentPreviewRef = null;
     this._sourceChecks = new Map();
     this._connectionBusy = false;
     this._checkAllBusy = false;
@@ -586,6 +587,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._sourceRepository = repository;
     this._sourceBusy = true;
     this._sourcePreview = null;
+    this._deploymentPreviewRef = null;
     this._sourceMessage = "GitHub-Quelle und vorhandene Dateien werden schreibgeschützt geprüft …";
     this._render();
     try {
@@ -597,6 +599,7 @@ class DRAV2DevLabPanel extends HTMLElement {
         throw new Error("ungueltiges Quellpruefungsergebnis");
       }
       this._sourcePreview = report;
+      this._deploymentPreviewRef = this._view === "main" ? ref : null;
       this._sourceMessage = "Quellprüfung abgeschlossen. Keine Installation freigegeben.";
     } catch (_error) {
       this._sourceMessage = "Quelle nicht erreichbar oder sicherheitstechnisch nicht prüfbar. Kein Update als aktuell bestätigt.";
@@ -689,6 +692,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     if (!this._projectPickerOpen) return;
     if (!this._projects.some(p => p.repository === repository && p.active !== false)) return;
     this._selectedMainRepo = repository;
+    this._deploymentPreviewRef = null;
     this._mainBatchMode = false;
     this._mainBatchPreview = null;
     this._mainBatchMessage = "";
@@ -731,6 +735,7 @@ class DRAV2DevLabPanel extends HTMLElement {
       return;
     }
     this._mainBatchMode = true;
+    this._deploymentPreviewRef = null;
     this._mainBatchPreview = null;
     this._mainBatchMessage = selected.length + " Projekte für das Sammelupdate ausgewählt. Installation noch gesperrt.";
     this._sourcePreview = null;
@@ -1037,6 +1042,34 @@ class DRAV2DevLabPanel extends HTMLElement {
     const activeMainProjects = this._projects.filter(p => p.active !== false);
     const mainProject = activeMainProjects.find(p => p.repository === this._selectedMainRepo) || activeMainProjects[0] || null;
     const mainBatchProjects = this._mainBatchProjects();
+    const mainPreviewVerified = !this._mainBatchMode && !!mainProject &&
+      this._sourceRepository === mainProject.repository &&
+      this._deploymentPreviewRef === this._mainSourceRef.trim() &&
+      this._sourcePreview?.sources_verified === true &&
+      this._sourcePreview?.installation_enabled === false;
+    const deploymentBusy = this._mainBatchMode ? this._mainBatchBusy : this._sourceBusy;
+    const deploymentStage = mainPreviewVerified ? 2 : 1;
+    const deploymentCanPreview = this._mainBatchMode
+      ? mainBatchProjects.length > 0 && !!this._hass
+      : !!mainProject && !!this._hass;
+    const deploymentButtonText = deploymentBusy
+      ? "1/4 · " + (this._mainBatchMode ? "Projektauswahl wird geprüft …" : "Vorschau wird berechnet …")
+      : mainPreviewVerified ? "2/4 · Schreibzugriff freigeben"
+      : this._mainBatchMode ? "1/4 · Projektauswahl prüfen"
+      : "1/4 · Vorschau berechnen";
+    const deploymentStatus = this._mainBatchMode
+      ? this._mainBatchMessage || "Die gemeinsame Auswahl kann gelesen, aber noch nicht installiert werden."
+      : mainPreviewVerified
+        ? "Quellprüfung abgeschlossen. Schritt 2 ist bis zur Sicherheitsabnahme gesperrt."
+        : this._sourceRepository === mainProject?.repository && this._sourceMessage
+          ? this._sourceMessage : "Noch keine Vorschau berechnet.";
+    const deploymentIcons = [
+      iconSvg('<circle cx="11" cy="11" r="7"/><path d="m16 16 5 5"/>',21),
+      iconSvg('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><path d="m9 12 2 2 4-4"/>',21),
+      iconSvg('<path d="M12 3v12m-5-5 5 5 5-5"/><path d="M4 17v4h16v-4"/>',21),
+      iconSvg('<path d="M20 6 9 17l-5-5"/>',21),
+    ];
+
     // Consistent, resolution-independent 24x24 vector icons: never emoji or icon fonts.
     const iconSvg = (body, size=22) => `<svg class="project-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true">${body}</svg>`;
     const gearIcon = iconSvg('<path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/>');
@@ -1324,11 +1357,83 @@ class DRAV2DevLabPanel extends HTMLElement {
           .dra-picker-header h2 {font-size:18px;}
           .dra-project-picker-field {width:100%;}
         }
-        .dra-steps {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
-        .dra-steps button {margin:0;background:#233943;border:1px solid #396a96;padding:10px 4px}
-        .dra-steps button.current {background:#14516a;border-color:#14a8dc;font-weight:700}
+        /* One-button deployment workflow; V1-inspired moving progress strip. */
+        .dra-source-title {display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+        .dra-source-title h2 {margin:0;}
+        .dra-source-badge {font-size:12px;font-weight:700;padding:6px 10px;border-radius:20px;
+          border:1px solid #a37b35;background:rgba(148,105,33,.12);color:#e9cf93;}
+        .dra-source-badge.verified {border-color:#44996a;background:rgba(26,120,70,.13);color:#a4edbd;}
+        .dra-source-info {border:1px solid #687c8a;border-radius:12px;padding:16px;
+          margin-top:16px;background:linear-gradient(140deg,rgba(47,70,80,.16),rgba(17,28,37,.16));}
+        .dra-source-info.verified {border-color:#4eac6e;
+          background:linear-gradient(140deg,rgba(31,111,61,.18),rgba(17,30,24,.12));}
+        .dra-source-info > strong {display:block;font-size:17px;margin-bottom:12px;}
+        .dra-source-meta {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;}
+        .dra-source-meta > div {display:flex;flex-direction:column;gap:4px;min-width:0;}
+        .dra-source-meta strong {font-size:14px;overflow-wrap:anywhere;}
+        .dra-source-extra {border-top:1px solid #42515b;margin-top:14px;padding-top:12px;}
+        .dra-source-extra summary {cursor:pointer;font-weight:700;min-height:25px;}
+        .dra-source-extra label {display:block;margin-top:13px;}
+        .dra-source-extra input.project-text {box-sizing:border-box;width:100%;}
+        .dra-deployment-panel {border-color:#425968;}
+        .dra-deployment-panel h2 {margin:0 0 14px;}
+        .dra-deploy-action {box-sizing:border-box;width:100%;margin:0;padding:17px 18px;
+          min-height:79px;border-radius:14px;display:flex;gap:12px;align-items:center;justify-content:center;
+          text-align:center;font-size:clamp(16px,2vw,21px);font-weight:800;letter-spacing:.005em;
+          color:#f1fbff;border:1px solid #00abcf;
+          background:linear-gradient(145deg,#088cb4,#067da5 55%,#095b83);
+          box-shadow:inset 0 1px 0 rgba(244,255,255,.32),0 3px 10px #001b2c70;}
+        .dra-deploy-action .project-icon {flex:none;}
+        .dra-deploy-action.stage-2 {color:#ffdfb0;border-color:#da8c29;
+          background:linear-gradient(145deg,#73501f,#704716 60%,#58391d);
+          box-shadow:inset 0 1px 0 rgba(255,237,200,.2),0 3px 9px #0005;}
+        .dra-deploy-action.stage-2:disabled {opacity:1;cursor:not-allowed;transform:none;}
+        .dra-deploy-action.is-busy {opacity:1;border-color:#56bfdc;cursor:progress;}
+        .dra-deploy-action.is-busy .project-icon {animation:dra-deploy-spin 1.15s linear infinite;}
+        @keyframes dra-deploy-spin {to {transform:rotate(360deg);}}
+        .dra-deploy-progress {overflow:hidden;position:relative;margin:17px 0 15px;height:7px;
+          border-radius:99px;border:1px solid #456272;
+          background:linear-gradient(180deg,#07141e,#273d49 54%,#101f2b);
+          box-shadow:inset 0 1px 3px #000b,0 1px 0 #b8dce01c;}
+        .dra-deploy-progress-fill {height:100%;width:0%;position:relative;border-radius:inherit;
+          background:linear-gradient(90deg,#158db8,#39d6ed 52%,#1677ac);
+          box-shadow:0 0 7px #32d0ecaa;transition:width .32s ease;}
+        .dra-deploy-progress.verified .dra-deploy-progress-fill {width:25%;}
+        .dra-deploy-progress.running .dra-deploy-progress-fill {
+          width:40%;animation:dra-v1-loader-sweep 1.8s ease-in-out infinite;
+          background:linear-gradient(90deg,transparent,#39d7f3 28%,#c1faff 55%,#1b9ec6);
+        }
+        @keyframes dra-v1-loader-sweep {
+          0% {transform:translateX(-110%);}
+          100% {transform:translateX(260%);}
+        }
+        .dra-deploy-steps {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;}
+        .dra-deploy-step {box-sizing:border-box;display:flex;align-items:center;justify-content:center;
+          flex-direction:column;gap:7px;min-height:77px;padding:10px 5px;text-align:center;
+          border:1px solid #44535b;border-radius:10px;color:#a3aeb8;
+          background:linear-gradient(140deg,#26313a,#1c252e);font-size:12px;font-weight:700;}
+        .dra-deploy-step svg {flex:none;}
+        .dra-deploy-step.blue.current {border-color:#0eaed8;color:#c7f6ff;background:rgba(0,145,188,.16);}
+        .dra-deploy-step.orange.current {border-color:#c48838;color:#ffd7a4;background:rgba(160,99,24,.14);}
+        .dra-deploy-step.blue.done {border-color:#4fba8a;color:#abe6c6;background:rgba(29,113,76,.17);}
+        .dra-deploy-step.orange.pending {border-color:#806c4b;color:#c2aa86;}
+        .dra-deploy-step.red.pending {border-color:#70464a;color:#ae858a;}
+        .dra-deploy-step.green.pending {border-color:#4a6657;color:#92b39d;}
+        .dra-deployment-status {margin:14px 0 7px;font-size:13px;}
+        .dra-deployment-result {margin-top:12px;padding:12px;border:1px solid #426f63;
+          background:rgba(24,88,65,.13);border-radius:10px;display:flex;flex-direction:column;gap:5px;font-size:13px;}
+        .dra-deployment-hint {font-size:12px;margin:15px 0 0;}
+        @media(max-width:600px){
+          .dra-deploy-steps {grid-template-columns:repeat(2,minmax(0,1fr));}
+          .dra-source-meta {grid-template-columns:repeat(2,minmax(0,1fr));}
+          .dra-deploy-action {min-height:76px;padding:14px 12px;}
+        }
+        @media(prefers-reduced-motion:reduce){
+          .dra-deploy-action.is-busy .project-icon {animation:none;}
+          .dra-deploy-progress.running .dra-deploy-progress-fill {animation:none;width:40%;}
+          .dra-deploy-progress-fill {transition:none;}
+        }
         .dra-warning {border:1px solid #987323;background:rgba(160,110,10,.12);border-radius:10px;padding:14px;margin-top:14px}
-        @media(max-width:760px){.dra-steps{grid-template-columns:repeat(2,minmax(0,1fr))}}
         h1 { font-size:24px; margin:0 0 12px; }
         article { background:var(--card-background-color,#202020); border:1px solid var(--divider-color,#555); border-radius:14px; padding:20px; margin-top:18px; }
         p { line-height:1.5; }
@@ -1977,37 +2082,90 @@ class DRAV2DevLabPanel extends HTMLElement {
             <button disabled>Sicherungen</button>
           </article>
           <div class="dra-warning"><strong>Gesperrter Betrieb</strong><div>Deployment-Schreibzugriffe sind deaktiviert. Vorschau und Diagnose bleiben verfügbar.</div></div>
-          <article><h2>Geführter Ablauf</h2><p class="note">Orientierung am bewährten DRA-V1-Aufbau.</p>
-          <div class="dra-steps"><button id="dra-step1" class="current">1 · Stand auswählen</button><button id="dra-step2" class="${this._mainBatchMode ? this._mainBatchPreview ? "current" : "" : this._sourceRepository === mainProject?.repository && this._sourcePreview ? "current" : ""}">2 · Vorschau prüfen</button>
-          <button disabled>3 · Schreibzugriff</button><button disabled>4 · Installieren</button></div></article>
-          ${this._mainBatchMode ? `
-          <article class="dra-main-batch-card">
-            <h2>Sammelupdate · ${mainBatchProjects.length} Projekte</h2>
-            <p class="note">Gemeinsame Auswahl für ein späteres paralleles Aktualisieren. Bis zur Freigabe der sicheren Installationsmechanik ist ausschließlich eine Identitätsvorschau möglich.</p>
-            <div class="dra-main-batch-list">
-              ${mainBatchProjects.length ? mainBatchProjects.map((p,i) => `<div class="dra-main-batch-entry">
-                <span>${i+1}.</span><strong>${this._escapeProject(p.name)}</strong>
-                <span class="note">${this._escapeProject(p.repository)}</span>
-              </div>`).join("") : '<p class="note">Keine aktivierten Projekte. Vorauswahl in der Projektverwaltung bearbeiten.</p>'}
+          <article class="dra-source-card">
+            <div class="dra-source-title">
+              <h2>Quelle & Version</h2>
+              <span class="dra-source-badge ${mainPreviewVerified ? "verified" : "unverified"}">
+                ${mainPreviewVerified ? "Quelle geprüft" : this._mainBatchMode ? "Mehrere Projekte" : "Prüfung ausstehend"}
+              </span>
             </div>
+            ${this._mainBatchMode ? `
+              <div class="dra-source-info">
+                <strong>Sammelupdate · ${mainBatchProjects.length} Projekte</strong>
+                <p class="note">Alle aktivierten und vorausgewählten Projekte in gespeicherter Reihenfolge.</p>
+                <details class="dra-source-extra"><summary>Ausgewählte Projekte anzeigen</summary>
+                  <div class="dra-main-batch-list">${mainBatchProjects.length
+                    ? mainBatchProjects.map((p,i) => `<div class="dra-main-batch-entry">
+                        <span>${i+1}.</span><strong>${this._escapeProject(p.name)}</strong>
+                        <span class="note">${this._escapeProject(p.repository)}</span></div>`).join("")
+                    : '<p class="note">Keine aktivierten Projekte. Auswahl in der Projektverwaltung bearbeiten.</p>'}</div>
+                </details>
+              </div>` : `
+              <div class="dra-source-info ${mainPreviewVerified ? "verified" : ""}">
+                <strong>${mainPreviewVerified ? "Geprüfte GitHub-Quelle" : "Quellstand noch nicht geprüft"}</strong>
+                <div class="dra-source-meta">
+                  <div><span class="note">Projekt</span><strong>${mainProject ? this._escapeProject(mainProject.name) : "Kein aktives Projekt"}</strong></div>
+                  <div><span class="note">Ref</span><strong>${mainPreviewVerified
+                    ? this._escapeProject(this._sourcePreview.source_ref || "Standardzweig")
+                    : this._escapeProject(this._mainSourceRef.trim() || "Standardzweig")}</strong></div>
+                  <div><span class="note">Commit</span><strong>${mainPreviewVerified
+                    ? this._escapeProject(this._sourcePreview.source_commit?.slice(0,12) || "—")
+                    : "Noch nicht geprüft"}</strong></div>
+                </div>
+              </div>
+              <details class="dra-source-extra" id="dra-source-advanced">
+                <summary>Erweiterte Quellenauswahl</summary>
+                <label for="dra-main-ref">Git-Referenz (Branch, Tag oder Commit; leer = Standardzweig)
+                  <input id="dra-main-ref" class="project-text" placeholder="z. B. deploy/dev"
+                    value="${this._escapeProject(this._mainSourceRef)}" autocomplete="off"/>
+                </label>
+                <p class="note">Eine andere Referenz setzt die bisherige Vorschau zurück.</p>
+              </details>`}
           </article>
-          <article><h2>Vorschau</h2>
-            <button id="dra-preview" ${!mainBatchProjects.length || this._mainBatchBusy || !this._hass ? "disabled" : ""}>2 · Sammelupdate-Auswahl prüfen</button>
-            <button disabled>3 · Schreibzugriff freigeben</button>
-            <button disabled>0 Änderungen installieren</button>
-            <p class="note" role="status">${this._escapeProject(this._mainBatchMessage)}</p>
-            ${this._mainBatchPreview ? `<p>Bestätigte Projekte: ${this._mainBatchPreview.count} · Quellstände ungeprüft · Kein Schreibzugriff</p>` : ""}
-          </article>` : `
-          <article><h2>Quelle & Version</h2><div class="dra-warning">Empfohlenes Deployment konnte noch nicht sicher bestimmt werden.</div>
-          <p>Ausgewählt: ${mainProject ? this._escapeProject(mainProject.repository) : "—"}</p>
-          <p>Quellstand: ${this._sourceRepository === mainProject?.repository && this._sourcePreview ? this._escapeProject(this._sourcePreview.source_commit?.slice(0,12)) : "Noch nicht geprüft"}</p>
-          <label>Git-Referenz (Branch, Tag oder Commit; leer = Standardzweig)
-          <input id="dra-main-ref" class="project-text" placeholder="z. B. deploy/dev" value="${this._escapeProject(this._mainSourceRef)}" autocomplete="off" /></label>
-          <button id="dra-source" ${!mainProject?"disabled":""}>Erweiterte Quellenauswahl</button></article>
-          <article><h2>Vorschau</h2><button id="dra-preview" ${!mainProject?"disabled":""}>2 · Vorschau vorbereiten</button>
-          <button disabled>3 · Schreibzugriff freigeben</button><button disabled>0 Änderungen installieren</button>
-          <p class="note" role="status">${this._sourceRepository === mainProject?.repository ? this._escapeProject(this._sourceMessage) : "Noch keine Vorschau berechnet."}</p>
-          ${this._sourceRepository === mainProject?.repository && this._sourcePreview ? `<p>Commit: ${this._escapeProject(this._sourcePreview.source_commit?.slice(0,12))} · Hinzugefügt: ${this._sourcePreview.add.length} · Geändert: ${this._sourcePreview.change.length} · Entfernt: ${this._sourcePreview.remove.length} · Unverändert: ${this._sourcePreview.unchanged_count}</p>` : ""}</article>`}
+          <article class="dra-deployment-panel">
+            <h2>Deployment</h2>
+            <button id="dra-preview" class="dra-deploy-action stage-${deploymentStage}
+              ${deploymentBusy ? "is-busy" : ""}"
+              data-stage="${deploymentStage}"
+              ${deploymentBusy || deploymentStage !== 1 || !deploymentCanPreview ? "disabled" : ""}
+              aria-label="${deploymentButtonText}">
+              ${deploymentBusy
+                ? iconSvg('<path d="M12 3a9 9 0 1 0 9 9"/>',25)
+                : deploymentStage === 2 ? deploymentIcons[1] : deploymentIcons[0]}
+              <span>${deploymentButtonText}</span>
+            </button>
+            <div class="dra-deploy-progress ${deploymentBusy ? "running" : mainPreviewVerified ? "verified" : "idle"}"
+              role="progressbar" aria-label="Deployment-Fortschritt"
+              aria-valuemin="0" aria-valuemax="4" ${deploymentBusy ? "" : `aria-valuenow="${mainPreviewVerified ? 1 : 0}"`}>
+              <div class="dra-deploy-progress-fill"></div>
+            </div>
+            <div class="dra-deploy-steps" role="list" aria-label="Vier Schritte des Deployments">
+              ${[
+                ["Vorschau","Vorschau",deploymentIcons[0],"blue"],
+                ["Freigabe","Freigabe",deploymentIcons[1],"orange"],
+                ["Update","Update",deploymentIcons[2],"red"],
+                ["Abschluss","Abschluss",deploymentIcons[3],"green"],
+              ].map((item,i) => `<div class="dra-deploy-step ${item[3]} ${i+1 === deploymentStage ? "current" : i+1 < deploymentStage ? "done" : "pending"}"
+                role="listitem" aria-label="Schritt ${i+1}: ${item[1]}, ${i+1 === deploymentStage ? deploymentStage===2 ? "noch gesperrt" : "aktuell" : i+1 < deploymentStage ? "abgeschlossen" : "ausstehend"}">
+                ${item[2]}<span>${i+1}. ${item[0]}</span></div>`).join("")}
+            </div>
+            <p class="dra-deployment-status note" role="status" aria-live="polite">
+              ${this._escapeProject(deploymentStatus)}
+            </p>
+            ${mainPreviewVerified ? `<div class="dra-deployment-result">
+              <strong>Schreibgeschützte Vorschau</strong>
+              <span>Hinzugefügt: ${this._sourcePreview.add?.length ?? 0} · Geändert: ${this._sourcePreview.change?.length ?? 0} ·
+                Entfernt: ${this._sourcePreview.remove?.length ?? 0} · Unverändert: ${this._sourcePreview.unchanged_count ?? 0}</span>
+              <span class="note">Keine Schreib- oder Installationsfreigabe.</span>
+            </div>` : this._mainBatchPreview ? `<div class="dra-deployment-result">
+              <strong>Gruppenauswahl bestätigt: ${this._mainBatchPreview.count} Projekte</strong>
+              <span class="note">Die Quellstände sind noch nicht geprüft. Installation gesperrt.</span>
+            </div>` : ""}
+            <p class="dra-deployment-hint note">
+              Die zentrale Schaltfläche führt durch alle vier Schritte, sobald sie technisch freigegeben sind.
+              Aktuell steht ausschließlich die schreibgeschützte Vorschau zur Verfügung.
+            </p>
+          </article>
 
         </section>
         <section id="dra-settings-view" ${this._view==="settings"?"":"hidden"}>
@@ -2472,16 +2630,18 @@ class DRAV2DevLabPanel extends HTMLElement {
     s.querySelectorAll(".dra-picker-entry").forEach(button=>
       button.addEventListener("click",()=>this._chooseMainProject(button.dataset.repo)));
     s.querySelector("#dra-picker-batch")?.addEventListener("click",()=>this._openPickerBatch());
-    s.querySelector("#dra-main-ref")?.addEventListener("input",e=>{this._mainSourceRef=e.target.value;});
+    s.querySelector("#dra-main-ref")?.addEventListener("input",e=>{
+      this._mainSourceRef=e.target.value;
+      // Source previews are bound to the exact requested reference.
+      this._sourcePreview=null;
+      this._deploymentPreviewRef=null;
+    });
     s.querySelector("#dra-project-manage")?.addEventListener("click",()=>this._openProjectDialog());
-    for(const id of ["dra-preview","dra-step2"]) {
-      s.querySelector("#"+id)?.addEventListener("click",()=>{
-        if (this._mainBatchMode) this._previewMainBatch();
-        else if (mainProject) this._sourceCheck({dataset:{repo:mainProject.repository}});
-      });
-    }
-    s.querySelector("#dra-source")?.addEventListener("click",()=>this._openProjectDialog());
-    s.querySelector("#dra-step1")?.addEventListener("click",()=>this._openProjectPicker());
+    s.querySelector("#dra-preview")?.addEventListener("click",()=>{
+      if (deploymentBusy || deploymentStage !== 1) return;
+      if (this._mainBatchMode) this._previewMainBatch();
+      else if (mainProject) this._sourceCheck({dataset:{repo:mainProject.repository}});
+    });
     s.querySelector("#measure")?.addEventListener("click", () => this._measure());
     s.querySelector("#multicore")?.addEventListener("click", () => this._runSequence("multicore"));
     s.querySelector("#all")?.addEventListener("click", () => this._runSequence("full"));
