@@ -222,13 +222,48 @@ class LabIsolationContracts(unittest.TestCase):
         self.assertIn('id="dra-project-picker-open"', frontend)
         self.assertIn('id="dra-picker-dialog"', frontend)
         self.assertNotIn('id="dra-select"', frontend)
-        self.assertIn('Geführter Ablauf', frontend)
-        self.assertIn('3 · Schreibzugriff freigeben</button>', frontend)
+        self.assertNotIn('<h2>Geführter Ablauf</h2>', frontend)
+        self.assertIn('<h2>Deployment</h2>', frontend)
+        self.assertIn('Schreibzugriff freigeben', frontend)
+        self.assertIn('Schritt 2 ist bis zur Sicherheitsabnahme gesperrt', frontend)
         self.assertIn('Diagnose & Einstellungen', frontend)
         self.assertIn('@media(max-width:760px)', frontend)
         self.assertIn('id="dra-main-ref"', frontend)
         self.assertIn('this._mainSourceRef = ""', frontend)
         self.assertIn('this._sourceCheck({dataset:{repo:mainProject.repository}})', frontend)
+
+    def test_single_deployment_button_and_animated_four_step_process(self):
+        frontend = (LAB_ROOT / "frontend/lab.js").read_text(encoding="utf-8")
+        for item in (
+            '<article class="dra-source-card">',
+            '<h2>Quelle & Version</h2>',
+            '<article class="dra-deployment-panel">',
+            '<h2>Deployment</h2>',
+            'id="dra-preview" class="dra-deploy-action stage-',
+            '1/4 · Vorschau berechnen',
+            '2/4 · Schreibzugriff freigeben',
+            'aria-label="Deployment-Fortschritt"',
+            'dra-deploy-progress-fill',
+            'dra-deploy-progress.running',
+            '@keyframes dra-v1-loader-sweep',
+            'dra-deploy-steps',
+            'role="listitem"',
+            '3 · ',
+            'this._deploymentPreviewRef =',
+            'this._sourcePreview?.sources_verified === true',
+            'deploymentStage !== 1',
+            'aria-live="polite"',
+            'prefers-reduced-motion:reduce',
+        ):
+            self.assertIn(item,frontend)
+        self.assertEqual(frontend.count('id="dra-preview"'),1)
+        self.assertNotIn('id="dra-step1"',frontend)
+        self.assertNotIn('id="dra-step2"',frontend)
+        self.assertNotIn('<h2>Geführter Ablauf</h2>',frontend)
+        self.assertNotIn('id="dra-source"',frontend)
+        self.assertIn('installation_enabled === false',frontend)
+        self.assertIn('aria-valuemax="4"',frontend)
+        self.assertIn('stage-2:disabled {opacity:1;',frontend)
 
     def test_android_back_from_diagnostics_returns_to_dra_main(self):
         frontend = (LAB_ROOT / "frontend/lab.js").read_text(encoding="utf-8")
@@ -254,7 +289,8 @@ class LabIsolationContracts(unittest.TestCase):
         main = frontend[main_start:settings_start]
         settings = frontend[settings_start:]
         self.assertIn('id="dra-project-manage"', main)
-        self.assertIn('Geführter Ablauf', main)
+        self.assertNotIn('<h2>Geführter Ablauf</h2>', main)
+        self.assertIn('<h2>Deployment</h2>', main)
         self.assertIn('Quelle & Version', main)
         self.assertIn('id="dra-main-ref"', main)
         self.assertIn('id="dra-preview"', main)
@@ -468,7 +504,8 @@ class LabIsolationContracts(unittest.TestCase):
         self.assertIn('this._mainBatchMode = true;', frontend)
         self.assertIn('_mainBatchProjects() {', frontend)
         self.assertIn('async _previewMainBatch() {', frontend)
-        self.assertIn('id="dra-step1"', frontend)
+        self.assertNotIn('id="dra-step1"', frontend)
+        self.assertIn('id="dra-project-picker-open"', frontend)
         self.assertIn('this._openProjectPicker()', frontend)
         self.assertNotIn('id="dra-select"', frontend)
         self.assertIn('.dra-picker-entry.selected', frontend)
