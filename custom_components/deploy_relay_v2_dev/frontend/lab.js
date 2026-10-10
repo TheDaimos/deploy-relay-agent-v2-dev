@@ -799,15 +799,15 @@ class DRAV2DevLabPanel extends HTMLElement {
     const mainProject = activeMainProjects.find(p => p.repository === this._selectedMainRepo) || activeMainProjects[0] || null;
     // Consistent, resolution-independent 24x24 vector icons: never emoji or icon fonts.
     const iconSvg = (body, size=22) => `<svg class="project-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true">${body}</svg>`;
-    const gearIcon = iconSvg('<path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="m19.4 15 .3 1.7-2 2-.9-.4a2 2 0 0 0-2.4 1L14 21h-4l-.4-1.7a2 2 0 0 0-2.4-1l-.9.4-2-2 .4-.9a2 2 0 0 0-1-2.4L2 13v-2l1.7-.4a2 2 0 0 0 1-2.4l-.4-.9 2-2 .9.4a2 2 0 0 0 2.4-1L10 3h4l.4 1.7a2 2 0 0 0 2.4 1l.9-.4 2 2-.4.9a2 2 0 0 0 1 2.4L22 11v2l-1.7.4a2 2 0 0 0-.9 1.6Z"/>');
+    const gearIcon = iconSvg('<path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/>');
     const upIcon = iconSvg('<path d="M12 19V5"/><path d="m5 12 7-7 7 7"/>');
     const downIcon = iconSvg('<path d="M12 5v14"/><path d="m5 12 7 7 7-7"/>');
     const pendingIcon = iconSvg('<circle cx="12" cy="12" r="9"/><path d="M9.8 9a2.5 2.5 0 0 1 4.4 1.6c0 1.7-2.2 2.1-2.2 3.4"/><path d="M12 17h.01"/>', 18);
-    const onlineIcon = iconSvg('<circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/>', 18);
-    const failureIcon = iconSvg('<circle cx="12" cy="12" r="9"/><path d="m9 9 6 6m0-6-6 6"/>', 18);
-    const plusIcon = iconSvg('<circle cx="12" cy="12" r="9"/><path d="M12 8v8m-4-4h8"/>', 20);
+    const onlineIcon = iconSvg('<circle cx="12" cy="12" r="10"/><path d="m16 9-5.5 5.5L8 12"/>', 18);
+    const failureIcon = iconSvg('<circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/>', 18);
+    const plusIcon = iconSvg('<circle cx="12" cy="12" r="10"/><path d="M8 12h8"/><path d="M12 8v8"/>', 20);
     const importIcon = iconSvg('<path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 17v3h14v-3"/>', 20);
-    const backupIcon = iconSvg('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M9 14h6"/>', 20);
+    const backupIcon = iconSvg('<rect x="2" y="3" width="20" height="5" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/>', 20);
     const closeIcon = iconSvg('<path d="M18 6 6 18M6 6l12 12"/>', 20);
     const projectRows = this._projects.map((p,i) => {
       const test = this._sourceChecks.get(p.repository);
