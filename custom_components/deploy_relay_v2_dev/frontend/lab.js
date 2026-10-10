@@ -21,6 +21,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._projectSaved = new Map();
     this._projectMessage = "";
     this._sourceBusy = false;
+    this._sourceRepository = null;
     this._sourceMessage = "";
     this._sourcePreview = null;
     this._gitReadConfigured = false;
@@ -486,6 +487,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     if (!button || !this._hass || this._sourceBusy) return;
     const repository = button.dataset.repo;
     const ref = this.shadowRoot?.querySelector("#source-ref")?.value?.trim() || "";
+    this._sourceRepository = repository;
     this._sourceBusy = true;
     this._sourcePreview = null;
     this._sourceMessage = "GitHub-Quelle und vorhandene Dateien werden schreibgeschützt geprüft …";
@@ -597,7 +599,28 @@ class DRAV2DevLabPanel extends HTMLElement {
     // Unmounted inputs return undefined. Assigning that to an HTML input.value
     // turns it into the literal text "undefined" (seen on Android/desktop).
     const unsentRepository = typeof previousRepo === "string" ? previousRepo : null;
-    const projectRows = this._projects.map(p => { const saved = this._projectSaved.get(p.repository) === p.backup_retention; return `<tr><td>${this._escapeProject(p.name)}<div class="note">${this._escapeProject(p.repository)}</div></td><td>${p.origin === "v1_import" ? "DRA V1" : "Manuell"}</td><td><input class="retention" type="number" min="3" max="100" value="${Number.isInteger(p.backup_retention) ? p.backup_retention : 10}" aria-label="Sicherungen" /><button class="retention-save ${saved ? "retention-saved" : ""}" data-repo="${this._escapeProject(p.repository)}" ${this._projectBusy ? "disabled" : ""}>${saved ? "Gespeichert" : "Speichern"}</button><button class="preselect-toggle" data-repo="${this._escapeProject(p.repository)}" data-enabled="${p.batch_preselect === false}" ${this._projectBusy ? "disabled" : ""}>Sammelupdate: ${p.batch_preselect === false ? "Aus" : "Ein"}</button><button class="source-check" data-repo="${this._escapeProject(p.repository)}" ${this._sourceBusy ? "disabled" : ""}>Git-Quelle prüfen</button></td></tr>`; }).join("");
+    const projectRows = this._projects.map(p => {
+      const saved = this._projectSaved.get(p.repository) === p.backup_retention;
+      const selected = this._sourceRepository === p.repository;
+      const result = selected && this._sourcePreview;
+      const state = selected ? `<div class="source-inline" role="status">
+        <strong>${this._sourceBusy ? "Prüfung läuft …" : result ? "Quelle geprüft" : "Prüfung nicht erfolgreich"}</strong>
+        <p>${this._escapeProject(this._sourceMessage)}</p>
+        ${result ? `<p>Commit: ${this._escapeProject(result.source_commit?.slice(0,12))}
+        · Neu: ${result.add.length} · Geändert: ${result.change.length}
+        · Entfernt: ${result.remove.length} · Unverändert: ${result.unchanged_count}</p>` : ""}
+      </div>` : "";
+      return `<tr><td>${this._escapeProject(p.name)}<div class="note">${this._escapeProject(p.repository)}</div>${state}</td>
+        <td>${p.origin === "v1_import" ? "DRA V1" : "Manuell"}</td>
+        <td><input class="retention" type="number" min="3" max="100" value="${Number.isInteger(p.backup_retention) ? p.backup_retention : 10}" aria-label="Sicherungen" />
+        <button class="retention-save ${saved ? "retention-saved" : ""}" data-repo="${this._escapeProject(p.repository)}"
+        ${this._projectBusy ? "disabled" : ""}>${saved ? "Gespeichert" : "Speichern"}</button></td>
+        <td><button class="preselect-toggle" data-repo="${this._escapeProject(p.repository)}"
+        data-enabled="${p.batch_preselect === false}" ${this._projectBusy ? "disabled" : ""}>
+        ${p.batch_preselect === false ? "Aus" : "Ein"}</button></td>
+        <td><button class="source-check" data-repo="${this._escapeProject(p.repository)}"
+        ${this._sourceBusy ? "disabled" : ""}>${selected && this._sourceBusy ? "Prüft …" : "Prüfen"}</button></td></tr>`;
+    }).join("");
     const batchRows = this._projects.map(p => {
       const checked = this._batchSelection === null ? p.batch_preselect !== false : this._batchSelection.includes(p.repository);
       return `<label class="batch-line"><input type="checkbox" class="batch-choice" data-repo="${this._escapeProject(p.repository)}" ${checked ? "checked" : ""} /> ${this._escapeProject(p.name)}</label>`;
@@ -767,6 +790,21 @@ class DRAV2DevLabPanel extends HTMLElement {
         .git-link { display:inline-block; padding:12px 0; color:var(--primary-color,#65b4d2); overflow-wrap:anywhere; }
         .countdown { font-size:19px; font-weight:700; font-variant-numeric:tabular-nums; }
 
+         .source-inline { margin-top:12px; padding:10px; border:1px solid var(--divider-color,#555); border-left:3px solid var(--primary-color,#396a96); border-radius:8px; white-space:normal; overflow-wrap:anywhere; }
+         .source-inline p { margin:5px 0; }
+         .project-card td { vertical-align:top; }
+         .project-card td:first-child { min-width:180px; white-space:normal; overflow-wrap:anywhere; }
+         .project-card td button { margin:4px; white-space:nowrap; }
+         @media (max-width:760px) {
+           .project-card table, .project-card tbody, .project-card tr, .project-card td { display:block; width:100%; box-sizing:border-box; }
+           .project-card thead { display:none; }
+           .project-card tr { border:1px solid var(--divider-color,#555); border-radius:10px; margin-bottom:12px; padding:8px; }
+           .project-card td { border:none; padding:7px; white-space:normal; min-width:0 !important; }
+           .project-card td:nth-child(2)::before { content:"Herkunft: "; font-weight:bold; }
+           .project-card td:nth-child(3)::before { content:"Sicherungen behalten"; display:block; font-weight:bold; margin-bottom:4px; }
+           .project-card td:nth-child(4)::before { content:"Sammelupdate"; display:block; font-weight:bold; }
+           .project-card td:nth-child(5)::before { content:"Git-Quelle"; display:block; font-weight:bold; }
+         }
          .section-card { min-width:0; border:1px solid var(--divider-color,#555); box-shadow:0 2px 12px rgba(0,0,0,.08); }
          .section-card h2 { font-size:18px; margin:0 0 12px; padding-bottom:12px; border-bottom:1px solid var(--divider-color,#555); }
          .inner-panel { border:1px solid var(--divider-color,#555); background:var(--secondary-background-color,rgba(127,127,127,.07)); border-radius:10px; padding:12px 14px; margin-top:14px; }
@@ -900,7 +938,7 @@ class DRAV2DevLabPanel extends HTMLElement {
           <label>Anzeigename (optional)<input id="project-name" class="project-text" placeholder="Mein Projekt" autocomplete="off" /></label>
           <button id="project-add" ${this._projectBusy ? "disabled" : ""}>Projekt vormerken</button>
           <p class="note">${this._escapeProject(this._projectMessage)}</p>
-          ${this._projects.length ? `<div class="table-wrap"><table><thead><tr><th>Projekt</th><th>Herkunft</th><th>Sicherungen behalten</th></tr></thead>
+          ${this._projects.length ? `<div class="table-wrap"><table><thead><tr><th>Projekt</th><th>Herkunft</th><th>Sicherungen behalten</th><th>Sammelupdate</th><th>Git-Quelle</th></tr></thead>
           <tbody>${projectRows}</tbody></table></div>` : `<p class="note">Noch keine Projekte in V2 hinterlegt.</p>`}
           <p><strong>Privater GitHub-Lesezugang für V2</strong></p>
           <p class="note">Optional für private Projekt-Repositories. Nur einen
