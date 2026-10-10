@@ -1157,7 +1157,7 @@ class DRAV2DevLabPanel extends HTMLElement {
             <p class="note">Ein geändertes Repository wird vor dem Speichern schreibgeschützt geprüft. Schlägt die Prüfung fehl, bleibt das bisherige Repository erhalten.</p>
             <label>GitHub-Token <input id="manage-token" class="project-text" type="password" autocomplete="new-password" placeholder="Neuen Token eingeben (optional)" /></label>
             <p class="note">Gespeicherter Token: ${managed?.token_configured && managed?.token_suffix ?
-              `•••••<span class="success"><strong>${this._escapeProject(managed.token_suffix)}</strong></span>` : "Nicht eingerichtet"}</p>
+              `•••••<span class="safe"><strong>${this._escapeProject(managed.token_suffix)}</strong></span>` : "Nicht eingerichtet"}</p>
             <button id="manage-token-save" ${!managed || this._projectBusy ? "disabled" : ""}>Token speichern</button>
             <p class="note">Das Passwort bleibt serverseitig. Leer lassen, um den bisherigen Token beizubehalten.</p>
             <label>Notiz <textarea id="manage-note" class="project-text" rows="3">${this._escapeProject(managed?.note || "")}</textarea></label>
