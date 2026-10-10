@@ -273,3 +273,37 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   process.exitCode = 1;
 });
 
+
+
+(async () => {
+  const testPanel = new Panel();
+  const original = [
+    {repository:"TheDaimos/alpha",name:"Alpha",active:true},
+    {repository:"TheDaimos/bravo",name:"Bravo",active:true},
+  ];
+  testPanel._projects = original;
+  testPanel._projectDialogOpen = true;
+  testPanel._sourceChecks.set("TheDaimos/bravo", {status:"success",message:"Online"});
+  testPanel._hass = {
+    async callWS({type,action,repository,direction}) {
+      assert.equal(type,"deploy_relay_v2_dev/projects/manage");
+      assert.equal(action,"move");
+      assert.equal(repository,"TheDaimos/bravo");
+      assert.equal(direction,-1);
+      return {projects:[original[1],original[0]]};
+    },
+  };
+  await testPanel._manageProject("move",{repository:"TheDaimos/bravo",direction:-1});
+  assert.equal(testPanel._projects[0].repository,"TheDaimos/bravo");
+  assert.equal(testPanel._highlightMovedRepo,"TheDaimos/bravo");
+  assert.equal(testPanel._projectDialogOpen,true);
+  assert.equal(testPanel._sourceChecks.get("TheDaimos/bravo").status,"success");
+  assert.match(testPanel.shadowRoot.innerHTML,/class="project-row connection-success recently-moved"/);
+  assert.match(testPanel.shadowRoot.innerHTML,/>Online<\/span>/);
+  assert.match(testPanel.shadowRoot.innerHTML,/>Prüfen<\/span>/);
+  assert.match(testPanel.shadowRoot.innerHTML, /class="project-status-label"/);
+  console.log("DRA V2 project priority selection and connection statuses PASS");
+})().catch(error => {
+  console.error(error);
+  process.exitCode = 1;
+});
