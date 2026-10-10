@@ -234,7 +234,7 @@ class ProjectCatalog:
             idx = next((i for i, p in enumerate(rows) if p["repository"].casefold() == repo.casefold()), None)
             if idx is None or any(i != idx and p["repository"].casefold() == replacement.casefold() for i,p in enumerate(rows)):
                 raise CatalogError("project missing or duplicate")
-            candidate = sanitize_entry({**rows[idx], "repository":replacement, "name":name, "note":note, "active":active})
+            candidate = sanitize_entry({**rows[idx], "repository":replacement, "name":name.strip() or replacement.split("/")[1] if type(name) is str else name, "note":note, "active":active})
             rows[idx] = candidate
             await self._save(rows)
 
