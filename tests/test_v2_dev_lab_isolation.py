@@ -165,6 +165,14 @@ class LabIsolationContracts(unittest.TestCase):
         self.assertIn('<th>Projekt</th><th>Herkunft</th><th>Git-Quelle</th>', frontend)
         self.assertNotIn('<th>Sicherungen behalten</th>', frontend)
 
+    def test_operation_settings_have_responsive_grid(self):
+        frontend = (LAB_ROOT / "frontend/lab.js").read_text(encoding="utf-8")
+        self.assertIn('class="settings-fields"', frontend)
+        self.assertIn('grid-template-columns:repeat(3,minmax(0,1fr))', frontend)
+        self.assertIn('@media (max-width:850px)', frontend)
+        for field in ('settings-mode', 'settings-readonly', 'settings-workers'):
+            self.assertEqual(frontend.count('id="' + field + '"'), 1)
+
     def test_config_flow_uses_test_domain_not_v1_domain(self):
         source = (LAB_ROOT / "config_flow.py").read_text(encoding="utf-8")
         self.assertIn("ConfigFlow, domain=DOMAIN", source)
