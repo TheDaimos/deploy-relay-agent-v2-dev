@@ -473,11 +473,15 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   pickerPanel._openProjectPicker();
   pickerPanel._openPickerBatch();
   assert.equal(pickerPanel._projectPickerOpen,false);
-  assert.equal(pickerPanel._batchDialogOpen,true);
-  assert.match(pickerPanel.shadowRoot.innerHTML,/id="batch-dialog"/);
-  assert.match(pickerPanel.shadowRoot.innerHTML,/Sammelaktualisierung · Projekte/);
-  pickerPanel._cancelBatchDialog();
-  assert.equal(pickerPanel._batchDialogOpen,false);
+  assert.equal(pickerPanel._mainBatchMode,true);
+  assert.equal(pickerPanel._batchDialogOpen,false,"Picker must not reopen preselection editor");
+  assert.match(pickerPanel.shadowRoot.innerHTML,/Sammelupdate · 2 Projekte/);
+  assert.match(pickerPanel.shadowRoot.innerHTML,/dra-main-batch-entry/);
+  assert.match(pickerPanel.shadowRoot.innerHTML,/0 Änderungen installieren/);
+  pickerPanel._openProjectPicker();
+  pickerPanel._chooseMainProject("TheDaimos/first");
+  assert.equal(pickerPanel._mainBatchMode,false);
+  assert.equal(pickerPanel._selectedMainRepo,"TheDaimos/first");
   console.log("DRA V2 custom project picker and safe batch-selection action PASS");
 })();
 
@@ -575,4 +579,56 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   assert.equal(historyListeners.get("popstate")?.size || 0,0,
     "Global popstate event listeners must be removed on panel unmount");
   console.log("DRA V2 Android native Back / on-screen Main / forward history PASS");
+})();
+
+(async () => {
+  const batch = new Panel();
+  batch._view = "main";
+  batch._projects = [
+    {name:"Alpha",repository:"TheDaimos/alpha",active:true,batch_preselect:true},
+    {name:"Not Selected",repository:"TheDaimos/unselected",active:true,batch_preselect:false},
+    {name:"Inactive",repository:"TheDaimos/inactive",active:false,batch_preselect:true},
+    {name:"Gamma",repository:"TheDaimos/gamma",active:true,batch_preselect:true},
+  ];
+  let actualRequests = 0;
+  batch._hass = {
+    async callWS(request) {
+      actualRequests++;
+      assert.equal(request.type,"deploy_relay_v2_dev/batch/preview");
+      assert.deepEqual([...request.repositories],["TheDaimos/alpha","TheDaimos/gamma"]);
+      return {
+        schema:"dra-v2-dev-batch-preview.v1",
+        selected:[
+          {repository:"TheDaimos/alpha",name:"Alpha",status:"not_checked"},
+          {repository:"TheDaimos/gamma",name:"Gamma",status:"not_checked"},
+        ],
+        count:2,installation_enabled:false,sources_verified:false,
+      };
+    },
+  };
+  batch._openProjectPicker();
+  batch._openPickerBatch();
+  assert.equal(batch._mainBatchMode,true);
+  assert.match(batch.shadowRoot.innerHTML,/Sammelupdate · 2 Projekte/);
+  assert.doesNotMatch(batch.shadowRoot.innerHTML,/TheDaimos\/unselected.*dra-main-batch-entry/s);
+  await batch._previewMainBatch();
+  assert.equal(actualRequests,1);
+  assert.equal(batch._mainBatchPreview.count,2);
+  assert.match(batch._mainBatchMessage,/Quellstände noch nicht geprüft/);
+  assert.match(batch.shadowRoot.innerHTML,/Bestätigte Projekte: 2/);
+  assert.match(batch.shadowRoot.innerHTML,/0 Änderungen installieren/);
+  assert.equal(batch._batchDialogOpen,false);
+  console.log("DRA V2 collective read-only batch identity preview PASS");
+})().catch(error => {console.error(error);process.exitCode=1;});
+
+(() => {
+  const blank = new Panel();
+  blank._view = "main";
+  blank._projects = [{name:"Inactive",repository:"TheDaimos/inactive",active:false,batch_preselect:true}];
+  blank._openProjectPicker();
+  blank._openPickerBatch();
+  assert.equal(blank._projectPickerOpen,true);
+  assert.equal(blank._mainBatchMode,false);
+  assert.match(blank.shadowRoot.innerHTML,/Kein aktives Projekt für das Sammelupdate ausgewählt/);
+  console.log("DRA V2 empty batch set remains in picker PASS");
 })();
