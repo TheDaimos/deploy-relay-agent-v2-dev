@@ -797,13 +797,18 @@ class DRAV2DevLabPanel extends HTMLElement {
     const unsentRepository = typeof previousRepo === "string" ? previousRepo : null;
     const activeMainProjects = this._projects.filter(p => p.active !== false);
     const mainProject = activeMainProjects.find(p => p.repository === this._selectedMainRepo) || activeMainProjects[0] || null;
-    const iconSvg = (body) => `<svg class="project-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
-    const gearIcon = iconSvg('<circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06-2.87 2.87-.06-.06a1.7 1.7 0 0 0-1.87-.34l-.1.04a1.7 1.7 0 0 0-1.04 1.56V21H10v-.01a1.7 1.7 0 0 0-1.04-1.56l-.1-.04a1.7 1.7 0 0 0-1.87.34l-.06.06-2.87-2.87.06-.06A1.7 1.7 0 0 0 4.46 15a1.7 1.7 0 0 0-1.56-1.04H2.9v-3.92h.01A1.7 1.7 0 0 0 4.47 9a1.7 1.7 0 0 0-.34-1.87l-.06-.06L6.94 4.2l.06.06A1.7 1.7 0 0 0 8.87 4l.1-.04A1.7 1.7 0 0 0 10 2.4V2h3.92v.4A1.7 1.7 0 0 0 14.96 4l.1.04a1.7 1.7 0 0 0 1.87-.34l.06-.06 2.87 2.87-.06.06A1.7 1.7 0 0 0 19.46 9a1.7 1.7 0 0 0 1.56 1.04h.08v3.92h-.08A1.7 1.7 0 0 0 19.46 15Z"></path>');
-    const upIcon = iconSvg('<path d="M12 19V5m-7 7 7-7 7 7"/>');
-    const downIcon = iconSvg('<path d="M12 5v14m-7-7 7 7 7-7"/>');
-    const pendingIcon = iconSvg('<circle cx="12" cy="12" r="9"/><path d="M9.8 9a2.5 2.5 0 0 1 4.4 1.6c0 1.7-2.2 2.1-2.2 3.4"/><path d="M12 17h.01"/>');
-    const onlineIcon = iconSvg('<circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/>');
-    const failureIcon = iconSvg('<circle cx="12" cy="12" r="9"/><path d="m9 9 6 6m0-6-6 6"/>');
+    // Consistent, resolution-independent 24x24 vector icons: never emoji or icon fonts.
+    const iconSvg = (body, size=22) => `<svg class="project-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true">${body}</svg>`;
+    const gearIcon = iconSvg('<path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="m19.4 15 .3 1.7-2 2-.9-.4a2 2 0 0 0-2.4 1L14 21h-4l-.4-1.7a2 2 0 0 0-2.4-1l-.9.4-2-2 .4-.9a2 2 0 0 0-1-2.4L2 13v-2l1.7-.4a2 2 0 0 0 1-2.4l-.4-.9 2-2 .9.4a2 2 0 0 0 2.4-1L10 3h4l.4 1.7a2 2 0 0 0 2.4 1l.9-.4 2 2-.4.9a2 2 0 0 0 1 2.4L22 11v2l-1.7.4a2 2 0 0 0-.9 1.6Z"/>');
+    const upIcon = iconSvg('<path d="M12 19V5"/><path d="m5 12 7-7 7 7"/>');
+    const downIcon = iconSvg('<path d="M12 5v14"/><path d="m5 12 7 7 7-7"/>');
+    const pendingIcon = iconSvg('<circle cx="12" cy="12" r="9"/><path d="M9.8 9a2.5 2.5 0 0 1 4.4 1.6c0 1.7-2.2 2.1-2.2 3.4"/><path d="M12 17h.01"/>', 18);
+    const onlineIcon = iconSvg('<circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/>', 18);
+    const failureIcon = iconSvg('<circle cx="12" cy="12" r="9"/><path d="m9 9 6 6m0-6-6 6"/>', 18);
+    const plusIcon = iconSvg('<circle cx="12" cy="12" r="9"/><path d="M12 8v8m-4-4h8"/>', 20);
+    const importIcon = iconSvg('<path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 17v3h14v-3"/>', 20);
+    const backupIcon = iconSvg('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M9 14h6"/>', 20);
+    const closeIcon = iconSvg('<path d="M18 6 6 18M6 6l12 12"/>', 20);
     const projectRows = this._projects.map((p,i) => {
       const test = this._sourceChecks.get(p.repository);
       const state = test?.status || "unverified";
@@ -814,10 +819,10 @@ class DRAV2DevLabPanel extends HTMLElement {
         <td><strong>${this._escapeProject(p.name)}</strong><div class="note">${this._escapeProject(p.repository)}</div>
           ${p.active === false ? '<span class="note">Inaktiv</span>' : ""}</td>
         <td><button class="source-check ${state}" data-repo="${this._escapeProject(p.repository)}"
-          ${this._connectionBusy || this._projectBusy ? "disabled" : ""} aria-label="Verbindung für ${this._escapeProject(p.name)} prüfen">${icon}<span>${label}</span></button></td>
-        <td><button class="project-settings-open" data-repo="${this._escapeProject(p.repository)}" aria-label="Einstellungen für ${this._escapeProject(p.name)}">${gearIcon}</button></td>
-        <td><button class="project-move" data-repo="${this._escapeProject(p.repository)}" data-direction="-1" ${i===0 || this._projectBusy ? "disabled" : ""} aria-label="Nach oben">${upIcon}</button>
-        <button class="project-move" data-repo="${this._escapeProject(p.repository)}" data-direction="1" ${i===this._projects.length-1 || this._projectBusy ? "disabled" : ""} aria-label="Nach unten">${downIcon}</button></td></tr>`;
+          ${this._connectionBusy || this._projectBusy ? "disabled" : ""} aria-label="GitHub-Verbindung für ${this._escapeProject(p.name)} prüfen" title="Verbindung prüfen">${icon}<span>${label}</span></button></td>
+        <td><button class="project-settings-open" data-repo="${this._escapeProject(p.repository)}" aria-label="Einstellungen für ${this._escapeProject(p.name)}" title="Projekteinstellungen">${gearIcon}</button></td>
+        <td><button class="project-move" data-repo="${this._escapeProject(p.repository)}" data-direction="-1" ${i===0 || this._projectBusy ? "disabled" : ""} aria-label="${this._escapeProject(p.name)} nach oben verschieben" title="Nach oben">${upIcon}</button>
+        <button class="project-move" data-repo="${this._escapeProject(p.repository)}" data-direction="1" ${i===this._projects.length-1 || this._projectBusy ? "disabled" : ""} aria-label="${this._escapeProject(p.name)} nach unten verschieben" title="Nach unten">${downIcon}</button></td></tr>`;
     }).join("");
     const managed = this._projects.find(p => p.repository === this._projectSettingsRepo);
     const batchRows = this._projects.map(p => {
@@ -1363,14 +1368,14 @@ class DRAV2DevLabPanel extends HTMLElement {
               <header>
                 <h2 id="project-management-title">Projektverwaltung</h2>
                 <button id="project-management-close" aria-label="Projektverwaltung schließen"
-                  ${this._projectBusy || this._sourceBusy || this._gitReadBusy ? "disabled" : ""}>✕</button>
+                  ${this._projectBusy || this._sourceBusy || this._gitReadBusy ? "disabled" : ""}>${closeIcon}</button>
               </header>
               <p class="note">Reihenfolge: Anzeige, Standardprojekt und Priorität der späteren Sammelaktualisierung. Git-Status nur nach expliziter Prüfung.</p>
           ${this._projects.length ? `<div class="table-wrap"><table class="project-management-table"><thead><tr><th>Nr.</th><th>Projekt</th><th>Git-Status</th><th>Einstellungen</th><th>Reihenfolge</th></tr></thead><tbody>${projectRows}</tbody></table></div>` : '<p class="note">Noch keine Projekte in V2 hinterlegt.</p>'}
           <div class="project-actions">
-            <button id="project-add-open">+ Projekt hinzufügen</button>
-            <button id="project-preview" ${this._projectBusy ? "disabled" : ""}>Import aus DRA-V1</button>
-            <button id="backup-dialog-open">Backup &amp; Retention</button>
+            <button id="project-add-open" class="project-action-primary">${plusIcon}<span>Projekt hinzufügen</span></button>
+            <button id="project-preview" class="project-action-primary" ${this._projectBusy ? "disabled" : ""}>${importIcon}<span>Import aus DRA-V1</span></button>
+            <button id="backup-dialog-open" class="project-action-primary">${backupIcon}<span>Backup &amp; Retention</span></button>
           </div>
           <p class="note" role="status">${this._escapeProject(this._projectMessage)}</p>
           <p><strong>Privater GitHub-Lesezugang für V2</strong></p>
@@ -1408,7 +1413,7 @@ class DRAV2DevLabPanel extends HTMLElement {
 
               <div class="dialog-actions project-management-footer">
                 <button id="project-management-dismiss"
-                  ${this._projectBusy || this._sourceBusy || this._gitReadBusy ? "disabled" : ""}>Schließen</button>
+                  ${this._projectBusy || this._sourceBusy || this._gitReadBusy ? "disabled" : ""}>${closeIcon}<span>Schließen</span></button>
               </div>
             </section>
           </div>` : ""}
