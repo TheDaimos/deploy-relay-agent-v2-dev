@@ -130,6 +130,16 @@ class PurePreflightTests(unittest.TestCase):
             with self.assertRaises(m.PreflightError):
                 m.parse_manifest(json.dumps(obj).encode(), repository=REPO)
 
+    def test_case_variant_target_roots_rejected_before_inventory(self):
+        groups = [
+            {"source": "package/one", "target": "custom_components/Target",
+             "mode": "replace_directory"},
+            {"source": "package/two", "target": "custom_components/target",
+             "mode": "replace_directory"},
+        ]
+        with self.assertRaises(m.PreflightError):
+            m.parse_manifest(manifest(groups=groups), repository=REPO)
+
     def test_generated_git_blob_hash_has_canonical_format(self):
         self.assertEqual(m.git_blob_sha(b""), "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391")
 
