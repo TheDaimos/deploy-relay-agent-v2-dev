@@ -251,6 +251,21 @@ class LabIsolationContracts(unittest.TestCase):
         self.assertIn('.project-management-table .source-check.note', frontend)
         self.assertNotIn('content:"Git-Status"; display:block', frontend)
 
+    def test_project_connection_is_separate_from_deployment_preview(self):
+        frontend = (LAB_ROOT / "frontend/lab.js").read_text(encoding="utf-8")
+        server = (LAB_ROOT / "websocket_api.py").read_text(encoding="utf-8")
+        self.assertIn('id="manage-connection-check"', frontend)
+        self.assertIn('id="manage-access-mode"', frontend)
+        self.assertIn('Verbindung erfolgreich', frontend)
+        self.assertIn('Verbindung fehlgeschlagen', frontend)
+        self.assertIn('project-management-table .source-check.unverified', frontend)
+        self.assertIn('class="project-settings-open"', frontend)
+        self.assertIn('class="project-icon"', frontend)
+        self.assertIn('projects/connection_check', server)
+        self.assertIn('inspect_repository_connection(', server)
+        self.assertIn('async_projects_connection_check,', server)
+        self.assertNotIn('this._sourceChecks.set(repository, false)', frontend)
+
     def test_config_flow_uses_test_domain_not_v1_domain(self):
         source = (LAB_ROOT / "config_flow.py").read_text(encoding="utf-8")
         self.assertIn("ConfigFlow, domain=DOMAIN", source)
