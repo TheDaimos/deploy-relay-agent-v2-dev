@@ -106,9 +106,9 @@ def parse_manifest(raw: bytes, *, repository: str) -> dict:
             raise PreflightError("deployment mode not approved")
         source_dir = safe_path(g.get("source"))
         target_dir = target_path(g.get("target"))
-        if target_dir in used:
+        if target_dir.casefold() in used:
             raise PreflightError("overlapping deployment targets")
-        used.add(target_dir)
+        used.add(target_dir.casefold())
         groups.append({"source": source_dir, "target": target_dir})
     return {
         "schema": "dra-v2-dev-preflight-manifest.v1",
