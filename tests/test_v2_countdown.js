@@ -442,3 +442,24 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   assert.equal(pickerPanel._batchDialogOpen,false);
   console.log("DRA V2 custom project picker and safe batch-selection action PASS");
 })();
+
+(() => {
+  const mainPanel = new Panel();
+  mainPanel._view = "main";
+  mainPanel._projects = [{repository:"TheDaimos/example",name:"Example",active:true}];
+  mainPanel._render();
+  const mainStart = mainPanel.shadowRoot.innerHTML.indexOf('id="dra-main-view"');
+  const settingsStart = mainPanel.shadowRoot.innerHTML.indexOf('id="dra-settings-view"');
+  const mainContent = mainPanel.shadowRoot.innerHTML.slice(mainStart,settingsStart);
+  const settingsContent = mainPanel.shadowRoot.innerHTML.slice(settingsStart);
+  assert.match(mainContent,/Geführter Ablauf/);
+  assert.match(mainContent,/Quelle &amp; Version|Quelle & Version/);
+  assert.match(mainContent,/id="dra-preview"/);
+  assert.match(mainContent,/id="dra-project-manage"/);
+  assert.doesNotMatch(mainContent,/id="dra-settings-project"/);
+  assert.doesNotMatch(mainContent,/Diagnose & Logs/);
+  assert.doesNotMatch(mainContent,/id="dra-open-diagnostics"/);
+  assert.doesNotMatch(mainContent,/Während eines laufenden Tests wird/);
+  assert.match(settingsContent,/Während eines laufenden Tests wird/);
+  console.log("DRA V2 focused main view and diagnostics-only notes PASS");
+})();
