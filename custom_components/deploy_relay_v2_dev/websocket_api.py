@@ -501,7 +501,8 @@ async def async_projects_manage(hass, connection, msg):
                     raise
             else:
                 await runtime.projects.configure(old_repo, new_repo,
-                                                 msg["name"], msg["note"], msg["active"])
+                                                 msg["name"], msg["note"], msg["active"],
+                                                 msg.get("access_mode"))
         elif action == "remove":
             if msg.get("confirmed") is not True:
                 raise CatalogError("confirmation required")
