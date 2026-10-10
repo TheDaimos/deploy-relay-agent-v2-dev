@@ -65,6 +65,50 @@ class V2ProjectCatalogTests(unittest.IsolatedAsyncioTestCase):
         self.catalog = m.ProjectCatalog(self.store)
         await self.catalog.load()
 
+    async def test_sammelupdate_picker_position_is_persisted_independently(self):
+        for name in ("alpha", "beta", "gamma"):
+            await self.catalog.add(f"TheDaimos/{name}", name)
+        original = self.catalog.list()
+        self.assertEqual(self.catalog.picker_batch_position, 3)
+        self.assertEqual(self.store.value["picker_batch_position"], 3)
+        for i in (2, 1, 0):
+            self.assertEqual(await self.catalog.move_picker_batch(-1), i)
+            self.assertEqual(self.catalog.list(), original)
+            self.assertEqual(self.store.value["picker_batch_position"], i)
+        with self.assertRaises(m.CatalogError):
+            await self.catalog.move_picker_batch(-1)
+        await self.catalog.move("TheDaimos/alpha", 1)
+        self.assertEqual(self.catalog.picker_batch_position, 0)
+        self.assertEqual([p["repository"] for p in self.catalog.list()],
+                         ["TheDaimos/beta", "TheDaimos/alpha", "TheDaimos/gamma"])
+        reloaded = m.ProjectCatalog(self.store)
+        await reloaded.load()
+        self.assertEqual(reloaded.picker_batch_position, 0)
+        self.assertEqual(reloaded.list(), self.catalog.list())
+        await reloaded.add("TheDaimos/delta", "delta")
+        self.assertEqual(reloaded.picker_batch_position, 0)
+        with self.assertRaises(m.CatalogError):
+            await reloaded.move_picker_batch(True)
+        with self.assertRaises(m.CatalogError):
+            await reloaded.move_picker_batch(2)
+
+    async def test_sammelupdate_legacy_catalog_and_storage_failure_are_safe(self):
+        record = m.proposal("TheDaimos/alpha", "Alpha", origin="manual")
+        legacy = Store({"schema":m.SCHEMA,"projects":[record]})
+        catalog = m.ProjectCatalog(legacy)
+        await catalog.load()
+        self.assertEqual(catalog.picker_batch_position, 1)
+        legacy.fail = True
+        with self.assertRaises(m.CatalogError):
+            await catalog.move_picker_batch(-1)
+        self.assertEqual(catalog.picker_batch_position, 1)
+        self.assertEqual(legacy.writes, 0)
+        for value in (-1, 2, True, "0"):
+            storage = Store({"schema":m.SCHEMA,"projects":[record],
+                             "picker_batch_position":value})
+            with self.assertRaises(m.CatalogError):
+                await m.ProjectCatalog(storage).load()
+
     async def test_import_preview_does_not_write(self):
         v1 = v1_projects(("TheDaimos/weather-router-dev", "WeatherRouter", 10))
         preview = m.v1_proposals(v1)
