@@ -11,7 +11,7 @@ from pathlib import Path
 from .remote_source import inspect_public_repository, GitReadAuthError
 from .source_preflight import PreflightError
 
-from .const import DOMAIN, VERSION, READONLY_TEST_STEPS
+from .const import DOMAIN, VERSION
 from .operation_model import OperationContractError, OperationPhase
 from .git_measurement_export import GitMeasurementError
 from .project_catalog import CatalogError, v1_proposals
@@ -82,36 +82,6 @@ async def async_state(hass, connection, msg):
         "settings_effective": runtime.settings.effective(),
         "cpu_status": runtime.settings.core_status(),
     })
-
-
-@websocket_api.websocket_command({
-    probatio.Required("type"): "deploy_relay_v2_dev/test/start",
-    probatio.Required("request_id"): str,
-})
-@websocket_api.require_admin
-@websocket_api.async_response
-async def async_start(hass, connection, msg):
-    runtime = _runtime(hass)
-    if runtime is None:
-        connection.send_error(msg["id"], "not_ready", "Testlabor nicht gestartet")
-        return
-
-    async def synthetic_preview(progress):
-        # Exactly 40 measured 1-second steps; no network, Git or filesystem access.
-        for index in range(1, READONLY_TEST_STEPS + 1):
-            await asyncio.sleep(1)
-            await progress(OperationPhase.INVENTORY, index, READONLY_TEST_STEPS)
-
-    try:
-        receipt = await runtime.supervisor.start_preview(
-            project_key="lab_readonly_preview",
-            request_id=msg["request_id"],
-            work=synthetic_preview,
-        )
-    except OperationContractError:
-        connection.send_error(msg["id"], "busy", "Testauftrag bereits aktiv oder ungueltig")
-        return
-    connection.send_result(msg["id"], receipt)
 
 
 @websocket_api.websocket_command({
@@ -683,7 +653,7 @@ def async_register_commands(hass: HomeAssistant) -> None:
     state = hass.data.setdefault(DOMAIN, {})
     if state.get("commands_registered"):
         return
-    for handler in (async_state, async_start, async_measure, async_multicore,
+    for handler in (async_state, async_measure, async_multicore,
                     async_all, async_get, async_git_export, async_git_retry,
                     async_projects_list, async_projects_v1_preview,
                     async_projects_import_v1, async_projects_add,
