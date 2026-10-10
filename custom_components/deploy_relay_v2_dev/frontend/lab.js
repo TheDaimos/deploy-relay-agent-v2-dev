@@ -781,6 +781,12 @@ class DRAV2DevLabPanel extends HTMLElement {
         .safe { font-weight:bold; color:var(--success-color,#68ba8c); }
         button { background:var(--primary-color,#396a96); color:#fff; border:0; border-radius:8px; padding:12px 16px; margin-right:8px; margin-top:10px; font:inherit; cursor:pointer; }
         button:disabled { opacity:.5; cursor:default; }
+        button { position:relative; touch-action:manipulation; transition:transform .12s ease,filter .12s ease,box-shadow .12s ease; }
+        button:not(:disabled):hover { filter:brightness(1.12); box-shadow:0 2px 7px rgba(0,0,0,.24); }
+        button:not(:disabled):active { transform:translateY(2px) scale(.975); filter:brightness(.78); box-shadow:inset 0 2px 7px rgba(0,0,0,.42); }
+        button:focus-visible { outline:3px solid var(--accent-color,#f1c45e); outline-offset:3px; }
+        button:disabled { transform:none; box-shadow:none; }
+        @media (prefers-reduced-motion:reduce) { button { transition:none; } }
         code { overflow-wrap:anywhere; }
         .error { color:var(--error-color,#f55); }
         .table-wrap { overflow-x:auto; max-width:100%; }
@@ -974,7 +980,7 @@ class DRAV2DevLabPanel extends HTMLElement {
               Bitte die DRA-Einstellungen kontrollieren.</p>
               <button id="cpu-warning-ack" ${this._cpuBusy ? "disabled" : ""}>Hinweis bestätigen</button>
             </div>` : ""}
-          <button id="settings-save" ${this._settingsBusy ? "disabled" : ""}>Vorgaben speichern</button>
+          <button id="settings-save" ${this._settingsBusy ? "disabled" : ""}>Speichern</button>
           <p class="note">${this._escapeProject(this._settingsMessage)}</p>
           <p class="note">Die separate feste Mehrkern-Diagnose bleibt unverändert. Kein
           Schreibzugriff, kein CPU-Pinning und keine automatische Ressourcensteuerung.</p>
