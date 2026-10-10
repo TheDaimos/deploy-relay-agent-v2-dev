@@ -350,3 +350,25 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   console.error(error);
   process.exitCode = 1;
 });
+
+(() => {
+  const metalPanel = new Panel();
+  metalPanel._projectDialogOpen = true;
+  metalPanel._projects = [
+    {name:"Inactive project",repository:"TheDaimos/inactive",active:false},
+    {name:"Active project",repository:"TheDaimos/active",active:true},
+  ];
+  metalPanel._render();
+  const html = metalPanel.shadowRoot.innerHTML;
+  assert.match(html, /Status: <strong>Inaktiv<\/strong>/);
+  assert.equal((html.match(/project-inactive-label/g)||[]).length >= 1,true);
+  assert.match(html, /class="project-settings-open project-metal-button"/);
+  assert.match(html, /class="project-move project-metal-button"/);
+  assert.match(html, /<linearGradient id="dra-metal-settings-0"/);
+  assert.match(html, /<linearGradient id="dra-metal-up-0"/);
+  assert.match(html, /<linearGradient id="dra-metal-down-0"/);
+  assert.match(html, /<linearGradient id="dra-metal-settings-1"/);
+  assert.match(html, /stroke="url\(#dra-metal-settings-0\)"/);
+  assert.match(html, /stroke="url\(#dra-metal-settings-1\)"/);
+  console.log("DRA V2 metal icon gradient and inactive card render PASS");
+})();
