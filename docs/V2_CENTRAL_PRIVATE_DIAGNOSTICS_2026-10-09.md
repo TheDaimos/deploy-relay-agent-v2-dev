@@ -157,3 +157,15 @@ Alle sechs vorhandenen Bereiche der bisherigen V2-Laboransicht sind nun unabhän
 ## V2 DEV 0.1.29 – Selektiver Projektimport (10.10.2026)
 
 Die Schaltfläche „Projektimport“ öffnet einen Dialog mit auswählbaren DRA-V1-Projekten. „Alle auswählen“ in der Dialogüberschrift setzt alle Kontrollkästchen; einzeln abwählbar. „Importieren“ überträgt ausschließlich die ausgewählten Projektmetadaten nach V2; „Abbrechen“ verwirft die Auswahl. Die WebSocket-Route verlangt eine explizite Liste, prüft Duplikate und lehnt fremde Repositorynamen ab; V1-Token, Sicherungen und Installationen werden nicht übernommen oder verändert. Es erfolgt keine Home-Assistant-Installation und kein Neustart.
+
+## V2 DEV 0.1.32 – Projektverwaltung (10.10.2026)
+
+Der sechsteilige Diagnose- und Einstellungsbereich enthält nun **05 · Projektverwaltung**. Die Tabelle zeigt eine persistente, numerische Reihenfolge, Anzeigenamen, Repository, auf Anforderung geprüften Git-Status (vor einer Prüfung neutral), Einstellungen und Pfeile zur Priorisierung. Diese Reihenfolge ist die verbindliche Prioritätsreihenfolge für die spätere Projektliste und für die nur lesende Sammelupdate-Vorschau. Das erste aktive Projekt ist als Standardposition vorgesehen; die spätere DRA-V2-Hauptoberfläche ist noch nicht implementiert.
+
+Unter der Tabelle stehen „+ Projekt hinzufügen“, „Import aus DRA-V1“ sowie „Backup & Retention“. Import aus DRA V1 bleibt selektiv und kopiert keine Zugangsdaten. Die Projektmodalität unterstützt Notiz, Anzeigename, Aktivierung und eine ausdrücklich zu bestätigende Entfernung ausschließlich aus dem V2-Projektregister. V1-Installation, GitHub-Repository und Sicherungen bleiben unverändert.
+
+Die V2-Projekttokens liegen in einem eigenen Home-Assistant-Store „deploy_relay_v2_dev.project_read_auth“ und nicht in V1 oder im Export-Token-Store. Sie werden von der Admin-WebSocket-Schnittstelle nur durch Konfigurationsstatus und die letzten fünf Zeichen repräsentiert (in der Oberfläche grün). Für Quellprüfungen hat das konkrete Projekttoken Vorrang vor dem alten gemeinsamen V2-Lesetoken. Das vollständige Geheimnis wird nie an den Client zurückgegeben. Gespeicherte Secrets befinden sich wie die bisherigen HA-Zugangsdaten in HA-eigenem Storage; hierfür wird kein zusätzlicher kryptografischer Schutz behauptet.
+
+Ein Repositorywechsel wird vor Speicherung über die bestehende schreibgeschützte GitHub-Quellprüfung kontrolliert, danach werden die V2-Zuordnung und die proprietären Projekttokens übertragen. Bei Token-Migrationsfehlern wird versucht, das vorherige Repository wiederherzustellen. Die Operation benötigt zusätzlich eine HA-Realabnahme. Inaktive Projekte werden von der schreibgeschützten Sammelupdate-Vorschau abgelehnt. Installation, Rotation, tatsächliche V2-Sicherungsverwaltung, Neustart und V1-Operationen bleiben gesperrt beziehungsweise unangetastet.
+
+**Abnahmegrenze:** Die Versionskontrolle und automatisierten Tests ersetzen keine HA-Realabnahme. Eine installierbare bzw. schreibende Sammelaktualisierung ist weiterhin nicht freigegeben.
