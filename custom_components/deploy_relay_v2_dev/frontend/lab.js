@@ -1030,11 +1030,12 @@ class DRAV2DevLabPanel extends HTMLElement {
           <button id="dra-settings-project" ${!mainProject?"disabled":""}>Projekt / Token verwalten</button></article>
           <article><h2>Quelle & Version</h2><div class="dra-warning">Empfohlenes Deployment konnte noch nicht sicher bestimmt werden.</div>
           <p>Ausgewählt: ${mainProject ? this._escapeProject(mainProject.repository) : "—"}</p>
-          <p>Quellstand: Nicht geprüft</p>
+          <p>Quellstand: ${this._sourceRepository === mainProject?.repository && this._sourcePreview ? this._escapeProject(this._sourcePreview.source_commit?.slice(0,12)) : "Noch nicht geprüft"}</p>
           <button id="dra-source" ${!mainProject?"disabled":""}>Erweiterte Quellenauswahl</button></article></div>
           <article><h2>Vorschau</h2><button id="dra-preview" ${!mainProject?"disabled":""}>2 · Vorschau vorbereiten</button>
           <button disabled>3 · Schreibzugriff freigeben</button><button disabled>0 Änderungen installieren</button>
-          <p class="note">Keine Vorschau berechnet. Die sichere Quellprüfung bleibt im Bereich Diagnose & Einstellungen.</p></article>
+          <p class="note" role="status">${this._sourceRepository === mainProject?.repository ? this._escapeProject(this._sourceMessage) : "Noch keine Vorschau berechnet."}</p>
+          ${this._sourceRepository === mainProject?.repository && this._sourcePreview ? `<p>Commit: ${this._escapeProject(this._sourcePreview.source_commit?.slice(0,12))} · Hinzugefügt: ${this._sourcePreview.add.length} · Geändert: ${this._sourcePreview.change.length} · Entfernt: ${this._sourcePreview.remove.length} · Unverändert: ${this._sourcePreview.unchanged_count}</p>` : ""}</article>
           <article><h2>Diagnose & Logs</h2><p class="note">Bestehende Diagnose, Teststeuerung, Projektverwaltung und Git-Export bleiben erhalten.</p>
           <button id="dra-open-diagnostics">Diagnose & Einstellungen öffnen</button></article>
         </section>
@@ -1369,7 +1370,8 @@ class DRAV2DevLabPanel extends HTMLElement {
     s.querySelector("#dra-select")?.addEventListener("change",e=>{this._selectedMainRepo=e.target.value;this._render();});
     s.querySelector("#dra-project-manage")?.addEventListener("click",()=>{this._view="settings";this._expandedSections.add("5");this._render();});
     s.querySelector("#dra-settings-project")?.addEventListener("click",()=>{if(mainProject){this._view="settings";this._expandedSections.add("5");this._openProjectSettings(mainProject.repository);}});
-    for(const id of ["dra-source","dra-preview","dra-step2"]){s.querySelector("#"+id)?.addEventListener("click",()=>{this._view="settings";this._expandedSections.add("5");this._render();});}
+    for(const id of ["dra-preview","dra-step2"]){s.querySelector("#"+id)?.addEventListener("click",()=>{if(mainProject)this._sourceCheck({dataset:{repo:mainProject.repository}});});}
+    s.querySelector("#dra-source")?.addEventListener("click",()=>{this._view="settings";this._expandedSections.add("5");this._render();});
     s.querySelector("#dra-step1")?.addEventListener("click",()=>s.querySelector("#dra-select")?.focus());
     s.querySelector("#dra-open-diagnostics")?.addEventListener("click",()=>{this._view="settings";this._render();});
     s.querySelector("#measure")?.addEventListener("click", () => this._measure());
