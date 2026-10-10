@@ -1932,6 +1932,25 @@ class DRAV2DevLabPanel extends HTMLElement {
               title="V2-Einstellungen öffnen" aria-label="Einstellungen für Deploy Relay Agent V2 öffnen"
               ${this._checkAllBusy || this._gitReadBusy ? "disabled" : ""}>${metalSvg(gearIcon,"v2",0)}</button>
           </div>
+              <div class="dialog-actions project-management-footer">
+                <button id="project-management-dismiss"
+                  ${this._projectBusy || this._sourceBusy || this._gitReadBusy ? "disabled" : ""}>${closeIcon}<span>Schließen</span></button>
+              </div>
+              </div>
+            </section>
+          </div>` : ""}
+        ${this._v2SettingsOpen ? `
+          <div class="git-dialog-backdrop" id="project-v2-settings-backdrop">
+            <section class="git-dialog project-v2-settings-dialog" id="project-v2-settings-dialog"
+              role="dialog" aria-modal="true" aria-labelledby="project-v2-settings-title" tabindex="-1">
+              <header>
+                <div><h2 id="project-v2-settings-title">Deploy Relay Agent V2 · Einstellungen</h2>
+                  <p class="note">Zentrale GitHub-Zugänge und schreibgeschützte Quellprüfung</p></div>
+                <button id="project-v2-settings-close" aria-label="V2-Einstellungen schließen"
+                  ${this._gitReadBusy || this._sourceBusy ? "disabled" : ""}>${closeIcon}</button>
+              </header>
+              <div class="project-v2-settings-scroll">
+                <h3>Privater GitHub-Lesezugang für V2</h3>
           <p class="note">Optional für private Projekt-Repositories. Nur einen
           eigenen GitHub-Token mit möglichst minimalem Leserecht auf die
           benötigten Repositories verwenden. Niemals V1-Zugangsdaten oder
@@ -1943,9 +1962,9 @@ class DRAV2DevLabPanel extends HTMLElement {
           <button id="git-read-clear" ${!this._gitReadConfigured || this._gitReadBusy ? "disabled" : ""}>Lesezugang entfernen</button>
           <p class="note">V2-Lesezugang: ${this._gitReadConfigured ? "eingerichtet" : "nicht eingerichtet"}.
           ${this._escapeProject(this._gitReadMessage)}</p>
-          <p><strong>GitHub-Quellprüfung (nur lesend)</strong></p>
+          <h3>GitHub-Quellprüfung (nur lesend)</h3>
           <label>Quellzweig (optional; leer = Standardzweig)
-            <input id="source-ref" class="project-text" placeholder="deploy/dev" autocomplete="off" /></label>
+            <input id="source-ref" class="project-text" placeholder="deploy/dev" value="${this._escapeProject(this._v2SourceRef)}" autocomplete="off" /></label>
           <p class="note">Über „Git-Quelle prüfen“ beim jeweiligen Projekt wird die
           öffentliche GitHub-Quelle geprüft. Keine V1-Zugangsdaten, keine Installation.
           Private Repositories benötigen den separat eingerichteten V2-Lesezugang.</p>
@@ -1964,10 +1983,10 @@ class DRAV2DevLabPanel extends HTMLElement {
           Neue Einträge sind zunächst ungeprüft. Installation, tatsächliche Sicherung,
           Rotation und Wiederherstellung bleiben bis zur separaten Transaktionsabnahme gesperrt.</p>
 
-              <div class="dialog-actions project-management-footer">
-                <button id="project-management-dismiss"
-                  ${this._projectBusy || this._sourceBusy || this._gitReadBusy ? "disabled" : ""}>${closeIcon}<span>Schließen</span></button>
-              </div>
+
+                <div class="dialog-actions">
+                  <button id="project-v2-settings-dismiss" ${this._gitReadBusy || this._sourceBusy ? "disabled" : ""}>Schließen</button>
+                </div>
               </div>
             </section>
           </div>` : ""}
