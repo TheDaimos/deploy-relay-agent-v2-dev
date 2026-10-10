@@ -144,6 +144,7 @@ class ProjectCatalog:
         self._store = store
         self._lock = asyncio.Lock()
         self._records: list[dict[str, object]] | None = None
+        self._picker_batch_position: int = 0
 
     async def load(self) -> None:
         try:
@@ -152,13 +153,17 @@ class ProjectCatalog:
             raise CatalogError("catalog load failed") from None
         if obj is None:
             self._records = []
+            self._picker_batch_position = 0
             return
-        if type(obj) is not dict or set(obj) != {"schema", "projects"} or obj["schema"] != SCHEMA:
+        if type(obj) is not dict or not {"schema", "projects"} <= set(obj) or set(obj) - {"schema", "projects", "picker_batch_position"} or obj["schema"] != SCHEMA:
             raise CatalogError("unknown catalog schema")
         data = obj["projects"]
         if type(data) is not list or len(data) > MAX_PROJECTS:
             raise CatalogError("invalid catalog size")
         rows = [sanitize_entry(r) for r in data]
+        batch_position = obj.get("picker_batch_position", len(rows))
+        if type(batch_position) is not int or not 0 <= batch_position <= len(rows):
+            raise CatalogError("invalid picker position")
         keys = [r["repository"].casefold() for r in rows]
         if len(set(keys)) != len(keys):
             raise CatalogError("duplicate catalog record")
@@ -166,6 +171,13 @@ class ProjectCatalog:
         if len(set(ids)) != len(ids):
             raise CatalogError("duplicate managed target identity")
         self._records = rows
+        self._picker_batch_position = batch_position
+
+    @property
+    def picker_batch_position(self) -> int:
+        if self._records is None:
+            raise CatalogError("catalog unavailable")
+        return min(self._picker_batch_position, len(self._records))
 
     def list(self) -> list[dict[str, object]]:
         if self._records is None:
@@ -180,11 +192,17 @@ class ProjectCatalog:
         if (len({r["project_id"] for r in records}) != len(records)
             or len({r["repository"].casefold() for r in records}) != len(records)):
             raise CatalogError("duplicate managed target identity")
+        position = self._picker_batch_position
+        if position == len(self._records) and len(records) > len(self._records):
+            position = len(records)  # legacy trailing batch remains trailing after additions
+        position = min(position, len(records))
         try:
-            await self._store.async_save({"schema": SCHEMA, "projects": records})
+            await self._store.async_save({"schema": SCHEMA, "projects": records,
+                                          "picker_batch_position": position})
         except Exception:
             raise CatalogError("catalog save failed") from None
         self._records = records
+        self._picker_batch_position = position
 
     async def add(self, repository: str, name: str, note: str = "", active: bool = True,
                   access_mode: str = "read_only") -> dict[str, object]:
@@ -229,6 +247,23 @@ class ProjectCatalog:
             if 0 <= target < len(rows):
                 rows[idx], rows[target] = rows[target], rows[idx]
                 await self._save(rows)
+
+    async def move_picker_batch(self, direction: int) -> int:
+        """Move only the synthetic UI entry; project catalog order stays intact."""
+        if type(direction) is not int or direction not in (-1, 1):
+            raise CatalogError("invalid picker movement")
+        async with self._lock:
+            current = self.picker_batch_position
+            target = current + direction
+            if not 0 <= target <= len(self.list()):
+                raise CatalogError("picker boundary")
+            self._picker_batch_position = target
+            try:
+                await self._save(self.list())
+            except CatalogError:
+                self._picker_batch_position = current
+                raise
+            return self._picker_batch_position
 
     async def configure(self, repository: str, new_repository: str, name: str, note: str, active: bool, access_mode: str | None = None) -> None:
         repo = normalize_repo(repository)
