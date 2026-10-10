@@ -11,6 +11,8 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._settings = {mode:"sequential",max_readonly_jobs:2,max_worker_processes:4};
     this._settingsBusy = false;
     this._expandedSections = new Set();
+    this._view = "main";
+    this._selectedMainRepo = null;
     this._settingsMessage = "";
     this._cpuStatus = {available_cores:null,warning:null};
     this._cpuBusy = false;
@@ -739,6 +741,8 @@ class DRAV2DevLabPanel extends HTMLElement {
     // Unmounted inputs return undefined. Assigning that to an HTML input.value
     // turns it into the literal text "undefined" (seen on Android/desktop).
     const unsentRepository = typeof previousRepo === "string" ? previousRepo : null;
+    const activeMainProjects = this._projects.filter(p => p.active !== false);
+    const mainProject = activeMainProjects.find(p => p.repository === this._selectedMainRepo) || activeMainProjects[0] || null;
     const projectRows = this._projects.map((p,i) => {
       const state = this._sourceBusy && this._sourceRepository === p.repository ? "Prüfung läuft" :
         this._sourceChecks.has(p.repository) ? (this._sourceChecks.get(p.repository) ? "Online" : "Nicht verfügbar") : "Nicht geprüft";
@@ -858,6 +862,20 @@ class DRAV2DevLabPanel extends HTMLElement {
       <style>
         :host { display:block; min-height:100%; color:var(--primary-text-color, #f2f2f2); background:var(--primary-background-color, #111); font-family:var(--paper-font-body1_-_font-family, sans-serif); }
         main { margin:auto; width:100%; max-width:1600px; box-sizing:border-box; padding:24px clamp(12px,2.5vw,36px) 56px; }
+        [hidden] {display:none !important;}
+        .dra-head {display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;border-bottom:1px solid var(--divider-color,#555);padding-bottom:12px}
+        .dra-head strong {font-size:20px}.dra-head button {margin:2px}
+        .dra-actions {display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+        .dra-lock {border:1px solid #b08022;color:#f0ba40;border-radius:15px;padding:6px 10px}
+        .dra-projectbar {display:flex;gap:12px;align-items:end;flex-wrap:wrap}
+        .dra-projectbar label {flex:1;min-width:210px}
+        .dra-projectbar select {display:block;width:100%;min-height:44px;padding:8px;border-radius:8px;background:var(--primary-background-color,#111);color:inherit;border:1px solid var(--divider-color,#555)}
+        .dra-main-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+        .dra-main-grid article {margin-top:12px}
+        .dra-steps {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+        .dra-steps button {margin:0;background:#233943;border:1px solid #396a96;padding:10px 4px}
+        .dra-warning {border:1px solid #987323;background:rgba(160,110,10,.12);border-radius:10px;padding:14px;margin-top:14px}
+        @media(max-width:760px){.dra-main-grid{grid-template-columns:1fr}.dra-steps{grid-template-columns:repeat(2,minmax(0,1fr))}}
         h1 { font-size:24px; margin:0 0 12px; }
         article { background:var(--card-background-color,#202020); border:1px solid var(--divider-color,#555); border-radius:14px; padding:20px; margin-top:18px; }
         p { line-height:1.5; }
@@ -989,7 +1007,39 @@ class DRAV2DevLabPanel extends HTMLElement {
          }
       </style>
       <main>
-        <h1>DRA V2 DEV · Testlabor</h1>
+        <header class="dra-head">
+          <div><strong>DEPLOY RELAY AGENT V2</strong><div class="note">Sicheres Deployment für Git-Projekte</div></div>
+          <div class="dra-actions"><span class="dra-lock">GESPERRT</span><span class="note">V2 DEV</span>
+          <button id="dra-refresh">Aktualisieren</button>
+          <button id="dra-toggle">${this._view === "main" ? "Diagnose & Einstellungen" : "Hauptmenü"}</button></div>
+        </header>
+        <section id="dra-main-view" ${this._view==="main"?"":"hidden"}>
+          <article class="dra-projectbar"><label><strong>Projekt</strong>
+          <select id="dra-select">${activeMainProjects.map(p=>`<option value="${this._escapeProject(p.repository)}" ${mainProject?.repository===p.repository?"selected":""}>${this._escapeProject(p.name)}</option>`).join("")}</select>
+          </label><button id="dra-project-manage">Projektverwaltung</button>
+          <button disabled>Sicherungen</button></article>
+          <div class="dra-warning"><strong>Gesperrter Betrieb</strong><div>Deployment-Schreibzugriffe sind deaktiviert. Vorschau und Diagnose bleiben verfügbar.</div></div>
+          <article><h2>Geführter Ablauf</h2><p class="note">Orientierung am bewährten DRA-V1-Aufbau.</p>
+          <div class="dra-steps"><button id="dra-step1">1 · Stand auswählen</button><button id="dra-step2">2 · Vorschau prüfen</button>
+          <button disabled>3 · Schreibzugriff</button><button disabled>4 · Installieren</button></div></article>
+          <div class="dra-main-grid">
+          <article><h2>${mainProject ? this._escapeProject(mainProject.name) : "Kein aktives Projekt"}</h2>
+          <p>Repository: ${mainProject ? this._escapeProject(mainProject.repository) : "—"}</p>
+          <p>Manifest: deploy-relay.json</p><p>Status: Registrierung vorhanden; Quelle noch nicht geprüft</p>
+          <p>GitHub-Zugang: ${mainProject?.token_configured ? "Projekttoken vorhanden" : "Kein Projekttoken"}</p>
+          <button id="dra-settings-project" ${!mainProject?"disabled":""}>Projekt / Token verwalten</button></article>
+          <article><h2>Quelle & Version</h2><div class="dra-warning">Empfohlenes Deployment konnte noch nicht sicher bestimmt werden.</div>
+          <p>Ausgewählt: ${mainProject ? this._escapeProject(mainProject.repository) : "—"}</p>
+          <p>Quellstand: Nicht geprüft</p>
+          <button id="dra-source" ${!mainProject?"disabled":""}>Erweiterte Quellenauswahl</button></article></div>
+          <article><h2>Vorschau</h2><button id="dra-preview" ${!mainProject?"disabled":""}>2 · Vorschau vorbereiten</button>
+          <button disabled>3 · Schreibzugriff freigeben</button><button disabled>0 Änderungen installieren</button>
+          <p class="note">Keine Vorschau berechnet. Die sichere Quellprüfung bleibt im Bereich Diagnose & Einstellungen.</p></article>
+          <article><h2>Diagnose & Logs</h2><p class="note">Bestehende Diagnose, Teststeuerung, Projektverwaltung und Git-Export bleiben erhalten.</p>
+          <button id="dra-open-diagnostics">Diagnose & Einstellungen öffnen</button></article>
+        </section>
+        <section id="dra-settings-view" ${this._view==="settings"?"":"hidden"}>
+        <h1>DRA V2 DEV · Diagnose & Einstellungen</h1>
         <p class="safe">Getrennt von DRA V1 · Nur schreibgeschützter Testbetrieb</p>
         <p>Dieser Test liest keine Projektdateien und führt keine Installation, Wiederherstellung oder Neustarts aus.</p>
         <div class="dashboard-grid">
@@ -1173,6 +1223,7 @@ class DRAV2DevLabPanel extends HTMLElement {
               <button id="manage-remove-cancel">Abbrechen</button>
               <button id="manage-remove-confirm" class="danger">Ja, Projekt entfernen</button></div>` : ""}
           </section></div>` : ""}
+        </section>
         ${this._importDialogOpen ? `
           <div class="git-dialog-backdrop">
             <section class="git-dialog" id="project-import-dialog" role="dialog" aria-modal="true" aria-labelledby="project-import-title">
@@ -1313,6 +1364,14 @@ class DRAV2DevLabPanel extends HTMLElement {
         <p class="note">Während eines laufenden Tests wird der Status etwa alle 1,5 Sekunden aktualisiert. Im Leerlauf erfolgt keine regelmäßige Abfrage. Nach einem Home-Assistant-Neustart bleiben abgeschlossene Aufträge im begrenzten Verlauf abrufbar. Vorher laufende Testaufträge erscheinen als unterbrochen und werden nicht neu gestartet.</p>
       </main>
     `;
+    s.querySelector("#dra-toggle")?.addEventListener("click",()=>{this._view=this._view==="main"?"settings":"main";this._render();});
+    s.querySelector("#dra-refresh")?.addEventListener("click",()=>this._refresh());
+    s.querySelector("#dra-select")?.addEventListener("change",e=>{this._selectedMainRepo=e.target.value;this._render();});
+    s.querySelector("#dra-project-manage")?.addEventListener("click",()=>{this._view="settings";this._expandedSections.add("5");this._render();});
+    s.querySelector("#dra-settings-project")?.addEventListener("click",()=>{if(mainProject){this._view="settings";this._expandedSections.add("5");this._openProjectSettings(mainProject.repository);}});
+    for(const id of ["dra-source","dra-preview","dra-step2"]){s.querySelector("#"+id)?.addEventListener("click",()=>{this._view="settings";this._expandedSections.add("5");this._render();});}
+    s.querySelector("#dra-step1")?.addEventListener("click",()=>s.querySelector("#dra-select")?.focus());
+    s.querySelector("#dra-open-diagnostics")?.addEventListener("click",()=>{this._view="settings";this._render();});
     s.querySelector("#measure")?.addEventListener("click", () => this._measure());
     s.querySelector("#multicore")?.addEventListener("click", () => this._runSequence("multicore"));
     s.querySelector("#all")?.addEventListener("click", () => this._runSequence("full"));
