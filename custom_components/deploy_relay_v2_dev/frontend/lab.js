@@ -20,6 +20,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._batchMessage = "";
     this._projectBusy = false;
     this._projectSaved = new Map();
+    this._backupDialogOpen = false;
     this._projectMessage = "";
     this._sourceBusy = false;
     this._sourceRepository = null;
@@ -517,9 +518,18 @@ class DRAV2DevLabPanel extends HTMLElement {
     return this._projectAction("add", { repository: repo, name });
   }
 
+  _openBackupDialog() {
+    this._backupDialogOpen = true;
+    this._render();
+  }
+  _closeBackupDialog() {
+    if (this._projectBusy) return;
+    this._backupDialogOpen = false;
+    this._render();
+  }
   _retention(button) {
     const repo = button?.dataset?.repo;
-    const input = button?.closest("tr")?.querySelector("input");
+    const input = button?.closest(".backup-entry")?.querySelector("input.retention");
     const n = Number(input?.value);
     if (!Number.isInteger(n) || n < 3 || n > 100) {
       this._projectMessage = "Sicherungen: erlaubt sind 3 bis 100 je Projekt.";
@@ -527,7 +537,7 @@ class DRAV2DevLabPanel extends HTMLElement {
       return;
     }
     this._projectSaved.delete(repo);
-    return this._projectAction("retention", { repository: repo, backup_retention: n });
+    return this._projectAction("retention", {repository:repo, backup_retention:n});
   }
   async _saveSettings() {
     if (!this._hass || this._settingsBusy) return;
@@ -655,9 +665,6 @@ class DRAV2DevLabPanel extends HTMLElement {
       </div>` : "";
       return `<tr><td>${this._escapeProject(p.name)}<div class="note">${this._escapeProject(p.repository)}</div>${state}</td>
         <td>${p.origin === "v1_import" ? "DRA V1" : "Manuell"}</td>
-        <td><input class="retention" type="number" min="3" max="100" value="${Number.isInteger(p.backup_retention) ? p.backup_retention : 10}" aria-label="Sicherungen" />
-        <button class="retention-save ${saved ? "retention-saved" : ""}" data-repo="${this._escapeProject(p.repository)}"
-        ${this._projectBusy ? "disabled" : ""}>${saved ? "Gespeichert" : "Speichern"}</button></td>
         <td><button class="source-check" data-repo="${this._escapeProject(p.repository)}"
         ${this._sourceBusy ? "disabled" : ""}>${selected && this._sourceBusy ? "Prüft …" : "Prüfen"}</button></td></tr>`;
     }).join("");
@@ -841,10 +848,12 @@ class DRAV2DevLabPanel extends HTMLElement {
            .project-card tr { border:1px solid var(--divider-color,#555); border-radius:10px; margin-bottom:12px; padding:8px; }
            .project-card td { border:none; padding:7px; white-space:normal; min-width:0 !important; }
            .project-card td:nth-child(2)::before { content:"Herkunft: "; font-weight:bold; }
-           .project-card td:nth-child(3)::before { content:"Sicherungen behalten"; display:block; font-weight:bold; margin-bottom:4px; }
-           .project-card td:nth-child(4)::before { content:"Git-Quelle"; display:block; font-weight:bold; }
+           .project-card td:nth-child(3)::before { content:"Git-Quelle"; display:block; font-weight:bold; }
          }
          .batch-options { max-height:55vh; overflow:auto; }
+         .backup-dialog { width:min(100%,760px); }
+         .backup-entry { border:1px solid var(--divider-color,#555); border-radius:10px; margin:10px 0; padding:12px; }
+         .backup-entry label { margin-top:8px; }
          .section-card { min-width:0; border:1px solid var(--divider-color,#555); box-shadow:0 2px 12px rgba(0,0,0,.08); }
          .section-card h2 { font-size:18px; margin:0 0 12px; padding-bottom:12px; border-bottom:1px solid var(--divider-color,#555); }
          .inner-panel { border:1px solid var(--divider-color,#555); background:var(--secondary-background-color,rgba(127,127,127,.07)); border-radius:10px; padding:12px 14px; margin-top:14px; }
@@ -967,6 +976,7 @@ class DRAV2DevLabPanel extends HTMLElement {
 
         <article class="section-card project-card">
           <h2>05 · Meine Projekte</h2>
+          <button id="backup-dialog-open">Backup &amp; Retention</button>
           <p class="note">Projektmetadaten getrennt von DRA V1 verwalten. V1 bleibt unverändert.
           Übernahme kopiert weder Git-Zugangsdaten noch Installationsstände oder Sicherungsdateien.</p>
           <button id="project-preview" ${this._projectBusy ? "disabled" : ""}>V1-Projekte ansehen</button>
@@ -978,7 +988,7 @@ class DRAV2DevLabPanel extends HTMLElement {
           <label>Anzeigename (optional)<input id="project-name" class="project-text" placeholder="Mein Projekt" autocomplete="off" /></label>
           <button id="project-add" ${this._projectBusy ? "disabled" : ""}>Projekt vormerken</button>
           <p class="note">${this._escapeProject(this._projectMessage)}</p>
-          ${this._projects.length ? `<div class="table-wrap"><table><thead><tr><th>Projekt</th><th>Herkunft</th><th>Sicherungen behalten</th><th>Git-Quelle</th></tr></thead>
+          ${this._projects.length ? `<div class="table-wrap"><table><thead><tr><th>Projekt</th><th>Herkunft</th><th>Git-Quelle</th></tr></thead>
           <tbody>${projectRows}</tbody></table></div>` : `<p class="note">Noch keine Projekte in V2 hinterlegt.</p>`}
           <p><strong>Privater GitHub-Lesezugang für V2</strong></p>
           <p class="note">Optional für private Projekt-Repositories. Nur einen
@@ -1022,6 +1032,36 @@ class DRAV2DevLabPanel extends HTMLElement {
         </article>
 
         </div>
+        ${this._backupDialogOpen ? `
+          <div class="git-dialog-backdrop">
+            <section class="git-dialog backup-dialog" id="backup-dialog" role="dialog"
+              aria-modal="true" aria-labelledby="backup-title">
+              <header><h2 id="backup-title">Backup &amp; Retention</h2>
+                <button id="backup-close" ${this._projectBusy ? "disabled" : ""} aria-label="Schließen">✕</button>
+              </header>
+              <p class="note">Anzahl aufzubewahrender Sicherungen pro Projekt (3–100).
+                Diese Vorgabe erstellt, löscht oder verändert derzeit keine Sicherungen.</p>
+              ${this._projects.map(p => {
+                const saved = this._projectSaved.get(p.repository) === p.backup_retention;
+                return `<div class="backup-entry">
+                  <strong>${this._escapeProject(p.name)}</strong>
+                  <div class="note">${this._escapeProject(p.repository)}</div>
+                  <label>Letzte Sicherungen behalten
+                    <input class="retention" type="number" min="3" max="100"
+                      value="${p.backup_retention}" aria-label="Aufbewahrungszahl ${this._escapeProject(p.name)}" />
+                  </label>
+                  <button class="retention-save ${saved ? "retention-saved" : ""}"
+                    data-repo="${this._escapeProject(p.repository)}"
+                    ${this._projectBusy ? "disabled" : ""}>${saved ? "Gespeichert" : "Speichern"}</button>
+                  <button disabled title="Erst nach Einführung echter V2-Sicherungen verfügbar">Verfügbare Backups anzeigen</button>
+                </div>`;
+              }).join("")}
+              <p class="note">Backup-Liste und dauerhaftes Festschreiben folgen erst mit der
+                geprüften V2-Sicherungsverwaltung. V1-Sicherungen bleiben unangetastet.</p>
+              <p class="note" role="status">${this._escapeProject(this._projectMessage)}</p>
+              <div class="dialog-actions"><button id="backup-dismiss" ${this._projectBusy ? "disabled" : ""}>Schließen</button></div>
+            </section>
+          </div>` : ""}
         ${this._batchDialogOpen ? `
           <div class="git-dialog-backdrop">
             <section class="git-dialog" id="batch-dialog" role="dialog" aria-modal="true" aria-labelledby="batch-title">
@@ -1129,6 +1169,9 @@ class DRAV2DevLabPanel extends HTMLElement {
     s.querySelector("#git-retry")?.addEventListener("click", () => this._exportGit(true));
     s.querySelector("#settings-save")?.addEventListener("click", () => this._saveSettings());
     s.querySelector("#cpu-warning-ack")?.addEventListener("click", () => this._ackCpuWarning());
+    s.querySelector("#backup-dialog-open")?.addEventListener("click", () => this._openBackupDialog());
+    s.querySelector("#backup-close")?.addEventListener("click", () => this._closeBackupDialog());
+    s.querySelector("#backup-dismiss")?.addEventListener("click", () => this._closeBackupDialog());
     s.querySelector("#batch-open")?.addEventListener("click", () => this._openBatchDialog());
     s.querySelector("#batch-close")?.addEventListener("click", () => this._cancelBatchDialog());
     s.querySelector("#batch-cancel")?.addEventListener("click", () => this._cancelBatchDialog());
@@ -1146,7 +1189,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     s.querySelector("#project-add")?.addEventListener("click", () => this._addProject());
     s.querySelectorAll(".retention-save")?.forEach(button => {
       button.addEventListener("click", () => this._retention(button));
-      button.closest("tr")?.querySelector("input.retention")?.addEventListener("input", () => {
+      button.closest(".backup-entry")?.querySelector("input.retention")?.addEventListener("input", () => {
         this._projectSaved.delete(button.dataset.repo);
         button.classList.remove("retention-saved");
         button.textContent = "Speichern";
