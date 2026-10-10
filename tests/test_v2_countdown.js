@@ -477,7 +477,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   assert.equal(pickerPanel._batchDialogOpen,false,"Picker must not reopen preselection editor");
   assert.match(pickerPanel.shadowRoot.innerHTML,/Sammelupdate · 2 Projekte/);
   assert.match(pickerPanel.shadowRoot.innerHTML,/dra-main-batch-entry/);
-  assert.match(pickerPanel.shadowRoot.innerHTML,/0 Änderungen installieren/);
+  assert.match(pickerPanel.shadowRoot.innerHTML,/data-stage="1"/);
   pickerPanel._openProjectPicker();
   pickerPanel._chooseMainProject("TheDaimos/first");
   assert.equal(pickerPanel._mainBatchMode,false);
@@ -619,7 +619,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   assert.equal(batch._mainBatchPreview.count,2);
   assert.match(batch._mainBatchMessage,/Quellstände noch nicht geprüft/);
   assert.match(batch.shadowRoot.innerHTML,/Bestätigte Projekte: 2/);
-  assert.match(batch.shadowRoot.innerHTML,/0 Änderungen installieren/);
+  assert.match(batch.shadowRoot.innerHTML,/data-stage="1"/);
   assert.equal(batch._batchDialogOpen,false);
   console.log("DRA V2 collective read-only batch identity preview PASS");
 })().catch(error => {console.error(error);process.exitCode=1;});
