@@ -829,6 +829,7 @@ class DRAV2DevLabPanel extends HTMLElement {
           color:#fff; border-color:var(--success-color,#2e994e); }
         .git-dialog button.git-check-error { background:var(--error-color,#c62828);
           color:#fff; border-color:var(--error-color,#c62828); }
+        .git-saved-details p { margin:5px 0; overflow-wrap:anywhere; }
         .git-check-feedback { margin:10px 0; padding:8px 10px; border-radius:8px;
           background:var(--secondary-background-color,#2b2b2b); }
         .git-check-feedback.success { border-left:4px solid var(--success-color,#2e994e); }
@@ -1131,13 +1132,14 @@ class DRAV2DevLabPanel extends HTMLElement {
                   Zugang entfernen
                 </button>
               </div>
-              <p class="note"><strong>Gespeichertes Repository:</strong>
-                ${this._centralExport.repository ? this._escapeProject(this._centralExport.repository) : "Nicht eingerichtet"}.
-                <strong>Token-Endung:</strong>
-                ${this._centralExport.token_suffix && /^[A-Za-z0-9_-]{5}$/.test(this._centralExport.token_suffix) ?
+              <div class="note git-saved-details">
+                <p><strong>Gespeichertes Repository:</strong> ${this._centralExport.repository ?
+                  this._escapeProject(this._centralExport.repository) : "Nicht eingerichtet"}</p>
+                <p><strong>Token-Endung:</strong> ${this._centralExport.token_suffix &&
+                  /^[A-Za-z0-9_-]{5}$/.test(this._centralExport.token_suffix) ?
                   "•••••" + this._escapeProject(this._centralExport.token_suffix) :
-                  this._centralExport.server_token_available ? "Serverseitig eingerichtet" : "Nicht eingerichtet"}.
-              </p>
+                  this._centralExport.server_token_available ? "Serverseitig eingerichtet" : "Nicht eingerichtet"}</p>
+              </div>
               <p class="git-check-feedback ${["success", "stored"].includes(this._archiveCheckState) ? "success" :
                  this._archiveCheckState === "error" ? "error" :
                  this._archiveBusy ? "pending" : ""}" role="status">
