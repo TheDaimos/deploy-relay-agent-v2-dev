@@ -23,6 +23,12 @@ def _runtime(hass: HomeAssistant):
     return state.get("runtime") if isinstance(state, dict) else None
 
 
+def _project_list(runtime):
+    return [{**row, "token_configured": runtime.project_auth.status(row["repository"])["configured"],
+             "token_suffix": runtime.project_auth.status(row["repository"])["suffix"]}
+            for row in runtime.projects.list()]
+
+
 async def _exportable_diagnostic(runtime, operations=None):
     """Single source of truth for UI eligibility, JSON and Git export.
 
@@ -77,7 +83,7 @@ async def async_state(hass, connection, msg):
         "diagnostics_export_kind": eligible.get("mode") if eligible else None,
         "git_available": runtime.git_export.available,
         "git_read_configured": runtime.source_auth.configured,
-        "projects": runtime.projects.list(),
+        "projects": _project_list(runtime),
         "settings": runtime.settings.snapshot(),
         "settings_effective": runtime.settings.effective(),
         "cpu_status": runtime.settings.core_status(),
@@ -365,7 +371,7 @@ async def async_projects_list(hass, connection, msg):
         connection.send_error(msg["id"], "not_ready", "Projektverwaltung nicht bereit")
         return
     connection.send_result(msg["id"], {
-        "projects": runtime.projects.list(),
+        "projects": _project_list(runtime),
         "deployment_enabled": False,
         "backup_mutation_enabled": False,
     })
@@ -409,7 +415,7 @@ async def async_projects_import_v1(hass, connection, msg):
     except CatalogError:
         connection.send_error(msg["id"], "import_failed", "Übernahme konnte nicht gespeichert werden")
         return
-    connection.send_result(msg["id"], {**result, "projects": runtime.projects.list()})
+    connection.send_result(msg["id"], {**result, "projects": _project_list(runtime)})
 
 
 @websocket_api.websocket_command({
@@ -430,7 +436,7 @@ async def async_projects_add(hass, connection, msg):
         connection.send_error(msg["id"], "invalid_project", "Projekt konnte nicht angelegt werden")
         return
     connection.send_result(msg["id"], {
-        "project": record, "projects": runtime.projects.list()
+        "project": record, "projects": _project_list(runtime)
     })
 
 
@@ -464,14 +470,41 @@ async def async_projects_manage(hass, connection, msg):
         elif action == "remove":
             if msg.get("confirmed") is not True:
                 raise CatalogError("confirmation required")
+            if not any(p["repository"].casefold() == msg["repository"].casefold() for p in runtime.projects.list()):
+                raise CatalogError("unknown project")
+            await runtime.project_auth.delete(msg["repository"])
             await runtime.projects.remove(msg["repository"])
         else:
             raise CatalogError("unsupported action")
-    except CatalogError:
+    except (CatalogError, GitReadAuthError):
         connection.send_error(msg["id"], "invalid_project_action", "Projektaktion abgelehnt")
         return
-    connection.send_result(msg["id"], {"projects": runtime.projects.list(),
+    connection.send_result(msg["id"], {"projects": _project_list(runtime),
                                        "installation_enabled": False})
+
+
+@websocket_api.websocket_command({
+    probatio.Required("type"): "deploy_relay_v2_dev/projects/token",
+    probatio.Required("repository"): str,
+    probatio.Required("token"): str,
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def async_projects_token(hass, connection, msg):
+    runtime = _runtime(hass)
+    if runtime is None:
+        connection.send_error(msg["id"], "not_ready", "Projektverwaltung nicht bereit")
+        return
+    repository = msg["repository"]
+    if not any(p["repository"].casefold() == repository.casefold() for p in runtime.projects.list()):
+        connection.send_error(msg["id"], "not_registered", "Projekt nicht registriert")
+        return
+    try:
+        await runtime.project_auth.save(repository, msg["token"])
+    except (CatalogError, GitReadAuthError):
+        connection.send_error(msg["id"], "invalid_credential", "Projekttoken nicht gespeichert")
+        return
+    connection.send_result(msg["id"], {"projects": _project_list(runtime)})
 
 
 @websocket_api.websocket_command({
@@ -494,7 +527,7 @@ async def async_projects_retention(hass, connection, msg):
         connection.send_error(msg["id"], "invalid_retention", "Sicherungsanzahl ungültig")
         return
     connection.send_result(msg["id"], {
-        "project": record, "projects": runtime.projects.list(),
+        "project": record, "projects": _project_list(runtime),
         "backups_deleted": 0,
     })
 
@@ -582,7 +615,7 @@ async def async_projects_preselect(hass, connection, msg):
         connection.send_error(msg["id"], "invalid_project", "Vorauswahl nicht gespeichert")
         return
     connection.send_result(msg["id"], {
-        "project": record, "projects": runtime.projects.list()
+        "project": record, "projects": _project_list(runtime)
     })
 
 
@@ -622,7 +655,7 @@ async def async_projects_source_preview(hass, connection, msg):
     repo = msg["repository"]
     if type(repo) is not str or not any(
         project["repository"].casefold() == repo.casefold()
-        for project in runtime.projects.list()
+        for project in _project_list(runtime)
     ):
         connection.send_error(msg["id"], "not_registered", "Projekt nicht registriert")
         return
@@ -637,7 +670,7 @@ async def async_projects_source_preview(hass, connection, msg):
                     async_get_clientsession(hass),
                     Path(hass.config.path()),
                     repo,
-                    msg["ref"], token=runtime.source_auth.token,
+                    msg["ref"], token=runtime.project_auth.token(repo) or runtime.source_auth.token,
                 ),
                 timeout=45,
             )
@@ -698,6 +731,7 @@ def async_register_commands(hass: HomeAssistant) -> None:
                     async_all, async_get, async_git_export, async_git_retry,
                     async_projects_list, async_projects_v1_preview,
                     async_projects_import_v1, async_projects_add, async_projects_manage,
+                    async_projects_token,
                     async_projects_retention, async_projects_preselect,
                     async_settings_get, async_settings_save, async_settings_ack_cpu_warning,
                     async_batch_preview, async_projects_source_preview,
