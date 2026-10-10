@@ -221,6 +221,35 @@ class V2ProjectCatalogTests(unittest.IsolatedAsyncioTestCase):
                 await self.catalog.set_batch_preselect("TheDaimos/a", value)
         self.assertIs(self.catalog.list()[0]["batch_preselect"], True)
 
+    async def test_project_order_activation_notes_and_removal_are_persistent(self):
+        await self.catalog.add("TheDaimos/one", "One", "Read-Only", True)
+        await self.catalog.add("TheDaimos/two", "Two", "", True)
+        await self.catalog.move("TheDaimos/two", -1)
+        self.assertEqual([p["repository"] for p in self.catalog.list()],
+                         ["TheDaimos/two", "TheDaimos/one"])
+        await self.catalog.configure("TheDaimos/two", "TheDaimos/two", "Two",
+                                     "Temporarily disabled", False)
+        self.assertEqual(self.catalog.list()[0]["note"], "Temporarily disabled")
+        self.assertIs(self.catalog.list()[0]["active"], False)
+        with self.assertRaises(m.CatalogError):
+            self.catalog.batch_preview(["TheDaimos/two"])
+        saved = m.ProjectCatalog(self.store)
+        await saved.load()
+        self.assertEqual(saved.list()[0]["repository"], "TheDaimos/two")
+        self.assertIs(saved.list()[0]["active"], False)
+        await saved.remove("TheDaimos/two")
+        self.assertEqual(len(saved.list()), 1)
+        self.assertEqual(saved.list()[0]["repository"], "TheDaimos/one")
+
+    async def test_project_update_rejects_duplicate_repositories_and_invalid_notes(self):
+        await self.catalog.add("TheDaimos/one", "One")
+        await self.catalog.add("TheDaimos/two", "Two")
+        with self.assertRaises(m.CatalogError):
+            await self.catalog.configure("TheDaimos/one", "TheDaimos/two", "One", "", True)
+        with self.assertRaises(m.CatalogError):
+            await self.catalog.configure("TheDaimos/one", "TheDaimos/one", "One", "\\x00", True)
+        self.assertEqual(len(self.catalog.list()), 2)
+
     async def test_catalog_limit_is_hard(self):
         for n in range(32):
             await self.catalog.add(f"TheDaimos/project-{n}", f"Project {n}")
