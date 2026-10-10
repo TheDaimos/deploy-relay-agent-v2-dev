@@ -250,6 +250,20 @@ class V2ProjectCatalogTests(unittest.IsolatedAsyncioTestCase):
             await self.catalog.configure("TheDaimos/one", "TheDaimos/one", "One", chr(0), True)
         self.assertEqual(len(self.catalog.list()), 2)
 
+    async def test_access_mode_is_operator_metadata_and_roundtrips(self):
+        await self.catalog.add("TheDaimos/access", "Access", access_mode="read_write")
+        self.assertEqual(self.catalog.list()[0]["access_mode"], "read_write")
+        await self.catalog.configure("TheDaimos/access", "TheDaimos/access",
+                                     "Access", "Notes", True, "read_only")
+        self.assertEqual(self.catalog.list()[0]["access_mode"], "read_only")
+        restored = m.ProjectCatalog(self.store)
+        await restored.load()
+        self.assertEqual(restored.list()[0]["access_mode"], "read_only")
+        with self.assertRaises(m.CatalogError):
+            await self.catalog.configure("TheDaimos/access", "TheDaimos/access",
+                                         "Access", "", True, "admin_all")
+        self.assertEqual(self.catalog.list()[0]["access_mode"], "read_only")
+
     async def test_catalog_limit_is_hard(self):
         for n in range(32):
             await self.catalog.add(f"TheDaimos/project-{n}", f"Project {n}")
