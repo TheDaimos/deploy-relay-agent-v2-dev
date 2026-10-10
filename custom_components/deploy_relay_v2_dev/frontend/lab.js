@@ -29,6 +29,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._sourceRepository = null;
     this._sourceMessage = "";
     this._sourcePreview = null;
+    this._sourceChecks = new Map();
     this._gitReadConfigured = false;
     this._gitReadBusy = false;
     this._gitReadMessage = "";
@@ -512,8 +513,10 @@ class DRAV2DevLabPanel extends HTMLElement {
         throw new Error("ungueltiges Quellpruefungsergebnis");
       }
       this._sourcePreview = report;
+      this._sourceChecks.set(repository, true);
       this._sourceMessage = "Quellprüfung abgeschlossen. Keine Installation freigegeben.";
     } catch (_error) {
+      this._sourceChecks.set(repository, false);
       this._sourceMessage = "Quelle nicht erreichbar oder sicherheitstechnisch nicht prüfbar. Kein Update als aktuell bestätigt.";
     } finally {
       this._sourceBusy = false;
@@ -737,13 +740,13 @@ class DRAV2DevLabPanel extends HTMLElement {
     // turns it into the literal text "undefined" (seen on Android/desktop).
     const unsentRepository = typeof previousRepo === "string" ? previousRepo : null;
     const projectRows = this._projects.map((p,i) => {
-      const state = this._sourceRepository === p.repository ?
-        (this._sourceBusy ? "Prüfung läuft" : this._sourcePreview ? "Online" : "Nicht verfügbar") : "Nicht geprüft";
+      const state = this._sourceBusy && this._sourceRepository === p.repository ? "Prüfung läuft" :
+        this._sourceChecks.has(p.repository) ? (this._sourceChecks.get(p.repository) ? "Online" : "Nicht verfügbar") : "Nicht geprüft";
       const color = state === "Online" ? "success" : state === "Nicht verfügbar" ? "error" : "note";
       return `<tr><td>${i+1}</td>
         <td><strong>${this._escapeProject(p.name)}</strong><div class="note">${this._escapeProject(p.repository)}</div>
           ${p.active === false ? '<span class="note">Inaktiv</span>' : ""}</td>
-        <td class="${color}">${state}</td>
+        <td><button class="source-check ${color}" data-repo="${this._escapeProject(p.repository)}" ${this._sourceBusy ? "disabled" : ""} aria-label="Git-Status für ${this._escapeProject(p.name)} prüfen">${state}</button></td>
         <td><button class="project-settings-open" data-repo="${this._escapeProject(p.repository)}" aria-label="Einstellungen für ${this._escapeProject(p.name)}">⚙</button></td>
         <td><button class="project-move" data-repo="${this._escapeProject(p.repository)}" data-direction="-1" ${i===0 || this._projectBusy ? "disabled" : ""} aria-label="Nach oben">↑</button>
         <button class="project-move" data-repo="${this._escapeProject(p.repository)}" data-direction="1" ${i===this._projects.length-1 || this._projectBusy ? "disabled" : ""} aria-label="Nach unten">↓</button></td></tr>`;
@@ -751,7 +754,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     const managed = this._projects.find(p => p.repository === this._projectSettingsRepo);
     const batchRows = this._projects.map(p => {
       const checked = this._batchSelection === null ? p.batch_preselect !== false : this._batchSelection.includes(p.repository);
-      return `<label class="batch-line"><input type="checkbox" class="batch-choice" data-repo="${this._escapeProject(p.repository)}" ${checked ? "checked" : ""} /> ${this._escapeProject(p.name)}</label>`;
+      return `<label class="batch-line"><input type="checkbox" class="batch-choice" data-repo="${this._escapeProject(p.repository)}" ${checked && p.active !== false ? "checked" : ""} ${p.active === false ? "disabled" : ""}/> ${this._escapeProject(p.name)} ${p.active === false ? "(inaktiv)" : ""}</label>`;
     }).join("");
     const batchReport = Array.isArray(this._batchPreview?.selected) ?
       this._batchPreview.selected.map(p => `<li>${this._escapeProject(p.name)}: Quellstand nicht geprüft</li>`).join("") : "";
@@ -1132,7 +1135,7 @@ class DRAV2DevLabPanel extends HTMLElement {
           <h2 class="section-toggle-title"><button class="section-toggle" data-section="6" aria-expanded="${this._expandedSections.has('6')}" aria-controls="section-body-6"><span>06 · Sammelaktualisierung</span><span aria-hidden="true">${this._expandedSections.has('6') ? "▾" : "▸"}</span></button></h2><div id="section-body-6" class="section-body" ${this._expandedSections.has('6') ? "" : "hidden"}>
           <p class="note">Projektvorauswahl für spätere Sammelaktualisierungen. Keine Installation.</p>
           <button id="batch-open" ${this._projects.length === 0 ? "disabled" : ""}>Projektauswahl bearbeiten</button>
-          <p class="note">${this._projects.filter(p => p.batch_preselect !== false).length} von ${this._projects.length} Projekten ausgewählt.</p>
+          <p class="note">${this._projects.filter(p => p.active !== false && p.batch_preselect !== false).length} von ${this._projects.filter(p => p.active !== false).length} aktiven Projekten ausgewählt.</p>
           <p class="note" role="status">${this._escapeProject(this._batchDialogOpen ? "" : this._batchMessage)}</p>
           </div>
         </article>
