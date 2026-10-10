@@ -203,7 +203,7 @@ class V2ProjectCatalogTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs((await self.catalog.set_batch_preselect("TheDaimos/two", False))["batch_preselect"], False)
         prev = self.catalog.batch_preview(["TheDaimos/one", "TheDaimos/two"])
         self.assertEqual([r["repository"] for r in prev["selected"]],
-                         ["TheDaimos/two", "TheDaimos/one"])
+                         ["TheDaimos/one", "TheDaimos/two"])
         self.assertEqual([r["status"] for r in prev["selected"]],
                          ["not_checked", "not_checked"])
         self.assertIs(prev["installation_enabled"], False)
