@@ -496,6 +496,9 @@ class DRAV2DevLabPanel extends HTMLElement {
         type:"deploy_relay_v2_dev/git_read/configure", token,
       });
       this._gitReadConfigured = result.configured === true;
+      // A successfully saved secret must not remain in the input across re-renders.
+      const readTokenInput = this.shadowRoot?.querySelector("#source-read-token");
+      if (readTokenInput) readTokenInput.value = "";
       this._gitReadMessage = clear ?
         "V2-Lesezugang entfernt. Private Quellen sind nicht mehr prüfbar." :
         "Separater V2-GitHub-Lesezugang gespeichert.";
