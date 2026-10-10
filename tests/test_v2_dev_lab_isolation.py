@@ -343,8 +343,14 @@ class LabIsolationContracts(unittest.TestCase):
         self.assertIn('project-metal-button:not(:disabled):active', frontend)
         self.assertIn('project-metal-button:disabled', frontend)
         self.assertIn('project-inactive-label', frontend)
-        self.assertIn('Status: <strong>Inaktiv</strong>', frontend)
-        self.assertIn('color:#ff6876; font-weight:800', frontend)
+        self.assertIn('aria-label="Projekt inaktiv">Inaktiv</span>', frontend)
+        self.assertNotIn('Status: <strong>Inaktiv</strong>', frontend)
+        self.assertIn('td.project-entry-inactive', frontend)
+        self.assertIn('position:absolute; top:2px; right:8px', frontend)
+        self.assertIn('position:relative; padding-right:76px', frontend)
+        self.assertIn('white-space:nowrap; margin:0; padding:3px 7px', frontend)
+        self.assertIn('font-weight:800; letter-spacing:.015em', frontend)
+        self.assertIn('color:#ff8998', frontend)
         self.assertIn('prefers-reduced-motion:reduce', frontend)
 
     def test_access_mode_is_inline_to_saved_token_and_only_rendered_once(self):
