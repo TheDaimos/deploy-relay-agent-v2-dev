@@ -13,6 +13,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._expandedSections = new Set();
     this._view = "main";
     this._selectedMainRepo = null;
+    this._mainSourceRef = "";
     this._settingsMessage = "";
     this._cpuStatus = {available_cores:null,warning:null};
     this._cpuBusy = false;
@@ -500,7 +501,7 @@ class DRAV2DevLabPanel extends HTMLElement {
   async _sourceCheck(button) {
     if (!button || !this._hass || this._sourceBusy) return;
     const repository = button.dataset.repo;
-    const ref = this.shadowRoot?.querySelector("#source-ref")?.value?.trim() || "";
+    const ref = this._view === "main" ? this._mainSourceRef.trim() : (this.shadowRoot?.querySelector("#source-ref")?.value?.trim() || "");
     this._sourceRepository = repository;
     this._sourceBusy = true;
     this._sourcePreview = null;
@@ -1032,6 +1033,8 @@ class DRAV2DevLabPanel extends HTMLElement {
           <article><h2>Quelle & Version</h2><div class="dra-warning">Empfohlenes Deployment konnte noch nicht sicher bestimmt werden.</div>
           <p>Ausgewählt: ${mainProject ? this._escapeProject(mainProject.repository) : "—"}</p>
           <p>Quellstand: ${this._sourceRepository === mainProject?.repository && this._sourcePreview ? this._escapeProject(this._sourcePreview.source_commit?.slice(0,12)) : "Noch nicht geprüft"}</p>
+          <label>Git-Referenz (Branch, Tag oder Commit; leer = Standardzweig)
+          <input id="dra-main-ref" class="project-text" placeholder="z. B. deploy/dev" value="${this._escapeProject(this._mainSourceRef)}" autocomplete="off" /></label>
           <button id="dra-source" ${!mainProject?"disabled":""}>Erweiterte Quellenauswahl</button></article></div>
           <article><h2>Vorschau</h2><button id="dra-preview" ${!mainProject?"disabled":""}>2 · Vorschau vorbereiten</button>
           <button disabled>3 · Schreibzugriff freigeben</button><button disabled>0 Änderungen installieren</button>
@@ -1368,7 +1371,8 @@ class DRAV2DevLabPanel extends HTMLElement {
     `;
     s.querySelector("#dra-toggle")?.addEventListener("click",()=>{this._view=this._view==="main"?"settings":"main";this._render();});
     s.querySelector("#dra-refresh")?.addEventListener("click",()=>this._refresh());
-    s.querySelector("#dra-select")?.addEventListener("change",e=>{this._selectedMainRepo=e.target.value;this._render();});
+    s.querySelector("#dra-select")?.addEventListener("change",e=>{this._selectedMainRepo=e.target.value;this._sourcePreview=null;this._render();});
+    s.querySelector("#dra-main-ref")?.addEventListener("input",e=>{this._mainSourceRef=e.target.value;});
     s.querySelector("#dra-project-manage")?.addEventListener("click",()=>{this._view="settings";this._expandedSections.add("5");this._render();});
     s.querySelector("#dra-settings-project")?.addEventListener("click",()=>{if(mainProject){this._view="settings";this._expandedSections.add("5");this._openProjectSettings(mainProject.repository);}});
     for(const id of ["dra-preview","dra-step2"]){s.querySelector("#"+id)?.addEventListener("click",()=>{if(mainProject)this._sourceCheck({dataset:{repo:mainProject.repository}});});}
