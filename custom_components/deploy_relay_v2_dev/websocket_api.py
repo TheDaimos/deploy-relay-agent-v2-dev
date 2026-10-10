@@ -468,8 +468,36 @@ async def async_projects_manage(hass, connection, msg):
         elif action == "configure":
             if not all(k in msg for k in ("new_repository", "name", "note", "active")):
                 raise CatalogError("incomplete settings")
-            await runtime.projects.configure(msg["repository"], msg["new_repository"],
-                                            msg["name"], msg["note"], msg["active"])
+            old_repo = msg["repository"]
+            new_repo = msg["new_repository"]
+            if old_repo.casefold() != new_repo.casefold():
+                # Reject unknown identities and check the new Git source before changing metadata.
+                previous = next((p for p in runtime.projects.list()
+                                 if p["repository"].casefold() == old_repo.casefold()), None)
+                if previous is None:
+                    raise CatalogError("unknown project")
+                if runtime.source_scan_lock.locked():
+                    raise CatalogError("source check busy")
+                async with runtime.source_scan_lock:
+                    try:
+                        report = await asyncio.wait_for(inspect_public_repository(
+                            async_get_clientsession(hass), Path(hass.config.path()), new_repo, "",
+                            token=runtime.project_auth.token(old_repo) or runtime.source_auth.token), timeout=45)
+                    except (PreflightError, TimeoutError, OSError, ValueError):
+                        raise CatalogError("new repository unverified") from None
+                if report.get("sources_verified") is not True or report.get("installation_enabled") is not False:
+                    raise CatalogError("new repository unverified")
+                await runtime.projects.configure(old_repo, new_repo,
+                                                 msg["name"], msg["note"], msg["active"])
+                try:
+                    await runtime.project_auth.rename(old_repo, new_repo)
+                except GitReadAuthError:
+                    await runtime.projects.configure(new_repo, old_repo, previous["name"],
+                                                     previous.get("note", ""), previous.get("active", True))
+                    raise
+            else:
+                await runtime.projects.configure(old_repo, new_repo,
+                                                 msg["name"], msg["note"], msg["active"])
         elif action == "remove":
             if msg.get("confirmed") is not True:
                 raise CatalogError("confirmation required")
