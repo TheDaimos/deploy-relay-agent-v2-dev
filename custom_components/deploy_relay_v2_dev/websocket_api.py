@@ -435,6 +435,46 @@ async def async_projects_add(hass, connection, msg):
 
 
 @websocket_api.websocket_command({
+    probatio.Required("type"): "deploy_relay_v2_dev/projects/manage",
+    probatio.Required("action"): str,
+    probatio.Required("repository"): str,
+    probatio.Optional("direction"): int,
+    probatio.Optional("new_repository"): str,
+    probatio.Optional("name"): str,
+    probatio.Optional("note"): str,
+    probatio.Optional("active"): bool,
+    probatio.Optional("confirmed"): bool,
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def async_projects_manage(hass, connection, msg):
+    runtime = _runtime(hass)
+    if runtime is None:
+        connection.send_error(msg["id"], "not_ready", "Projektverwaltung nicht bereit")
+        return
+    try:
+        action = msg["action"]
+        if action == "move":
+            await runtime.projects.move(msg["repository"], msg.get("direction", 0))
+        elif action == "configure":
+            if not all(k in msg for k in ("new_repository", "name", "note", "active")):
+                raise CatalogError("incomplete settings")
+            await runtime.projects.configure(msg["repository"], msg["new_repository"],
+                                            msg["name"], msg["note"], msg["active"])
+        elif action == "remove":
+            if msg.get("confirmed") is not True:
+                raise CatalogError("confirmation required")
+            await runtime.projects.remove(msg["repository"])
+        else:
+            raise CatalogError("unsupported action")
+    except CatalogError:
+        connection.send_error(msg["id"], "invalid_project_action", "Projektaktion abgelehnt")
+        return
+    connection.send_result(msg["id"], {"projects": runtime.projects.list(),
+                                       "installation_enabled": False})
+
+
+@websocket_api.websocket_command({
     probatio.Required("type"): "deploy_relay_v2_dev/projects/retention",
     probatio.Required("repository"): str,
     probatio.Required("backup_retention"): int,
@@ -657,7 +697,7 @@ def async_register_commands(hass: HomeAssistant) -> None:
     for handler in (async_state, async_measure, async_multicore,
                     async_all, async_get, async_git_export, async_git_retry,
                     async_projects_list, async_projects_v1_preview,
-                    async_projects_import_v1, async_projects_add,
+                    async_projects_import_v1, async_projects_add, async_projects_manage,
                     async_projects_retention, async_projects_preselect,
                     async_settings_get, async_settings_save, async_settings_ack_cpu_warning,
                     async_batch_preview, async_projects_source_preview,
