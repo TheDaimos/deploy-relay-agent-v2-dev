@@ -130,7 +130,7 @@ class LabIsolationContracts(unittest.TestCase):
         self.assertEqual(frontend.count('id="git-export"'), 1)
         self.assertEqual(frontend.count('id="json-download"'), 1)
         self.assertLess(frontend.index("02 · Diagnoseexport"), frontend.index("04 · Auftragsverarbeitung"))
-        self.assertLess(frontend.index("03 · Messergebnisse"), frontend.index("05 · Sammelaktualisierung"))
+        self.assertLess(frontend.index("03 · Messergebnisse"), frontend.index("04 · Auftragsverarbeitung"))
 
     def test_source_check_has_visible_per_project_feedback_and_columns(self):
         frontend = (LAB_ROOT / "frontend/lab.js").read_text(encoding="utf-8")
@@ -185,8 +185,8 @@ class LabIsolationContracts(unittest.TestCase):
     def test_diagnostics_sections_are_collapsible(self):
         frontend = (LAB_ROOT / "frontend/lab.js").read_text(encoding="utf-8")
         self.assertIn('this._expandedSections = new Set()', frontend)
-        self.assertEqual(frontend.count('class="section-toggle"'), 5)
-        self.assertEqual(frontend.count('class="section-body"'), 5)
+        self.assertEqual(frontend.count('class="section-toggle"'), 4)
+        self.assertEqual(frontend.count('class="section-body"'), 4)
         self.assertIn('class="section-body" ', frontend)
         self.assertIn('this._expandedSections.has(id)', frontend)
         self.assertIn('<span>Import aus DRA-V1</span></button>', frontend)
@@ -206,7 +206,8 @@ class LabIsolationContracts(unittest.TestCase):
         self.assertIn('id="backup-dialog-open"', frontend)
         self.assertNotIn('05 · Projektverwaltung', frontend)
         self.assertNotIn('<article class="section-card project-card">', frontend)
-        self.assertIn('05 · Sammelaktualisierung', frontend)
+        self.assertNotIn('05 · Sammelaktualisierung', frontend)
+        self.assertIn('id="project-batch-title">Sammelaktualisierung', frontend)
         self.assertLess(frontend.index('id="dra-settings-view"'),
                         frontend.index('id="project-management-dialog"'))
         self.assertLess(frontend.index('this._projectDialogOpen ?'),
@@ -454,6 +455,37 @@ class LabIsolationContracts(unittest.TestCase):
         self.assertIn('.dra-picker-entry.selected', frontend)
         self.assertIn('border-bottom:1px solid #43535f', frontend)
         self.assertIn('box-shadow:inset 0 1px 0 rgba(232,249,255,.28)', frontend)
+
+    def test_batch_and_v2_system_settings_are_cards_in_project_management(self):
+        frontend = (LAB_ROOT / "frontend/lab.js").read_text(encoding="utf-8")
+        settings = frontend.index('id="dra-settings-view"')
+        diag_end = frontend.index('id="project-management-dialog"')
+        batch = frontend.index('id="project-batch-title"')
+        check_all = frontend.index('id="project-check-all"')
+        v2card = frontend.index('class="project-v2-card"')
+        footer = frontend.index('id="project-management-dismiss"')
+        v2modal = frontend.index('id="project-v2-settings-dialog"')
+        self.assertLess(check_all, batch)
+        self.assertLess(batch, v2card)
+        self.assertLess(v2card, footer)
+        self.assertLess(footer, v2modal)
+        self.assertIn('id="batch-open"', frontend)
+        self.assertEqual(frontend.count('id="batch-open"'), 1)
+        self.assertIn('id="project-v2-settings-open"', frontend)
+        self.assertIn('id="project-v2-settings-close"', frontend)
+        self.assertIn('id="project-v2-settings-dismiss"', frontend)
+        self.assertIn('id="source-read-token"', frontend)
+        self.assertIn('id="git-read-save"', frontend)
+        self.assertIn('id="git-read-clear"', frontend)
+        self.assertIn('id="source-ref"', frontend)
+        self.assertIn('Backup-Richtlinie:', frontend)
+        self.assertEqual(frontend.count('id="source-read-token"'), 1)
+        self.assertIn('_openV2Settings() {', frontend)
+        self.assertIn('_closeV2Settings() {', frontend)
+        self.assertIn('.project-v2-settings-scroll', frontend)
+        self.assertIn('previousV2SettingsScroll', frontend)
+        self.assertIn('pendingV2ReadToken', frontend)
+        self.assertEqual(frontend.count('class="section-toggle"'), 4)
 
     def test_config_flow_uses_test_domain_not_v1_domain(self):
         source = (LAB_ROOT / "config_flow.py").read_text(encoding="utf-8")
