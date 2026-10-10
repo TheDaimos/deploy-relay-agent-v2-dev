@@ -854,6 +854,10 @@ class DRAV2DevLabPanel extends HTMLElement {
          .backup-dialog { width:min(100%,760px); }
          .backup-entry { border:1px solid var(--divider-color,#555); border-radius:10px; margin:10px 0; padding:12px; }
          .backup-entry label { margin-top:8px; }
+         .settings-fields { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; align-items:end; }
+         .settings-fields > label { display:flex; flex-direction:column; gap:6px; min-width:0; }
+         .settings-fields .project-text { margin:0; width:100%; }
+         @media (max-width:850px) { .settings-fields { grid-template-columns:1fr; } }
          .section-card { min-width:0; border:1px solid var(--divider-color,#555); box-shadow:0 2px 12px rgba(0,0,0,.08); }
          .section-card h2 { font-size:18px; margin:0 0 12px; padding-bottom:12px; border-bottom:1px solid var(--divider-color,#555); }
          .inner-panel { border:1px solid var(--divider-color,#555); background:var(--secondary-background-color,rgba(127,127,127,.07)); border-radius:10px; padding:12px 14px; margin-top:14px; }
@@ -942,6 +946,7 @@ class DRAV2DevLabPanel extends HTMLElement {
           <h2>04 · Auftragsverarbeitung</h2>
           <p class="note">Gespeicherte Planungsvorgaben. Die aktive Testlabor-Sperre bleibt bei
           einem Leseauftrag und null Schreibaufträgen. Dies begrenzt derzeit keine echten Prozessorkerne.</p>
+          <div class="settings-fields">
           <label>Betriebsart
             <select id="settings-mode" class="project-text">
               <option value="sequential" ${this._settings.mode === "sequential" ? "selected" : ""}>Nacheinander</option>
@@ -955,6 +960,7 @@ class DRAV2DevLabPanel extends HTMLElement {
           <label>DRA-Arbeitsprozesse (spätere Obergrenze 1–12)
             <input id="settings-workers" class="project-text" type="number" min="1" max="12" value="${this._settings.max_worker_processes}" />
           </label>
+          </div>
           <p class="note"><strong>Beim Start erkannte Prozessorkerne:</strong>
           ${Number.isInteger(this._cpuStatus.available_cores) ? this._cpuStatus.available_cores : "Nicht ermittelbar"}.
           <strong>Verwendete Kerne (Vorgabe):</strong> ${this._settings.max_worker_processes}.
