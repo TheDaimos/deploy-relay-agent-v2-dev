@@ -257,5 +257,26 @@ class V2ProjectCatalogTests(unittest.IsolatedAsyncioTestCase):
             await self.catalog.add("TheDaimos/another", "Another")
 
 
+class V2ProjectCredentialsTests(unittest.IsolatedAsyncioTestCase):
+    async def test_token_is_separate_and_only_suffix_is_exposed(self):
+        remote = importlib.import_module(f"{PKG}.remote_source")
+        store = Store()
+        credentials = remote.ProjectReadAuth(store)
+        await credentials.load()
+        secret = "github_pat_ABCdef1234567890"
+        await credentials.save("TheDaimos/one", secret)
+        self.assertEqual(credentials.status("TheDaimos/one"),
+                         {"configured":True, "suffix":"67890"})
+        self.assertNotIn(secret, str(credentials.status("TheDaimos/one")))
+        self.assertIsNone(credentials.token("TheDaimos/two"))
+        reloaded = remote.ProjectReadAuth(store)
+        await reloaded.load()
+        self.assertEqual(reloaded.token("TheDaimos/one"), secret)
+        await reloaded.rename("TheDaimos/one", "TheDaimos/renamed")
+        self.assertIsNone(reloaded.token("TheDaimos/one"))
+        self.assertEqual(reloaded.token("TheDaimos/renamed"), secret)
+        await reloaded.delete("TheDaimos/renamed")
+        self.assertEqual(reloaded.status("TheDaimos/renamed")["configured"], False)
+
 if __name__ == "__main__":
     unittest.main()
