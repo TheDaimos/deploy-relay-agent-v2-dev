@@ -141,3 +141,7 @@ Abschnitt 06 zeigt nur „Projektauswahl bearbeiten“ und die Anzahl aktivierte
 ## V2 DEV 0.1.24 – Backup & Retention (10.10.2026)
 
 Die Aufbewahrungsvorgaben wurden aus der breiten Projektliste in ein eigenständiges, mobil bedienbares Fenster „Backup & Retention“ unter „Meine Projekte“ verlagert. Die bereits vorhandene serverseitige Richtlinien-Speicherung (3–100 Sicherungen je Projekt) bleibt unverändert. Ein einzelner Projekt-Eintrag im Fenster zeigt die Aufbewahrungszahl und „Speichern“. „Verfügbare Backups anzeigen“ ist bis zum echten Sicherungsinventar deaktiviert; es werden keine fiktiven Bestände ausgegeben. Die gewünschte Möglichkeit, einzelne Sicherungen dauerhaft von der Rotation auszunehmen, benötigt vor Aktivierung ein unabhängiges persistentes Backup-Inventar, tatsächliche Sicherungsbeweise und eine getestete Sperr-/Rotationsregel. DRA V1 und dessen Sicherungen werden nicht verändert. Keine Installation oder Wiederherstellung.
+
+## V2 DEV 0.1.25 – Einstellungen in drei Spalten (10.10.2026)
+
+Die drei Felder Betriebsart, parallele Leseaufträge und DRA-Arbeitsprozesse werden im Abschnitt 04 auf ausreichend breiten Ansichten nebeneinander in gleich breiten Spalten mit eigenen Überschriften dargestellt. Bei höchstens 850 px verfügbarer Breite folgt eine einspaltige Darstellung. Die Speicher- und Prüfregeln bleiben unverändert; keinerlei Freigabe realer Schreibaufträge.
