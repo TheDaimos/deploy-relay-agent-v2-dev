@@ -209,7 +209,7 @@ class LabIsolationContracts(unittest.TestCase):
         self.assertIn('05 · Sammelaktualisierung', frontend)
         self.assertLess(frontend.index('id="dra-settings-view"'),
                         frontend.index('id="project-management-dialog"'))
-        self.assertLess(frontend.index('</section>\\n        ${this._projectDialogOpen'),
+        self.assertLess(frontend.index('this._projectDialogOpen ?'),
                         frontend.index('id="project-management-dialog"'))
 
     def test_v1_inspired_dashboard_preserves_separate_diagnostics(self):
