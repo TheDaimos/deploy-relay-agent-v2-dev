@@ -259,7 +259,7 @@ class LabIsolationContracts(unittest.TestCase):
         self.assertIn('Verbindung erfolgreich', frontend)
         self.assertIn('Verbindung fehlgeschlagen', frontend)
         self.assertIn('project-management-table .source-check.unverified', frontend)
-        self.assertIn('class="project-settings-open"', frontend)
+        self.assertIn('class="project-settings-open project-metal-button"', frontend)
         self.assertIn('class="project-icon"', frontend)
         self.assertIn('projects/connection_check', server)
         self.assertIn('inspect_repository_connection(', server)
@@ -329,6 +329,23 @@ class LabIsolationContracts(unittest.TestCase):
             '#project-check-all {grid-column:1 / -1;}',
         ):
             self.assertIn(marker, frontend)
+
+    def test_metal_buttons_and_inactive_label_are_present(self):
+        frontend = (LAB_ROOT / "frontend/lab.js").read_text(encoding="utf-8")
+        self.assertIn('const metalSvg = (svg, kind, index)', frontend)
+        self.assertIn('dra-metal-', frontend)
+        self.assertIn('stroke="url(#', frontend)
+        self.assertIn('project-metal-button', frontend)
+        self.assertIn('linear-gradient(143deg,#526d7e', frontend)
+        self.assertIn('inset 0 1px 0 rgba(255,255,255,.57)', frontend)
+        self.assertIn('project-metal-button::before', frontend)
+        self.assertIn('project-metal-button::after', frontend)
+        self.assertIn('project-metal-button:not(:disabled):active', frontend)
+        self.assertIn('project-metal-button:disabled', frontend)
+        self.assertIn('project-inactive-label', frontend)
+        self.assertIn('Status: <strong>Inaktiv</strong>', frontend)
+        self.assertIn('color:#ff6876; font-weight:800', frontend)
+        self.assertIn('prefers-reduced-motion:reduce', frontend)
 
     def test_config_flow_uses_test_domain_not_v1_domain(self):
         source = (LAB_ROOT / "config_flow.py").read_text(encoding="utf-8")
