@@ -459,7 +459,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   const chooser = pickerPanel.shadowRoot.innerHTML;
   assert.match(chooser,/id="dra-picker-dialog"/);
   assert.match(chooser,/id="dra-picker-batch"/);
-  assert.match(chooser,/dra-picker-divider/);
+  assert.match(chooser,/dra-picker-batch-entry/);
   assert.match(chooser,/TheDaimos\/first/);
   assert.match(chooser,/TheDaimos\/second/);
   assert.match(chooser,/data-repo="TheDaimos\/inactive" disabled/);
@@ -632,3 +632,45 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   assert.match(blank.shadowRoot.innerHTML,/Kein aktives Projekt für das Sammelupdate ausgewählt/);
   console.log("DRA V2 empty batch set remains in picker PASS");
 })();
+
+(async () => {
+  const movable = new Panel();
+  movable._view = "main";
+  movable._projectDialogOpen = true;
+  movable._projects = [
+    {name:"Alpha",repository:"TheDaimos/alpha",active:true,batch_preselect:true},
+    {name:"Beta",repository:"TheDaimos/beta",active:true,batch_preselect:true},
+  ];
+  movable._pickerBatchPosition = 2;
+  const requests = [];
+  movable._hass = {async callWS(request) {
+    requests.push(request);
+    assert.equal(request.type,"deploy_relay_v2_dev/projects/manage");
+    assert.equal(request.action,"move_batch");
+    assert.equal(request.repository,"__batch_picker__");
+    assert.equal(request.direction,-1);
+    return {projects:movable._projects,picker_batch_position:1,installation_enabled:false};
+  }};
+  const entriesBefore = movable._pickerEntries();
+  assert.deepEqual(entriesBefore.map(e=>e.kind),["project","project","batch"]);
+  await movable._movePickerEntry("__batch_picker__",-1);
+  assert.equal(movable._pickerBatchPosition,1);
+  assert.deepEqual(movable._pickerEntries().map(e=>e.kind),["project","batch","project"]);
+  assert.equal(movable._projects[0].repository,"TheDaimos/alpha");
+  assert.equal(movable._projects[1].repository,"TheDaimos/beta");
+  assert.equal(movable._highlightMovedRepo,"__batch_picker__");
+  assert.match(movable.shadowRoot.innerHTML,/project-batch-picker-row recently-moved/);
+  // Moving a real project toward the neighboring virtual row swaps only the virtual row.
+  await movable._movePickerEntry("TheDaimos/alpha",1);
+  assert.equal(requests.length,2);
+  movable._projectPickerOpen = true;
+  movable._view = "main";
+  movable._render();
+  const picker = movable.shadowRoot.innerHTML;
+  const alphaAt = picker.indexOf('data-repo="TheDaimos/alpha"');
+  const batchAt = picker.indexOf('id="dra-picker-batch"');
+  const betaAt = picker.indexOf('data-repo="TheDaimos/beta"');
+  assert(alphaAt >= 0 && batchAt > alphaAt && betaAt > batchAt);
+  assert.equal((picker.match(/id="dra-picker-batch"/g)||[]).length,1);
+  console.log("DRA V2 virtual Sammelupdate row movement and shared main picker order PASS");
+})().catch(error=>{console.error(error);process.exitCode=1;});
