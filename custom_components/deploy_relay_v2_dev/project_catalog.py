@@ -183,8 +183,9 @@ class ProjectCatalog:
             raise CatalogError("catalog save failed") from None
         self._records = records
 
-    async def add(self, repository: str, name: str) -> dict[str, object]:
+    async def add(self, repository: str, name: str, note: str = "", active: bool = True) -> dict[str, object]:
         candidate = proposal(repository, name, origin="manual")
+        candidate = sanitize_entry({**candidate, "note": note, "active": active})
         async with self._lock:
             rows = self.list()
             if any(x["repository"].casefold() == candidate["repository"].casefold() for x in rows):
