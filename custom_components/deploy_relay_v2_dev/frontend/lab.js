@@ -35,6 +35,8 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._sourcePreview = null;
     this._sourceChecks = new Map();
     this._connectionBusy = false;
+    this._checkAllBusy = false;
+    this._checkAllProgress = "";
     this._highlightMovedRepo = null;
     this._scrollToMovedProject = false;
     this._gitReadConfigured = false;
@@ -428,7 +430,7 @@ class DRAV2DevLabPanel extends HTMLElement {
   }
 
   async _projectAction(route, values = {}) {
-    if (!this._hass || this._projectBusy) return;
+    if (!this._hass || this._projectBusy || this._checkAllBusy) return;
     this._projectBusy = true;
     this._projectMessage = "Projektverwaltung wird aktualisiert …";
     this._render();
@@ -529,8 +531,9 @@ class DRAV2DevLabPanel extends HTMLElement {
     }
   }
 
-  async _checkProjectConnection(repository) {
-    if (!this._hass || this._connectionBusy || this._projectBusy) return;
+  async _checkProjectConnection(repository, fromBulk = false) {
+    if (!this._hass || this._connectionBusy || this._projectBusy ||
+        this._sourceBusy || (this._checkAllBusy && !fromBulk)) return;
     const record = this._projects.find(p=>p.repository===repository);
     if (!record) return;
     const entered = this.shadowRoot?.querySelector("#manage-repository");
@@ -569,18 +572,45 @@ class DRAV2DevLabPanel extends HTMLElement {
       if (this.isConnected) this._render();
     }
   }
+  async _checkAllProjectConnections() {
+    if (!this._hass || this._checkAllBusy || this._connectionBusy ||
+        this._projectBusy || this._sourceBusy || this._gitReadBusy) return;
+    const repositories = this._projects.map(p => p.repository);
+    if (!repositories.length) return;
+    this._checkAllBusy = true;
+    this._checkAllProgress = `Verbindungsprüfung: 0 von ${repositories.length} Projekten geprüft.`;
+    this._render();
+    let checked = 0;
+    let online = 0;
+    let offline = 0;
+    try {
+      for (const repository of repositories) {
+        await this._checkProjectConnection(repository, true);
+        const status = this._sourceChecks.get(repository)?.status;
+        if (status === "success") online++;
+        else offline++;
+        checked++;
+        this._checkAllProgress = `Verbindungsprüfung: ${checked} von ${repositories.length} · ${online} online, ${offline} offline.`;
+        if (this.isConnected) this._render();
+      }
+      this._checkAllProgress = `Prüfung abgeschlossen: ${online} online, ${offline} offline.`;
+    } finally {
+      this._checkAllBusy = false;
+      if (this.isConnected) this._render();
+    }
+  }
   _openProjectDialog() {
     this._projectDialogOpen = true;
     this._render();
   }
   _closeProjectDialog() {
-    if (this._projectBusy || this._sourceBusy || this._gitReadBusy) return;
+    if (this._projectBusy || this._sourceBusy || this._gitReadBusy || this._checkAllBusy) return;
     this._projectDialogOpen = false;
     this._highlightMovedRepo = null;
     this._render();
   }
   _openProjectSettings(repo) {
-    if (this._projectBusy) return;
+    if (this._projectBusy || this._checkAllBusy) return;
     this._projectSettingsRepo = repo;
     this._projectDeleteConfirm = false;
     this._render();
@@ -591,7 +621,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._render();
   }
   async _manageProject(action, extras = {}) {
-    if (!this._hass || this._projectBusy || !this._projectSettingsRepo && action !== "move") return;
+    if (!this._hass || this._projectBusy || this._checkAllBusy || !this._projectSettingsRepo && action !== "move") return;
     this._projectBusy = true;
     this._projectMessage = "Projektverwaltung wird gespeichert …";
     const repo = extras.repository || this._projectSettingsRepo;
@@ -620,6 +650,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     }
   }
   async _saveProjectToken() {
+    if (this._checkAllBusy) return;
     const token = this.shadowRoot.querySelector("#manage-token")?.value || "";
     if (!token || !this._projectSettingsRepo || !this._hass || this._projectBusy) return;
     this._projectBusy = true;
@@ -817,6 +848,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     const failureIcon = iconSvg('<circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/>', 18);
     const plusIcon = iconSvg('<circle cx="12" cy="12" r="10"/><path d="M8 12h8"/><path d="M12 8v8"/>', 20);
     const importIcon = iconSvg('<path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 17v3h14v-3"/>', 20);
+    const checkAllIcon = iconSvg('<circle cx="12" cy="12" r="9"/><path d="M8 12l2.5 2.5L16 9"/><path d="M3 4h4M4 3v4"/>', 20);
     const backupIcon = iconSvg('<rect x="2" y="3" width="20" height="5" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/>', 20);
     const closeIcon = iconSvg('<path d="M18 6 6 18M6 6l12 12"/>', 20);
     const projectRows = this._projects.map((p,i) => {
@@ -830,10 +862,10 @@ class DRAV2DevLabPanel extends HTMLElement {
         <td><strong>${this._escapeProject(p.name)}</strong><div class="note">${this._escapeProject(p.repository)}</div>
           ${p.active === false ? '<span class="note">Inaktiv</span>' : ""}</td>
         <td><button class="source-check ${state}" data-repo="${this._escapeProject(p.repository)}"
-          ${this._connectionBusy || this._projectBusy ? "disabled" : ""} aria-label="GitHub-Verbindung für ${this._escapeProject(p.name)} prüfen" title="Verbindung prüfen">${icon}<span class="project-status-label">${label}</span></button></td>
-        <td><button class="project-settings-open" data-repo="${this._escapeProject(p.repository)}" aria-label="Einstellungen für ${this._escapeProject(p.name)}" title="Projekteinstellungen">${gearIcon}</button></td>
-        <td><button class="project-move" data-repo="${this._escapeProject(p.repository)}" data-direction="-1" ${i===0 || this._projectBusy ? "disabled" : ""} aria-label="${this._escapeProject(p.name)} nach oben verschieben" title="Nach oben">${upIcon}</button>
-        <button class="project-move" data-repo="${this._escapeProject(p.repository)}" data-direction="1" ${i===this._projects.length-1 || this._projectBusy ? "disabled" : ""} aria-label="${this._escapeProject(p.name)} nach unten verschieben" title="Nach unten">${downIcon}</button></td></tr>`;
+          ${this._connectionBusy || this._checkAllBusy || this._projectBusy ? "disabled" : ""} aria-label="GitHub-Verbindung für ${this._escapeProject(p.name)} prüfen" title="Verbindung prüfen">${icon}<span class="project-status-label">${label}</span></button></td>
+        <td><button class="project-settings-open" data-repo="${this._escapeProject(p.repository)}" ${this._checkAllBusy ? "disabled" : ""} aria-label="Einstellungen für ${this._escapeProject(p.name)}" title="Projekteinstellungen">${gearIcon}</button></td>
+        <td><button class="project-move" data-repo="${this._escapeProject(p.repository)}" data-direction="-1" ${i===0 || this._projectBusy || this._checkAllBusy ? "disabled" : ""} aria-label="${this._escapeProject(p.name)} nach oben verschieben" title="Nach oben">${upIcon}</button>
+        <button class="project-move" data-repo="${this._escapeProject(p.repository)}" data-direction="1" ${i===this._projects.length-1 || this._projectBusy || this._checkAllBusy ? "disabled" : ""} aria-label="${this._escapeProject(p.name)} nach unten verschieben" title="Nach unten">${downIcon}</button></td></tr>`;
     }).join("");
     const managed = this._projects.find(p => p.repository === this._projectSettingsRepo);
     const batchRows = this._projects.map(p => {
@@ -1292,6 +1324,18 @@ class DRAV2DevLabPanel extends HTMLElement {
            white-space:nowrap; box-shadow:none;
          }
          .project-management-dialog .project-actions .project-action-primary .project-icon {width:20px;height:20px;}
+         .project-management-dialog #project-check-all {
+           background:linear-gradient(150deg,#244858,#1a3545); border-color:#5894a8;
+           color:#e5faff;
+         }
+         .project-management-dialog .project-check-all-feedback {
+           margin:9px 0 2px; color:var(--secondary-text-color,#c0ccd1);
+           font-size:13px; font-weight:600; min-height:1.2em;
+         }
+         .project-management-dialog .project-check-all-feedback:empty {
+           margin:0; min-height:0;
+         }
+
          .project-management-dialog #project-management-close {
            box-sizing:border-box; width:44px; height:44px; min-width:44px;
            display:inline-flex; align-items:center; justify-content:center;
@@ -1529,15 +1573,20 @@ class DRAV2DevLabPanel extends HTMLElement {
               <header>
                 <h2 id="project-management-title">Projektverwaltung</h2>
                 <button id="project-management-close" aria-label="Projektverwaltung schließen"
-                  ${this._projectBusy || this._sourceBusy || this._gitReadBusy ? "disabled" : ""}>${closeIcon}</button>
+                  ${this._projectBusy || this._sourceBusy || this._gitReadBusy || this._checkAllBusy ? "disabled" : ""}>${closeIcon}</button>
               </header>
               <p class="note">Reihenfolge: Anzeige, Standardprojekt und Priorität der späteren Sammelaktualisierung. Git-Status nur nach expliziter Prüfung.</p>
           ${this._projects.length ? `<div class="table-wrap"><table class="project-management-table"><thead><tr><th>Nr.</th><th>Projekt</th><th>Git-Status</th><th>Einstellungen</th><th>Reihenfolge</th></tr></thead><tbody>${projectRows}</tbody></table></div>` : '<p class="note">Noch keine Projekte in V2 hinterlegt.</p>'}
           <div class="project-actions">
-            <button id="project-add-open" class="project-action-primary">${plusIcon}<span>Projekt hinzufügen</span></button>
-            <button id="project-preview" class="project-action-primary" ${this._projectBusy ? "disabled" : ""}>${importIcon}<span>Import aus DRA-V1</span></button>
-            <button id="backup-dialog-open" class="project-action-primary">${backupIcon}<span>Backup &amp; Retention</span></button>
+            <button id="project-add-open" class="project-action-primary" ${this._checkAllBusy ? "disabled" : ""}>${plusIcon}<span>Projekt hinzufügen</span></button>
+            <button id="project-preview" class="project-action-primary" ${this._projectBusy || this._checkAllBusy ? "disabled" : ""}>${importIcon}<span>Import aus DRA-V1</span></button>
+            <button id="backup-dialog-open" class="project-action-primary" ${this._checkAllBusy ? "disabled" : ""}>${backupIcon}<span>Backup &amp; Retention</span></button>
+            <button id="project-check-all" class="project-action-primary"
+              ${this._checkAllBusy || this._connectionBusy || this._projectBusy || this._sourceBusy || this._gitReadBusy || !this._projects.length ? "disabled" : ""}>
+              ${checkAllIcon}<span>${this._checkAllBusy ? "Prüfung läuft …" : "Alle Projekte prüfen"}</span>
+            </button>
           </div>
+          <p class="project-check-all-feedback" role="status" aria-live="polite">${this._escapeProject(this._checkAllProgress)}</p>
           <p class="note" role="status">${this._escapeProject(this._projectMessage)}</p>
           <p><strong>Privater GitHub-Lesezugang für V2</strong></p>
           <p class="note">Optional für private Projekt-Repositories. Nur einen
@@ -1797,6 +1846,7 @@ class DRAV2DevLabPanel extends HTMLElement {
 
     }));
     s.querySelectorAll(".source-check")?.forEach(button => button.addEventListener("click", () => this._checkProjectConnection(button.dataset.repo)));
+    s.querySelector("#project-check-all")?.addEventListener("click", () => this._checkAllProjectConnections());
     s.querySelector("#git-read-save")?.addEventListener("click", () => this._configureGitRead(false));
     s.querySelector("#git-read-clear")?.addEventListener("click", () => this._configureGitRead(true));
     s.querySelector("#project-preview")?.addEventListener("click", () => this._projectAction("v1_preview"));
