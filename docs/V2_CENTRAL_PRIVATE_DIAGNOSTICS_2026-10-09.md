@@ -129,3 +129,7 @@ Der alte schreibgeschützte 40-Sekunden-Warteauftrag einschließlich WebSocket-R
 ## V2 DEV 0.1.21 – Git-Quellprüfung im Projekt sichtbar (10.10.2026)
 
 Die Projektliste erhält eigene Spalten für Sammelupdate und Git-Quelle, mobil als einzeln beschriftete Projektkarten. Die schreibgeschützte Quellprüfung zeigt den laufenden Zustand sowie Erfolg/Fehler und bei Erfolg Commit und Dateizahlen unmittelbar beim betroffenen Projekt; die ausführliche Ergebnisliste bleibt darunter verfügbar. Ursache der vorher unklaren Bedienung: Rückmeldung ausschließlich unterhalb des weit entfernten GitHub-Lesezugangbereichs. Kein Installations- oder Schreibpfad geändert. Eine erfolgreiche Quelle ist keine Installationsfreigabe.
+
+## V2 DEV 0.1.22 – Sammelupdate nur im eigenen Bereich (10.10.2026)
+
+Der redundante Sammelupdate-Ein/Aus-Knopf wurde aus der Projektliste in Abschnitt 05 entfernt. Die gespeicherte Vorauswahl und die Kontrollkästchen samt schreibgeschützter Auswahlprüfung bleiben unverändert ausschließlich in Abschnitt 06 · Sammelaktualisierung. Quellprüfung und Projektmetadaten bleiben separate Vorgänge. Der geplante größere Oberflächenumbau nach der DRA-V1-Optik ist hiervon unabhängig und noch nicht umgesetzt.
