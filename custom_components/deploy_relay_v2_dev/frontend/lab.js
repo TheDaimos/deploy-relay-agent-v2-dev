@@ -935,6 +935,11 @@ class DRAV2DevLabPanel extends HTMLElement {
          .project-management-table .success { color:var(--success-color,#6c6); }
          .project-management-table .error { color:var(--error-color,#e55); }
          button.danger { background:var(--error-color,#b33); }
+         #manage-note { display:block; box-sizing:border-box; width:100%; min-height:80px; background:var(--primary-background-color,#151515); color:inherit; border:1px solid var(--divider-color,#555); border-radius:8px; padding:8px; margin:5px 0; resize:vertical; }
+         .project-management-table .source-check { margin:0; white-space:nowrap; }
+         .project-management-table .source-check.success { background:#28743b; color:white; }
+         .project-management-table .source-check.error { background:#a43838; color:white; }
+         .project-management-table .project-move, .project-management-table .project-settings-open { min-width:38px; padding:8px; }
          .project-card td { vertical-align:top; }
          .project-card td:first-child { min-width:180px; white-space:normal; overflow-wrap:anywhere; }
          .project-card td button { margin:4px; white-space:nowrap; }
@@ -943,8 +948,10 @@ class DRAV2DevLabPanel extends HTMLElement {
            .project-card thead { display:none; }
            .project-card tr { border:1px solid var(--divider-color,#555); border-radius:10px; margin-bottom:12px; padding:8px; }
            .project-card td { border:none; padding:7px; white-space:normal; min-width:0 !important; }
-           .project-card td:nth-child(2)::before { content:"Herkunft: "; font-weight:bold; }
-           .project-card td:nth-child(3)::before { content:"Git-Quelle"; display:block; font-weight:bold; }
+           .project-card td:nth-child(2)::before { content:"Projekt: "; font-weight:bold; }
+           .project-card td:nth-child(3)::before { content:"Git-Status"; display:block; font-weight:bold; }
+           .project-card td:nth-child(4)::before { content:"Einstellungen"; display:block; font-weight:bold; }
+           .project-card td:nth-child(5)::before { content:"Reihenfolge"; display:block; font-weight:bold; }
          }
          .batch-options { max-height:55vh; overflow:auto; }
          .backup-dialog { width:min(100%,760px); }
@@ -1147,7 +1154,7 @@ class DRAV2DevLabPanel extends HTMLElement {
             <button id="manage-close" aria-label="Schließen">✕</button></header>
             <label>GitHub-Repository (Eigentümer/Repository)
               <input id="manage-repository" class="project-text" value="${this._escapeProject(managed?.repository || "")}" autocomplete="off" /></label>
-            <p class="note">Bei einer Repositoryänderung ist eine gesonderte, sichere Projektmigration erforderlich.</p>
+            <p class="note">Ein geändertes Repository wird vor dem Speichern schreibgeschützt geprüft. Schlägt die Prüfung fehl, bleibt das bisherige Repository erhalten.</p>
             <label>GitHub-Token <input id="manage-token" class="project-text" type="password" autocomplete="new-password" placeholder="Neuen Token eingeben (optional)" /></label>
             <p class="note">Gespeicherter Token: ${managed?.token_configured && managed?.token_suffix ?
               `•••••<span class="success"><strong>${this._escapeProject(managed.token_suffix)}</strong></span>` : "Nicht eingerichtet"}</p>
