@@ -609,6 +609,15 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._highlightMovedRepo = null;
     this._render();
   }
+  _selectProjectRow(repo) {
+    if (!this._projectDialogOpen ||
+        !this._projects.some(p => p.repository === repo)) return;
+    if (this._highlightMovedRepo === repo) return;
+    this._highlightMovedRepo = repo;
+    // Free selection is visual only: it neither reorders nor edits the project.
+    this._scrollToMovedProject = false;
+    this._render();
+  }
   _openProjectSettings(repo) {
     if (this._projectBusy || this._checkAllBusy) return;
     this._projectSettingsRepo = repo;
@@ -872,7 +881,7 @@ class DRAV2DevLabPanel extends HTMLElement {
         state === "checking" ? "Prüft …" : "Prüfen";
       const icon = state === "success" ? onlineIcon : state === "failure" ? failureIcon : pendingIcon;
       const selected = this._highlightMovedRepo?.toLowerCase() === p.repository.toLowerCase();
-      return `<tr class="project-row connection-${state}${selected ? " recently-moved" : ""}" data-project-repo="${this._escapeProject(p.repository)}"><td>${i+1}</td>
+      return `<tr class="project-row connection-${state}${selected ? " recently-moved" : ""}" data-project-repo="${this._escapeProject(p.repository)}" tabindex="0" aria-current="${selected ? "true" : "false"}" aria-label="Projekt ${this._escapeProject(p.name)} markieren"><td>${i+1}</td>
         <td><strong>${this._escapeProject(p.name)}</strong><div class="note">${this._escapeProject(p.repository)}</div>
           ${p.active === false ? '<div class="project-inactive-label">Status: <strong>Inaktiv</strong></div>' : ""}</td>
         <td><button class="source-check ${state}" data-repo="${this._escapeProject(p.repository)}"
@@ -1275,6 +1284,10 @@ class DRAV2DevLabPanel extends HTMLElement {
          .project-management-dialog.project-card .project-row.connection-failure {
            background:linear-gradient(120deg,rgba(154,47,63,.23),rgba(99,38,49,.13) 54%,rgba(38,25,30,.05));
            box-shadow:inset 3px 0 0 #df6876, inset 0 0 28px rgba(171,40,58,.075);
+         }
+         .project-management-dialog.project-card .project-row {cursor:pointer;}
+         .project-management-dialog.project-card .project-row:focus-visible {
+           outline:2px solid #f1c76d; outline-offset:2px;
          }
          .project-management-dialog.project-card .project-row.recently-moved {
            position:relative;
@@ -1980,6 +1993,20 @@ class DRAV2DevLabPanel extends HTMLElement {
     s.querySelector("#project-add-open")?.addEventListener("click", () => this._openProjectSettings("__new__"));
     s.querySelectorAll(".project-settings-open").forEach(b => b.addEventListener("click", () => this._openProjectSettings(b.dataset.repo)));
     s.querySelectorAll(".project-move").forEach(b => b.addEventListener("click", () => this._manageProject("move", {repository:b.dataset.repo,direction:Number(b.dataset.direction)})));
+    // Tap/click anywhere in a row except its interactive controls to select it.
+    s.querySelectorAll(".project-row").forEach(row => {
+      const select = event => {
+        if (event.target?.closest?.("button, a, input, select, textarea, label")) return;
+        this._selectProjectRow(row.dataset.projectRepo);
+      };
+      row.addEventListener("click", select);
+      row.addEventListener("keydown", event => {
+        if (event.target !== row || (event.key !== "Enter" && event.key !== " ")) return;
+        event.preventDefault();
+        this._selectProjectRow(row.dataset.projectRepo);
+      });
+    });
+
     if (settingsDraft && s.querySelector("#manage-repository")) {
       s.querySelector("#manage-repository").value = settingsDraft.repository;
       s.querySelector("#manage-name").value = settingsDraft.name;
