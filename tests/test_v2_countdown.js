@@ -404,3 +404,41 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   assert.equal((html.match(/id="manage-access-mode"/g)||[]).length,1);
   console.log("DRA V2 selectable project rows and inline token access dropdown PASS");
 })();
+
+(() => {
+  const pickerPanel = new Panel();
+  pickerPanel._view = "main";
+  pickerPanel._projects = [
+    {name:"First",repository:"TheDaimos/first",active:true,batch_preselect:true},
+    {name:"Inactive",repository:"TheDaimos/inactive",active:false,batch_preselect:false},
+    {name:"Second",repository:"TheDaimos/second",active:true,batch_preselect:true},
+  ];
+  pickerPanel._render();
+  assert.match(pickerPanel.shadowRoot.innerHTML,/id="dra-project-picker-open"/);
+  assert.doesNotMatch(pickerPanel.shadowRoot.innerHTML,/id="dra-select"/);
+  pickerPanel._openProjectPicker();
+  assert.equal(pickerPanel._projectPickerOpen,true);
+  const chooser = pickerPanel.shadowRoot.innerHTML;
+  assert.match(chooser,/id="dra-picker-dialog"/);
+  assert.match(chooser,/id="dra-picker-batch"/);
+  assert.match(chooser,/dra-picker-divider/);
+  assert.match(chooser,/TheDaimos\/first/);
+  assert.match(chooser,/TheDaimos\/second/);
+  assert.match(chooser,/data-repo="TheDaimos\/inactive" disabled/);
+  assert.match(chooser,/class="dra-picker-entry selected"/);
+  pickerPanel._chooseMainProject("TheDaimos/inactive");
+  assert.equal(pickerPanel._projectPickerOpen,true,"inactive item cannot be selected");
+  pickerPanel._chooseMainProject("TheDaimos/second");
+  assert.equal(pickerPanel._projectPickerOpen,false);
+  assert.equal(pickerPanel._selectedMainRepo,"TheDaimos/second");
+  assert.match(pickerPanel.shadowRoot.innerHTML,/dra-project-picker-current-name">Second/);
+  pickerPanel._openProjectPicker();
+  pickerPanel._openPickerBatch();
+  assert.equal(pickerPanel._projectPickerOpen,false);
+  assert.equal(pickerPanel._batchDialogOpen,true);
+  assert.match(pickerPanel.shadowRoot.innerHTML,/id="batch-dialog"/);
+  assert.match(pickerPanel.shadowRoot.innerHTML,/Sammelaktualisierung · Projekte/);
+  pickerPanel._cancelBatchDialog();
+  assert.equal(pickerPanel._batchDialogOpen,false);
+  console.log("DRA V2 custom project picker and safe batch-selection action PASS");
+})();
