@@ -372,3 +372,32 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   assert.match(html, /stroke="url\(#dra-metal-settings-1\)"/);
   console.log("DRA V2 metal icon gradient and inactive card render PASS");
 })();
+
+(() => {
+  const selectionPanel = new Panel();
+  selectionPanel._projectDialogOpen = true;
+  selectionPanel._projects = [
+    {name:"Project One",repository:"TheDaimos/one",active:true,access_mode:"read_only"},
+    {name:"Project Two",repository:"TheDaimos/two",active:false,access_mode:"read_write"},
+  ];
+  selectionPanel._selectProjectRow("TheDaimos/two");
+  assert.equal(selectionPanel._highlightMovedRepo,"TheDaimos/two");
+  assert.equal(selectionPanel._projects[0].repository,"TheDaimos/one","Selecting does not reorder");
+  assert.equal(selectionPanel._scrollToMovedProject,false);
+  assert.match(selectionPanel.shadowRoot.innerHTML,/connection-unverified recently-moved/);
+  assert.match(selectionPanel.shadowRoot.innerHTML,/aria-current="true"/);
+  selectionPanel._selectProjectRow("TheDaimos/one");
+  assert.equal(selectionPanel._highlightMovedRepo,"TheDaimos/one");
+  selectionPanel._projectSettingsRepo = "TheDaimos/two";
+  selectionPanel._render();
+  const html = selectionPanel.shadowRoot.innerHTML;
+  const summary = html.indexOf('class="project-token-summary"');
+  const tokenLabel = html.indexOf("Gespeicherter Token:",summary);
+  const access = html.indexOf('id="manage-access-mode"',summary);
+  const tokenActions = html.indexOf('class="project-token-actions"',summary);
+  assert(summary >= 0 && tokenLabel > summary && access > tokenLabel && tokenActions > access,
+    "Access dropdown is right next to token hint in the same row");
+  assert.match(html, /<option value="read_write" selected>Read-Write<\/option>/);
+  assert.equal((html.match(/id="manage-access-mode"/g)||[]).length,1);
+  console.log("DRA V2 selectable project rows and inline token access dropdown PASS");
+})();
