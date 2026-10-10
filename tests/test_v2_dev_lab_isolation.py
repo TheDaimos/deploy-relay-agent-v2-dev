@@ -465,7 +465,9 @@ class LabIsolationContracts(unittest.TestCase):
         self.assertIn('id="dra-picker-batch"', frontend)
         self.assertIn('Sammelupdate', frontend)
         self.assertIn('Installation gesperrt', frontend)
-        self.assertIn('this._openBatchDialog(); // Existing non-installing', frontend)
+        self.assertIn('this._mainBatchMode = true;', frontend)
+        self.assertIn('_mainBatchProjects() {', frontend)
+        self.assertIn('async _previewMainBatch() {', frontend)
         self.assertIn('id="dra-step1"', frontend)
         self.assertIn('this._openProjectPicker()', frontend)
         self.assertNotIn('id="dra-select"', frontend)
@@ -495,7 +497,8 @@ class LabIsolationContracts(unittest.TestCase):
         self.assertIn('id="git-read-save"', frontend)
         self.assertIn('id="git-read-clear"', frontend)
         self.assertIn('id="source-ref"', frontend)
-        self.assertIn('Backup-Richtlinie:', frontend)
+        self.assertNotIn('Backup-Richtlinie:', frontend)
+        self.assertIn('id="v2-source-advanced"', frontend)
         self.assertEqual(frontend.count('id="source-read-token"'), 1)
         self.assertIn('_openV2Settings() {', frontend)
         self.assertIn('_closeV2Settings() {', frontend)
@@ -503,6 +506,39 @@ class LabIsolationContracts(unittest.TestCase):
         self.assertIn('previousV2SettingsScroll', frontend)
         self.assertIn('pendingV2ReadToken', frontend)
         self.assertEqual(frontend.count('class="section-toggle"'), 4)
+
+    def test_picker_batch_selects_preselected_group_not_editor(self):
+        frontend = (LAB_ROOT / "frontend/lab.js").read_text(encoding="utf-8")
+        for term in (
+            '_mainBatchProjects() {',
+            'p.active !== false && p.batch_preselect !== false',
+            'this._mainBatchMode = true;',
+            'this._mainBatchMode = false;',
+            'this._mainBatchPreview = null;',
+            'async _previewMainBatch() {',
+            'type:"deploy_relay_v2_dev/batch/preview"',
+            'result.installation_enabled !== false',
+            'result.sources_verified !== false',
+            'dra-v2-dev-batch-preview.v1',
+            'Sammelupdate · ${mainBatchProjects.length} Projekte',
+            'id="dra-picker-batch"',
+            'id="dra-preview"',
+            'Quellstände ungeprüft',
+            'Installation noch gesperrt',
+        ):
+            self.assertIn(term, frontend)
+        self.assertNotIn('this._openBatchDialog(); // Existing non-installing', frontend)
+
+    def test_git_token_buttons_are_aligned_and_explanations_collapsed(self):
+        frontend = (LAB_ROOT / "frontend/lab.js").read_text(encoding="utf-8")
+        self.assertIn('class="v2-token-buttons"', frontend)
+        self.assertIn('grid-template-columns:repeat(2,minmax(0,1fr))', frontend)
+        self.assertIn('id="git-read-save"', frontend)
+        self.assertIn('id="git-read-clear"', frontend)
+        self.assertIn('id="v2-source-advanced"', frontend)
+        self.assertIn('Erweiterte Quellprüfung (optional)', frontend)
+        self.assertNotIn('Backup-Richtlinie:', frontend)
+        self.assertIn('V1-Sicherungen bleiben unangetastet', frontend)
 
     def test_config_flow_uses_test_domain_not_v1_domain(self):
         source = (LAB_ROOT / "config_flow.py").read_text(encoding="utf-8")
