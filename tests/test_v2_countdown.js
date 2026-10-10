@@ -307,3 +307,46 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   console.error(error);
   process.exitCode = 1;
 });
+
+(async () => {
+  const bulkPanel = new Panel();
+  bulkPanel._projectDialogOpen = true;
+  bulkPanel._projects = [
+    {repository:"TheDaimos/alpha",name:"Alpha",active:true},
+    {repository:"TheDaimos/private",name:"Private",active:false},
+    {repository:"TheDaimos/third",name:"Third",active:true},
+  ];
+  let running=0, maxRunning=0;
+  const processed=[];
+  bulkPanel._hass = {
+    async callWS({type,repository}) {
+      assert.equal(type,"deploy_relay_v2_dev/projects/connection_check");
+      running++;
+      maxRunning=Math.max(maxRunning,running);
+      processed.push(repository);
+      await Promise.resolve();
+      running--;
+      if (repository==="TheDaimos/private")
+        return {repository,connected:false,reason:"Access denied"};
+      return {repository,connected:true,private:false,authenticated:true,
+              advertised_push:null,write_tested:false};
+    },
+  };
+  const check=bulkPanel._checkAllProjectConnections();
+  assert.equal(bulkPanel._checkAllBusy,true);
+  assert.match(bulkPanel.shadowRoot.innerHTML, /id="project-check-all"[^>]*disabled/);
+  await bulkPanel._checkAllProjectConnections(); // duplicate requests must be ignored
+  await check;
+  assert.equal(maxRunning,1,"Only one Github request may run at a time");
+  assert.deepEqual(processed,["TheDaimos/alpha","TheDaimos/private","TheDaimos/third"]);
+  assert.equal(bulkPanel._sourceChecks.get("TheDaimos/alpha").status,"success");
+  assert.equal(bulkPanel._sourceChecks.get("TheDaimos/private").status,"failure");
+  assert.equal(bulkPanel._sourceChecks.get("TheDaimos/third").status,"success");
+  assert.equal(bulkPanel._checkAllBusy,false);
+  assert.equal(bulkPanel._checkAllProgress,"Prüfung abgeschlossen: 2 online, 1 offline.");
+  assert.match(bulkPanel.shadowRoot.innerHTML, /Alle Projekte prüfen/);
+  console.log("DRA V2 sequential all-project Git connection check PASS");
+})().catch(error => {
+  console.error(error);
+  process.exitCode = 1;
+});
