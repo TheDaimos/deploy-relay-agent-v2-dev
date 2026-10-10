@@ -154,6 +154,17 @@ class LabIsolationContracts(unittest.TestCase):
         self.assertIn('projects/preselect', frontend)
         self.assertIn('batch_preselect === enabled', frontend)
 
+    def test_backup_retention_dialog_is_separate_and_fail_closed(self):
+        frontend = (LAB_ROOT / "frontend/lab.js").read_text(encoding="utf-8")
+        self.assertIn('id="backup-dialog-open"', frontend)
+        self.assertIn('id="backup-dialog"', frontend)
+        self.assertIn('class="backup-entry"', frontend)
+        self.assertIn('button disabled title="Erst nach Einführung echter V2-Sicherungen verfügbar"', frontend)
+        self.assertIn('this._projectAction("retention"', frontend)
+        self.assertIn('button.closest(".backup-entry")', frontend)
+        self.assertIn('<th>Projekt</th><th>Herkunft</th><th>Git-Quelle</th>', frontend)
+        self.assertNotIn('<th>Sicherungen behalten</th>', frontend)
+
     def test_config_flow_uses_test_domain_not_v1_domain(self):
         source = (LAB_ROOT / "config_flow.py").read_text(encoding="utf-8")
         self.assertIn("ConfigFlow, domain=DOMAIN", source)
