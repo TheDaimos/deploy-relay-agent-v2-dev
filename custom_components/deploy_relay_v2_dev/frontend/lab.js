@@ -8,6 +8,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._measurement = null;
     this._suite = null;
     this._projects = [];
+    this._pickerBatchPosition = null; // Synthetic UI row, never a Git project.
     this._settings = {mode:"sequential",max_readonly_jobs:2,max_worker_processes:4};
     this._settingsBusy = false;
     this._expandedSections = new Set();
@@ -249,6 +250,8 @@ class DRAV2DevLabPanel extends HTMLElement {
       this._measurement = data.measurement || null;
       this._suite = data.suite || null;
       this._projects = Array.isArray(data.projects) ? data.projects : [];
+      this._pickerBatchPosition = Number.isInteger(data.picker_batch_position)
+        ? data.picker_batch_position : this._projects.length;
       this._settings = data.settings || this._settings;
       this._cpuStatus = data.cpu_status || this._cpuStatus;
       this._gitConfigured = data.git_configured === true;
@@ -694,6 +697,27 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._render();
     this.shadowRoot?.querySelector("#dra-project-picker-open")?.focus();
   }
+  _pickerEntries() {
+    const entries = this._projects.map(project => ({kind:"project",project}));
+    const position = Number.isInteger(this._pickerBatchPosition)
+      ? Math.max(0,Math.min(this._pickerBatchPosition,entries.length))
+      : entries.length;
+    entries.splice(position,0,{kind:"batch"});
+    return entries;
+  }
+  _movePickerEntry(repository,direction) {
+    const entries = this._pickerEntries();
+    const index = entries.findIndex(e => e.kind === "batch"
+      ? repository === "__batch_picker__" : e.project.repository === repository);
+    const neighbor = entries[index+direction];
+    if (index < 0 || !neighbor || this._projectBusy || this._checkAllBusy) return;
+    if (repository === "__batch_picker__")
+      return this._manageProject("move_batch",{repository:"__batch_picker__",direction});
+    // Crossing the virtual row moves that row only; project priority remains stable.
+    if (neighbor.kind === "batch")
+      return this._manageProject("move_batch",{repository:"__batch_picker__",direction:-direction});
+    return this._manageProject("move",{repository,direction});
+  }
   _mainBatchProjects() {
     // Catalog ordering and active/preselected flags remain authoritative.
     return this._projects.filter(p => p.active !== false && p.batch_preselect !== false);
@@ -774,7 +798,7 @@ class DRAV2DevLabPanel extends HTMLElement {
   }
   _selectProjectRow(repo) {
     if (!this._projectDialogOpen ||
-        !this._projects.some(p => p.repository === repo)) return;
+        repo !== "__batch_picker__" && !this._projects.some(p => p.repository === repo)) return;
     if (this._highlightMovedRepo === repo) return;
     this._highlightMovedRepo = repo;
     // Free selection is visual only: it neither reorders nor edits the project.
@@ -793,7 +817,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._render();
   }
   async _manageProject(action, extras = {}) {
-    if (!this._hass || this._projectBusy || this._checkAllBusy || !this._projectSettingsRepo && action !== "move") return;
+    if (!this._hass || this._projectBusy || this._checkAllBusy || !this._projectSettingsRepo && !["move","move_batch"].includes(action)) return;
     this._projectBusy = true;
     this._projectMessage = "Projektverwaltung wird gespeichert …";
     const repo = extras.repository || this._projectSettingsRepo;
@@ -802,7 +826,9 @@ class DRAV2DevLabPanel extends HTMLElement {
         type:"deploy_relay_v2_dev/projects/manage", action, repository:repo, ...extras
       });
       this._projects = result.projects;
-      if (action === "move") {
+      if (Number.isInteger(result.picker_batch_position))
+        this._pickerBatchPosition = result.picker_batch_position;
+      if (action === "move" || action === "move_batch") {
         this._highlightMovedRepo = repo;
         this._scrollToMovedProject = true;
         this._projectMessage = "Reihenfolge gespeichert. Verschobenes Projekt hervorgehoben.";
@@ -812,7 +838,7 @@ class DRAV2DevLabPanel extends HTMLElement {
         if (action === "remove" || action === "configure") this._highlightMovedRepo = null;
         this._projectMessage = "Projektverwaltung gespeichert.";
       }
-      if (action !== "move") this._projectSettingsRepo = null;
+      if (action !== "move" && action !== "move_batch") this._projectSettingsRepo = null;
       this._projectDeleteConfirm = false;
     } catch (_error) {
       this._projectMessage = "Projektaktion fehlgeschlagen. Keine Änderung gespeichert.";
@@ -1038,7 +1064,24 @@ class DRAV2DevLabPanel extends HTMLElement {
       return svg.replace('stroke="currentColor"', `stroke="url(#${id})"`)
         .replace('</svg>', gradient + '</svg>');
     };
-    const projectRows = this._projects.map((p,i) => {
+    const projectRows = this._pickerEntries().map((entry,i) => {
+      if (entry.kind === "batch") {
+        const selected = this._highlightMovedRepo === "__batch_picker__";
+        return `<tr class="project-row project-batch-picker-row${selected ? " recently-moved" : ""}"
+           data-project-repo="__batch_picker__" tabindex="0" aria-current="${selected}"
+           aria-label="Sammelupdate markieren"><td>${i+1}</td>
+          <td><strong>Sammelupdate</strong><div class="note">${this._mainBatchProjects().length} aktivierte Projekte · gemeinsame Auswahl</div></td>
+          <td><span class="project-batch-status">Gruppenauswahl</span></td>
+          <td><button class="project-batch-settings-open project-metal-button" title="Sammelupdate-Auswahl bearbeiten"
+                aria-label="Sammelupdate-Auswahl bearbeiten" ${this._batchBusy ? "disabled" : ""}>${metalSvg(gearIcon,"batch",i)}</button></td>
+          <td><button class="project-move project-metal-button" data-repo="__batch_picker__" data-direction="-1"
+              ${i===0 || this._projectBusy || this._checkAllBusy ? "disabled" : ""}
+              aria-label="Sammelupdate nach oben verschieben" title="Nach oben">${metalSvg(upIcon,"batch-up",i)}</button>
+            <button class="project-move project-metal-button" data-repo="__batch_picker__" data-direction="1"
+              ${i===this._projects.length || this._projectBusy || this._checkAllBusy ? "disabled" : ""}
+              aria-label="Sammelupdate nach unten verschieben" title="Nach unten">${metalSvg(downIcon,"batch-down",i)}</button></td></tr>`;
+      }
+      const p = entry.project;
       const test = this._sourceChecks.get(p.repository);
       const state = test?.status || "unverified";
       const label = state === "success" ? "Online" : state === "failure" ? "Offline" :
@@ -1052,7 +1095,7 @@ class DRAV2DevLabPanel extends HTMLElement {
           ${this._connectionBusy || this._checkAllBusy || this._projectBusy ? "disabled" : ""} aria-label="GitHub-Verbindung für ${this._escapeProject(p.name)} prüfen" title="Verbindung prüfen">${icon}<span class="project-status-label">${label}</span></button></td>
         <td><button class="project-settings-open project-metal-button" data-repo="${this._escapeProject(p.repository)}" ${this._checkAllBusy ? "disabled" : ""} aria-label="Einstellungen für ${this._escapeProject(p.name)}" title="Projekteinstellungen">${metalSvg(gearIcon,"settings",i)}</button></td>
         <td><button class="project-move project-metal-button" data-repo="${this._escapeProject(p.repository)}" data-direction="-1" ${i===0 || this._projectBusy || this._checkAllBusy ? "disabled" : ""} aria-label="${this._escapeProject(p.name)} nach oben verschieben" title="Nach oben">${metalSvg(upIcon,"up",i)}</button>
-        <button class="project-move project-metal-button" data-repo="${this._escapeProject(p.repository)}" data-direction="1" ${i===this._projects.length-1 || this._projectBusy || this._checkAllBusy ? "disabled" : ""} aria-label="${this._escapeProject(p.name)} nach unten verschieben" title="Nach unten">${metalSvg(downIcon,"down",i)}</button></td></tr>`;
+        <button class="project-move project-metal-button" data-repo="${this._escapeProject(p.repository)}" data-direction="1" ${i===this._projects.length || this._projectBusy || this._checkAllBusy ? "disabled" : ""} aria-label="${this._escapeProject(p.name)} nach unten verschieben" title="Nach unten">${metalSvg(downIcon,"down",i)}</button></td></tr>`;
     }).join("");
     const managed = this._projects.find(p => p.repository === this._projectSettingsRepo);
     const batchRows = this._projects.map(p => {
@@ -1353,6 +1396,15 @@ class DRAV2DevLabPanel extends HTMLElement {
           .project-management-dialog .project-actions button {margin:0;}
         }
         /* Compact batch control and V2 system card, styled consistently with project rows. */
+        .project-management-dialog .project-batch-picker-row {
+          background:linear-gradient(95deg,rgba(38,77,105,.30),rgba(28,41,54,.22));
+          border-left:3px solid #78aac6;
+        }
+        .project-management-dialog .project-batch-status {
+          display:inline-flex;align-items:center;color:#b8d8e7;min-height:33px;
+          padding:5px 8px;border:1px solid #607a8c;border-radius:8px;font-size:12px;
+          background:rgba(36,71,90,.2);
+        }
         .project-batch-card,.project-v2-card {box-sizing:border-box;margin-top:14px;border-radius:12px;
           border:1px solid #536d7b;background:linear-gradient(120deg,rgba(46,73,90,.27),rgba(22,29,36,.17));
           box-shadow:inset 3px 0 0 #6594ac,inset 0 1px 0 rgba(225,243,255,.07);}
@@ -2477,7 +2529,8 @@ class DRAV2DevLabPanel extends HTMLElement {
     });
     s.querySelector("#project-add-open")?.addEventListener("click", () => this._openProjectSettings("__new__"));
     s.querySelectorAll(".project-settings-open").forEach(b => b.addEventListener("click", () => this._openProjectSettings(b.dataset.repo)));
-    s.querySelectorAll(".project-move").forEach(b => b.addEventListener("click", () => this._manageProject("move", {repository:b.dataset.repo,direction:Number(b.dataset.direction)})));
+    s.querySelectorAll(".project-move").forEach(b => b.addEventListener("click", () => this._movePickerEntry(b.dataset.repo,Number(b.dataset.direction))));
+    s.querySelector(".project-batch-settings-open")?.addEventListener("click",() => this._openBatchDialog());
     // Tap/click anywhere in a row except its interactive controls to select it.
     s.querySelectorAll(".project-row").forEach(row => {
       const select = event => {
