@@ -993,7 +993,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     const label = op ? (states[op.status] || "Unbekannt") : "Noch kein Test gestartet";
     const progress = op && Number.isInteger(op.phase_percent) ? op.phase_percent + " % der Testschritte" : "Noch keine Messung";
     const safeId = op && /^[0-9a-f]{32}$/.test(op.operation_id) ? op.operation_id : "—";
-    const previousProjectScroll = s.querySelector("#project-management-dialog")?.scrollTop ?? 0;
+    const previousProjectScroll = s.querySelector("#project-management-scroll")?.scrollTop ?? 0;
     s.innerHTML = `
       <style>
         :host { display:block; min-height:100%; color:var(--primary-text-color, #f2f2f2); background:var(--primary-background-color, #111); font-family:var(--paper-font-body1_-_font-family, sans-serif); }
@@ -1064,13 +1064,24 @@ class DRAV2DevLabPanel extends HTMLElement {
           background:var(--card-background-color,#222); border:1px solid var(--divider-color,#555);
           border-radius:14px; padding:18px; box-shadow:0 14px 38px #0009; }
         .git-dialog header { display:flex; align-items:center; justify-content:space-between; gap:12px; }
-        .project-management-dialog { width:min(100%,1080px); }
+        /* Fixed modal header; only the body below it scrolls. */
+        .project-management-dialog {
+          width:min(100%,1080px); display:flex; flex-direction:column;
+          overflow:hidden; max-height:92dvh;
+        }
+        .project-management-dialog .project-management-scroll {
+          min-height:0; flex:1 1 auto; overflow-y:auto; overflow-x:hidden;
+          overscroll-behavior:contain; padding:12px 4px 0 0;
+          scrollbar-gutter:stable;
+        }
         .project-management-dialog .project-management-table { table-layout:auto; }
         .project-management-dialog .project-management-table td:first-child { min-width:0; width:42px; }
         .project-management-dialog .project-management-table td:nth-child(2) { overflow-wrap:anywhere; }
-        .project-management-dialog header { position:sticky; top:0; z-index:1;
+        .project-management-dialog header {
+          position:relative; top:auto; z-index:1; flex:0 0 auto;
           background:var(--card-background-color,#222); padding-bottom:12px;
-          border-bottom:1px solid var(--divider-color,#555); }
+          border-bottom:1px solid var(--divider-color,#555);
+        }
         @media (max-width:760px) {
           .project-management-dialog { width:100%; max-height:94dvh; padding:14px; }
           .project-management-dialog header h2 { font-size:17px; }
@@ -1708,6 +1719,7 @@ class DRAV2DevLabPanel extends HTMLElement {
                 <button id="project-management-close" aria-label="Projektverwaltung schließen"
                   ${this._projectBusy || this._sourceBusy || this._gitReadBusy || this._checkAllBusy ? "disabled" : ""}>${closeIcon}</button>
               </header>
+              <div class="project-management-scroll" id="project-management-scroll">
               <p class="note">Reihenfolge: Anzeige, Standardprojekt und Priorität der späteren Sammelaktualisierung. Git-Status nur nach expliziter Prüfung.</p>
           ${this._projects.length ? `<div class="table-wrap"><table class="project-management-table"><thead><tr><th>Nr.</th><th>Projekt</th><th>Git-Status</th><th>Einstellungen</th><th>Reihenfolge</th></tr></thead><tbody>${projectRows}</tbody></table></div>` : '<p class="note">Noch keine Projekte in V2 hinterlegt.</p>'}
           <div class="project-actions">
@@ -1757,6 +1769,7 @@ class DRAV2DevLabPanel extends HTMLElement {
               <div class="dialog-actions project-management-footer">
                 <button id="project-management-dismiss"
                   ${this._projectBusy || this._sourceBusy || this._gitReadBusy ? "disabled" : ""}>${closeIcon}<span>Schließen</span></button>
+              </div>
               </div>
             </section>
           </div>` : ""}
@@ -2065,11 +2078,11 @@ class DRAV2DevLabPanel extends HTMLElement {
         if (event.key === "Escape") this._closeGitDialog();
       });
     }
-    const projectDialog = s.querySelector("#project-management-dialog");
-    if (projectDialog) {
-      projectDialog.scrollTop = previousProjectScroll;
+    const projectScroll = s.querySelector("#project-management-scroll");
+    if (projectScroll) {
+      projectScroll.scrollTop = previousProjectScroll;
       if (this._scrollToMovedProject) {
-        const movedRow = [...projectDialog.querySelectorAll(".project-row")]
+        const movedRow = [...projectScroll.querySelectorAll(".project-row")]
           .find(row => row.dataset.projectRepo === this._highlightMovedRepo);
         movedRow?.scrollIntoView({block:"nearest", behavior:"smooth"});
       }
