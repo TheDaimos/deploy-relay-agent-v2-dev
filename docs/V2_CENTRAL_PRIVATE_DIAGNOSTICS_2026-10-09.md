@@ -153,3 +153,7 @@ Die drei Felder Betriebsart, parallele Leseaufträge und DRA-Arbeitsprozesse wer
 ## V2 DEV 0.1.28 – Einklappbare Diagnose- und Einstellungsbereiche (10.10.2026)
 
 Alle sechs vorhandenen Bereiche der bisherigen V2-Laboransicht sind nun unabhängig auf- und zuklappbar und zunächst geschlossen. Der Öffnungszustand bleibt während der laufenden Statusaktualisierung im aktuellen Browser erhalten. Unter „Meine Projekte“ lautet die frühere Schaltfläche „V1-Projekte ansehen“ nun „Projekte aus DRA V1 übernehmen“; die sichere zweistufige Vorschau und ausdrückliche Übernahme bleiben technisch identisch. Die gesamte bisherige Laboroberfläche gehört fachlich künftig unter „Diagnose & Einstellungen“, nicht zur eigentlichen noch zu gestaltenden DRA-V2-Hauptoberfläche. Keine neue Installationsfreigabe.
+
+## V2 DEV 0.1.29 – Selektiver Projektimport (10.10.2026)
+
+Die Schaltfläche „Projektimport“ öffnet einen Dialog mit auswählbaren DRA-V1-Projekten. „Alle auswählen“ in der Dialogüberschrift setzt alle Kontrollkästchen; einzeln abwählbar. „Importieren“ überträgt ausschließlich die ausgewählten Projektmetadaten nach V2; „Abbrechen“ verwirft die Auswahl. Die WebSocket-Route verlangt eine explizite Liste, prüft Duplikate und lehnt fremde Repositorynamen ab; V1-Token, Sicherungen und Installationen werden nicht übernommen oder verändert. Es erfolgt keine Home-Assistant-Installation und kein Neustart.
