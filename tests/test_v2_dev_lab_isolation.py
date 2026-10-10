@@ -45,8 +45,8 @@ class LabIsolationContracts(unittest.TestCase):
         self.assertIn('STATIC_PATH: Final = "/dra_v2_dev_static"', const)
         self.assertIn('PANEL_ELEMENT: Final = "dra-v2-dev-lab-panel"', const)
         self.assertEqual(len(re.findall(r'probatio.Required\("type"\): "deploy_relay_v2_dev/test/', sockets)), 8)
-        self.assertEqual(len(re.findall(r'probatio.Required\("type"\): "deploy_relay_v2_dev/projects/', sockets)), 7)
-        self.assertEqual(sockets.count("@websocket_api.require_admin"), 25)
+        self.assertEqual(len(re.findall(r'probatio.Required\("type"\): "deploy_relay_v2_dev/projects/', sockets)), 8)
+        self.assertEqual(sockets.count("@websocket_api.require_admin"), 26)
         self.assertNotIn('"deploy_relay/panel/', sockets)
         self.assertNotIn('"deploy_relay/panel/', frontend)
         self.assertNotIn("deploy-relay-panel", frontend)
@@ -78,7 +78,7 @@ class LabIsolationContracts(unittest.TestCase):
     def test_async_ws_handlers_are_scheduled_and_admin_guarded(self):
         sockets = (LAB_ROOT / "websocket_api.py").read_text(encoding="utf-8")
         self.assertEqual(sockets.count("@websocket_api.async_response"), 25)
-        self.assertEqual(sockets.count("@websocket_api.require_admin"), 25)
+        self.assertEqual(sockets.count("@websocket_api.require_admin"), 26)
         self.assertEqual(sockets.count("@websocket_api.websocket_command("), 25)
         self.assertIn("import probatio", sockets)
         self.assertNotIn("import voluptuous", sockets)
@@ -130,15 +130,15 @@ class LabIsolationContracts(unittest.TestCase):
         self.assertEqual(frontend.count('id="git-export"'), 1)
         self.assertEqual(frontend.count('id="json-download"'), 1)
         self.assertLess(frontend.index("02 · Diagnoseexport"), frontend.index("04 · Auftragsverarbeitung"))
-        self.assertLess(frontend.index("03 · Messergebnisse"), frontend.index("05 · Meine Projekte"))
+        self.assertLess(frontend.index("03 · Messergebnisse"), frontend.index("05 · Projektverwaltung"))
 
     def test_source_check_has_visible_per_project_feedback_and_columns(self):
         frontend = (LAB_ROOT / "frontend/lab.js").read_text(encoding="utf-8")
         self.assertIn('this._sourceRepository = repository;', frontend)
-        self.assertIn('class="source-inline" role="status"', frontend)
+        self.assertIn('class="project-management-table"', frontend)
         self.assertIn('Prüfung läuft …', frontend)
-        self.assertIn('Prüfung nicht erfolgreich', frontend)
-        self.assertIn('<th>Projekt</th><th>Herkunft</th><th>Git-Quelle</th>', frontend)
+        self.assertIn('Nicht verfügbar', frontend)
+        self.assertIn('<th>Projekt</th><th>Git-Status</th><th>Einstellungen</th><th>Reihenfolge</th>', frontend)
         self.assertNotIn('class="preselect-toggle"', frontend)
         self.assertIn('class="batch-choice"', frontend)
         self.assertIn('@media (max-width:760px)', frontend)
@@ -162,7 +162,7 @@ class LabIsolationContracts(unittest.TestCase):
         self.assertIn('button disabled title="Erst nach Einführung echter V2-Sicherungen verfügbar"', frontend)
         self.assertIn('this._projectAction("retention"', frontend)
         self.assertIn('button.closest(".backup-entry")', frontend)
-        self.assertIn('<th>Projekt</th><th>Herkunft</th><th>Git-Quelle</th>', frontend)
+        self.assertIn('<th>Projekt</th><th>Git-Status</th><th>Einstellungen</th><th>Reihenfolge</th>', frontend)
         self.assertNotIn('<th>Sicherungen behalten</th>', frontend)
 
     def test_operation_settings_have_responsive_grid(self):
@@ -189,7 +189,7 @@ class LabIsolationContracts(unittest.TestCase):
         self.assertEqual(frontend.count('class="section-body"'), 6)
         self.assertIn('class="section-body" ', frontend)
         self.assertIn('this._expandedSections.has(id)', frontend)
-        self.assertIn('>Projektimport</button>', frontend)
+        self.assertIn('>Import aus DRA-V1</button>', frontend)
         self.assertIn('id="project-import-all"', frontend)
         self.assertIn('class="import-choice"', frontend)
         self.assertIn('this._submitProjectImport()', frontend)
@@ -217,7 +217,7 @@ class LabIsolationContracts(unittest.TestCase):
         self.assertIn("No project or file access", (LAB_ROOT / "readonly_benchmark.py").read_text(encoding="utf-8"))
         self.assertNotIn("20-Sekunden-Test", frontend)
         self.assertNotIn("for index in range(1, 21):", sockets)
-        self.assertEqual(sockets.count("@websocket_api.require_admin"), 25)
+        self.assertEqual(sockets.count("@websocket_api.require_admin"), 26)
 
 
 if __name__ == "__main__":
