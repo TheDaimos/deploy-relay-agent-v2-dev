@@ -49,7 +49,7 @@ def normalize_repo(repository: object) -> str:
 
 
 def sanitize_entry(row: object) -> dict[str, object]:
-    if type(row) is not dict or set(row) not in (_ENTRY_KEYS, _LEGACY_ENTRY_KEYS, _EXTENDED_KEYS):
+    if type(row) is not dict or not (_LEGACY_ENTRY_KEYS <= set(row) <= _EXTENDED_KEYS or _ENTRY_KEYS <= set(row) <= _EXTENDED_KEYS):
         raise CatalogError("invalid project record")
     repo = normalize_repo(row["repository"])
     if type(row["project_id"]) is not str or not _PROJECT_ID.fullmatch(row["project_id"]):
