@@ -604,6 +604,8 @@ class DRAV2DevLabPanel extends HTMLElement {
         type:"deploy_relay_v2_dev/projects/manage", action, repository:repo, ...extras
       });
       this._projects = result.projects;
+      this._sourceChecks.delete(repo);
+      if (action === "configure" && extras.new_repository) this._sourceChecks.delete(extras.new_repository);
       this._projectMessage = "Projektverwaltung gespeichert.";
       if (action !== "move") this._projectSettingsRepo = null;
       this._projectDeleteConfirm = false;
@@ -622,7 +624,8 @@ class DRAV2DevLabPanel extends HTMLElement {
       const result = await this._hass.callWS({type:"deploy_relay_v2_dev/projects/token",
         repository:this._projectSettingsRepo,token});
       this._projects = result.projects;
-      this._projectMessage = "Projekttoken gespeichert.";
+      this._sourceChecks.delete(this._projectSettingsRepo);
+      this._projectMessage = "Projekttoken gespeichert. Verbindung erneut prüfen.";
     } catch (_error) {
       this._projectMessage = "Projekttoken konnte nicht gespeichert werden.";
     } finally {
@@ -637,8 +640,8 @@ class DRAV2DevLabPanel extends HTMLElement {
     const name = s.querySelector("#manage-name")?.value.trim() || "";
     const note = s.querySelector("#manage-note")?.value || "";
     const active = s.querySelector("#manage-active")?.checked === true;
-    // A changed repository must pass a separate identity migration.
-    return this._manageProject("configure", {repository:previous, new_repository:repository, name, note, active});
+    const access_mode = s.querySelector("#manage-access-mode")?.value || "read_only";
+    return this._manageProject("configure", {repository:previous, new_repository:repository, name, note, active, access_mode});
   }
   _cancelProjectImport() {
     if (this._projectBusy) return;
@@ -790,6 +793,7 @@ class DRAV2DevLabPanel extends HTMLElement {
         name:s.querySelector("#manage-name").value,
         note:s.querySelector("#manage-note").value,
         active:s.querySelector("#manage-active").checked,
+        accessMode:s.querySelector("#manage-access-mode")?.value || "read_only",
         token:s.querySelector("#manage-token")?.value || "" } : null;
     const unsentToken = this._gitDialogOpen ?
       s?.querySelector("#git-dialog-token")?.value || "" : "";
@@ -1385,8 +1389,20 @@ class DRAV2DevLabPanel extends HTMLElement {
             <label>GitHub-Token <input id="manage-token" class="project-text" type="password" autocomplete="new-password" placeholder="Neuen Token eingeben (optional)" /></label>
             <p class="note">Gespeicherter Token: ${managed?.token_configured && managed?.token_suffix ?
               `•••••<span class="safe"><strong>${this._escapeProject(managed.token_suffix)}</strong></span>` : "Nicht eingerichtet"}</p>
-            <button id="manage-token-save" ${!managed || this._projectBusy ? "disabled" : ""}>Token speichern</button>
-            <p class="note">Das Passwort bleibt serverseitig. Leer lassen, um den bisherigen Token beizubehalten.</p>
+            <div class="project-token-actions">
+              <button id="manage-token-save" ${!managed || this._projectBusy ? "disabled" : ""}>Token speichern</button>
+              <button id="manage-connection-check" ${!managed || this._connectionBusy || this._projectBusy ? "disabled" : ""}>Verbindung prüfen</button>
+            </div>
+            ${managed && this._sourceChecks.get(managed.repository) ? `<p class="connection-feedback ${this._sourceChecks.get(managed.repository).status}" role="status">${this._escapeProject(this._sourceChecks.get(managed.repository).message)}</p>` : '<p class="note" role="status">Verbindung noch nicht geprüft.</p>'}
+            <p class="note">Die Verbindungsprüfung verwendet den bereits gespeicherten Token. Eine neue Eingabe bitte zuvor speichern.</p>
+            <p class="note">Der Token bleibt serverseitig. Leer lassen, um den bisherigen Token beizubehalten.</p>
+            <label for="manage-access-mode">Zugriffsart (hinterlegte Angabe)
+              <select id="manage-access-mode" class="project-text">
+                <option value="read_only" ${managed?.access_mode !== "read_write" ? "selected" : ""}>Read-Only</option>
+                <option value="read_write" ${managed?.access_mode === "read_write" ? "selected" : ""}>Read-Write</option>
+              </select>
+            </label>
+            <p class="note">Die Angabe dient der Übersicht. Tatsächliche Berechtigungen legt GitHub fest; es werden keine Schreibvorgänge getestet.</p>
             <label>Notiz <textarea id="manage-note" class="project-text" rows="3">${this._escapeProject(managed?.note || "")}</textarea></label>
             <label>Anzeigename (optional) <input id="manage-name" class="project-text" value="${this._escapeProject(managed?.name || "")}" /></label>
             <label><input id="manage-active" type="checkbox" ${managed?.active !== false ? "checked" : ""} /> Projekt aktiv</label>
@@ -1581,7 +1597,7 @@ class DRAV2DevLabPanel extends HTMLElement {
       this._batchSelection = [...s.querySelectorAll(".batch-choice")].filter(x => x.checked).map(x => x.dataset.repo);
 
     }));
-    s.querySelectorAll(".source-check")?.forEach(button => button.addEventListener("click", () => this._sourceCheck(button)));
+    s.querySelectorAll(".source-check")?.forEach(button => button.addEventListener("click", () => this._checkProjectConnection(button.dataset.repo)));
     s.querySelector("#git-read-save")?.addEventListener("click", () => this._configureGitRead(false));
     s.querySelector("#git-read-clear")?.addEventListener("click", () => this._configureGitRead(true));
     s.querySelector("#project-preview")?.addEventListener("click", () => this._projectAction("v1_preview"));
@@ -1611,9 +1627,11 @@ class DRAV2DevLabPanel extends HTMLElement {
       s.querySelector("#manage-name").value = settingsDraft.name;
       s.querySelector("#manage-note").value = settingsDraft.note;
       s.querySelector("#manage-active").checked = settingsDraft.active;
+      s.querySelector("#manage-access-mode").value = settingsDraft.accessMode;
       s.querySelector("#manage-token").value = settingsDraft.token;
     }
     s.querySelector("#manage-token-save")?.addEventListener("click", () => this._saveProjectToken());
+    s.querySelector("#manage-connection-check")?.addEventListener("click", () => this._checkProjectConnection(this._projectSettingsRepo));
     s.querySelector("#manage-close")?.addEventListener("click", () => this._closeProjectSettings());
     s.querySelector("#manage-cancel")?.addEventListener("click", () => this._closeProjectSettings());
     s.querySelector("#manage-save")?.addEventListener("click", () => {
@@ -1622,7 +1640,8 @@ class DRAV2DevLabPanel extends HTMLElement {
         const name = s.querySelector("#manage-name")?.value.trim() || "";
         const note = s.querySelector("#manage-note")?.value || "";
         const active = s.querySelector("#manage-active")?.checked === true;
-        this._projectAction("add", {repository:repo,name,note,active});
+        const access_mode = s.querySelector("#manage-access-mode")?.value || "read_only";
+        this._projectAction("add", {repository:repo,name,note,active,access_mode});
         this._projectSettingsRepo = null;
       } else this._saveProjectSettings();
     });
