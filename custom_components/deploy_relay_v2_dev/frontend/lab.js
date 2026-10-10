@@ -12,6 +12,9 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._settingsBusy = false;
     this._expandedSections = new Set();
     this._view = "main";
+    this._viewHistoryKey = "dra-v2-" + Math.random().toString(36).slice(2);
+    this._viewHistoryActive = false;
+    this._boundHistoryPop = event => this._onHistoryPop(event);
     this._selectedMainRepo = null;
     this._projectPickerOpen = false;
     this._mainSourceRef = "";
@@ -81,6 +84,9 @@ class DRAV2DevLabPanel extends HTMLElement {
   }
 
   connectedCallback() {
+    if (typeof window !== "undefined") {
+      window.addEventListener("popstate", this._boundHistoryPop);
+    }
     this._render();
     if (this._hass && !this._loaded) {
       this._loaded = true;
@@ -89,11 +95,65 @@ class DRAV2DevLabPanel extends HTMLElement {
   }
 
   disconnectedCallback() {
+    if (typeof window !== "undefined") {
+      window.removeEventListener("popstate", this._boundHistoryPop);
+    }
+    this._viewHistoryActive = false;
     if (this._timer !== null) clearTimeout(this._timer);
     this._timer = null;
     if (this._countdownTimer !== null) clearTimeout(this._countdownTimer);
     this._countdownTimer = null;
     this._loaded = false;
+  }
+
+  _onHistoryPop(event) {
+    // A native Android back action goes to the immediately preceding history
+    // entry. If the settings subview was open, that entry is the DRA main view.
+    if (!this.isConnected || typeof window === "undefined") return;
+    const marker = event?.state?.dra_v2_dev_view;
+    if (marker === this._viewHistoryKey) {
+      this._viewHistoryActive = true;
+      if (this._view !== "settings") {
+        this._view = "settings";
+        this._render();
+      }
+    } else if (this._viewHistoryActive || this._view === "settings") {
+      this._viewHistoryActive = false;
+      this._view = "main";
+      this._render();
+    }
+  }
+
+  _navigateMainView(nextView) {
+    if (nextView !== "main" && nextView !== "settings") return;
+    if (this._view === nextView) return;
+    if (nextView === "settings") {
+      if (typeof window !== "undefined") {
+        try {
+          const previous = window.history.state;
+          const state = previous && typeof previous === "object" && !Array.isArray(previous)
+            ? {...previous} : {};
+          state.dra_v2_dev_view = this._viewHistoryKey;
+          // Same URL: creates one native back step without changing the HA route.
+          window.history.pushState(state, "", window.location.href);
+          this._viewHistoryActive = true;
+        } catch (_error) {
+          // Browsers without a usable History API retain the visible UI toggle.
+          this._viewHistoryActive = false;
+        }
+      }
+      this._view = "settings";
+      this._render();
+      return;
+    }
+    // The onscreen "Hauptmenü" button must consume the same history entry as
+    // the Android hardware back key; never leave a phantom extra back step.
+    const shouldConsume = this._viewHistoryActive && typeof window !== "undefined" &&
+      window.history.state?.dra_v2_dev_view === this._viewHistoryKey;
+    this._viewHistoryActive = false;
+    this._view = "main";
+    this._render();
+    if (shouldConsume) window.history.back();
   }
 
   _active() {
@@ -2229,7 +2289,7 @@ class DRAV2DevLabPanel extends HTMLElement {
 
       </main>
     `;
-    s.querySelector("#dra-toggle")?.addEventListener("click",()=>{this._view=this._view==="main"?"settings":"main";this._render();});
+    s.querySelector("#dra-toggle")?.addEventListener("click",()=>this._navigateMainView(this._view==="main"?"settings":"main"));
     s.querySelector("#dra-refresh")?.addEventListener("click",()=>this._refresh());
     s.querySelector("#dra-project-picker-open")?.addEventListener("click",()=>this._openProjectPicker());
     s.querySelector("#dra-picker-close")?.addEventListener("click",()=>this._closeProjectPicker());
