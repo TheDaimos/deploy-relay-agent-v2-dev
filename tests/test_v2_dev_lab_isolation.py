@@ -229,6 +229,28 @@ class LabIsolationContracts(unittest.TestCase):
         self.assertIn('this._mainSourceRef = ""', frontend)
         self.assertIn('this._sourceCheck({dataset:{repo:mainProject.repository}})', frontend)
 
+    def test_main_view_has_no_redundant_project_or_diagnostics_cards(self):
+        frontend = (LAB_ROOT / "frontend/lab.js").read_text(encoding="utf-8")
+        main_start = frontend.index('id="dra-main-view"')
+        settings_start = frontend.index('id="dra-settings-view"', main_start)
+        main = frontend[main_start:settings_start]
+        settings = frontend[settings_start:]
+        self.assertIn('id="dra-project-manage"', main)
+        self.assertIn('Geführter Ablauf', main)
+        self.assertIn('Quelle & Version', main)
+        self.assertIn('id="dra-main-ref"', main)
+        self.assertIn('id="dra-preview"', main)
+        self.assertNotIn('id="dra-settings-project"', frontend)
+        self.assertNotIn('id="dra-open-diagnostics"', frontend)
+        self.assertNotIn('<h2>Diagnose & Logs</h2>', main)
+        self.assertNotIn('<p>Manifest: deploy-relay.json</p>', main)
+        self.assertNotIn('Status: Registrierung vorhanden; Quelle noch nicht geprüft', main)
+        self.assertNotIn('dra-main-grid', frontend)
+        self.assertNotIn('Während eines laufenden Tests wird', main)
+        self.assertIn('Während eines laufenden Tests wird', settings)
+        self.assertEqual(frontend.count('Während eines laufenden Tests wird'), 1)
+        self.assertIn('id="project-management-dialog"', frontend)
+
     def test_mobile_header_and_project_settings_actions_stay_on_one_row(self):
         frontend = (LAB_ROOT / "frontend/lab.js").read_text(encoding="utf-8")
         self.assertIn('class="dialog-actions manage-dialog-actions', frontend)
