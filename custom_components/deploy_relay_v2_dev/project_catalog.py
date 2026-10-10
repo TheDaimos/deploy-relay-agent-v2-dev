@@ -71,7 +71,7 @@ def sanitize_entry(row: object) -> dict[str, object]:
         raise CatalogError("invalid batch preselection")
     active = row.get("active", True)
     note = row.get("note", "")
-    if type(active) is not bool or type(note) is not str or len(note) > 500 or any(ord(c) < 32 and c not in "\\n\\t" for c in note):
+    if type(active) is not bool or type(note) is not str or len(note) > 500 or any(ord(c) < 32 and c not in (chr(10), chr(9)) for c in note):
         raise CatalogError("invalid project settings")
     return {
         "active": active, "note": note,
