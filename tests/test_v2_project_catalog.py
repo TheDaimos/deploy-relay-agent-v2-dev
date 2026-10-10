@@ -94,13 +94,13 @@ class V2ProjectCatalogTests(unittest.IsolatedAsyncioTestCase):
             ("TheDaimos/weather-router-dev", "WeatherRouter", 17),
             ("TheDaimos/gewitterradar", "Gewitterradar", 10),
         )
-        result = await self.catalog.import_v1(v1)
+        result = await self.catalog.import_v1(v1, [p["repository"] for p in m.v1_proposals(v1)])
         self.assertEqual(result, {"added": 2, "already_present": 0})
         self.assertEqual(self.store.writes, 1)
         self.assertNotIn("PRIVATE", str(self.store.value))
         self.assertNotIn("selected_source_commit", str(self.store.value))
         self.assertNotIn("backup_path", str(self.store.value))
-        self.assertEqual((await self.catalog.import_v1(v1))["added"], 0)
+        self.assertEqual((await self.catalog.import_v1(v1, [p["repository"] for p in m.v1_proposals(v1)]))["added"], 0)
         self.assertEqual(self.store.writes, 1)
         new = m.ProjectCatalog(self.store)
         await new.load()
@@ -159,6 +159,16 @@ class V2ProjectCatalogTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(m.CatalogError):
             await m.ProjectCatalog(s).load()
 
+    async def test_import_selection_only_imports_selected_and_rejects_unknown(self):
+        v1 = v1_projects(("TheDaimos/weather-router-dev", "WeatherRouter", 10),
+                         ("TheDaimos/gewitterradar", "Gewitterradar", 10))
+        self.assertEqual((await self.catalog.import_v1(v1, ["TheDaimos/gewitterradar"]))["added"], 1)
+        self.assertEqual([x["repository"] for x in self.catalog.list()], ["TheDaimos/gewitterradar"])
+        with self.assertRaises(m.CatalogError):
+            await self.catalog.import_v1(v1, ["TheDaimos/unlisted"])
+        with self.assertRaises(m.CatalogError):
+            await self.catalog.import_v1(v1, ["TheDaimos/gewitterradar", "TheDaimos/gewitterradar"])
+
     async def test_failed_store_write_leaves_current_memory_unchanged(self):
         self.store.fail = True
         with self.assertRaises(m.CatalogError):
@@ -169,7 +179,7 @@ class V2ProjectCatalogTests(unittest.IsolatedAsyncioTestCase):
     async def test_corrupt_v1_entry_blocks_complete_import(self):
         v1 = v1_projects(("TheDaimos/a", "A", 10), ("TheDaimos/b", "B", 1))
         with self.assertRaises(m.CatalogError):
-            await self.catalog.import_v1(v1)
+            await self.catalog.import_v1(v1, [p["repository"] for p in m.v1_proposals(v1)])
         self.assertEqual(self.catalog.list(), [])
         self.assertEqual(self.store.writes, 0)
 
