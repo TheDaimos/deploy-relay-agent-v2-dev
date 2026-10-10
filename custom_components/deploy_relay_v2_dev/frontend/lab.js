@@ -34,6 +34,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._sourceMessage = "";
     this._sourcePreview = null;
     this._sourceChecks = new Map();
+    this._connectionBusy = false;
     this._gitReadConfigured = false;
     this._gitReadBusy = false;
     this._gitReadMessage = "";
@@ -517,10 +518,8 @@ class DRAV2DevLabPanel extends HTMLElement {
         throw new Error("ungueltiges Quellpruefungsergebnis");
       }
       this._sourcePreview = report;
-      this._sourceChecks.set(repository, true);
       this._sourceMessage = "Quellprüfung abgeschlossen. Keine Installation freigegeben.";
     } catch (_error) {
-      this._sourceChecks.set(repository, false);
       this._sourceMessage = "Quelle nicht erreichbar oder sicherheitstechnisch nicht prüfbar. Kein Update als aktuell bestätigt.";
     } finally {
       this._sourceBusy = false;
@@ -528,6 +527,53 @@ class DRAV2DevLabPanel extends HTMLElement {
     }
   }
 
+  async _checkProjectConnection(repository) {
+    if (!this._hass || this._connectionBusy || this._projectBusy) return;
+    const record = this._projects.find(p=>p.repository===repository);
+    if (!record) return;
+    const entered = this.shadowRoot?.querySelector("#manage-repository");
+    if (this._projectSettingsRepo === repository && entered &&
+        entered.value.trim().toLowerCase() !== repository.toLowerCase()) {
+      this._sourceChecks.set(repository, {status:"failure", message:"Geänderte Repositoryadresse zuerst speichern."});
+      this._render();
+      return;
+    }
+    const tokenInput = this._projectSettingsRepo === repository ?
+      this.shadowRoot?.querySelector("#manage-token") : null;
+    if (tokenInput?.value) {
+      this._sourceChecks.set(repository, {status:"failure", message:"Neuen Token zuerst speichern, dann prüfen."});
+      this._render();
+      return;
+    }
+    this._connectionBusy = true;
+    this._sourceChecks.set(repository, {status:"checking",message:"Verbindung wird geprüft …"});
+    this._render();
+    try {
+      const report = await this._hass.callWS({
+        type:"deploy_relay_v2_dev/projects/connection_check",repository
+      });
+      if (!report || report.repository?.toLowerCase() !== repository.toLowerCase()) {
+        throw new Error("invalid response");
+      }
+      if (report.connected === true) {
+        const visibility = report.private ? "Privates Repository" : "Öffentliches Repository";
+        const auth = report.authenticated ? "mit Token" : "ohne Token";
+        const rights = report.advertised_push === true ? " · GitHub meldet Schreibberechtigung (nicht getestet)" :
+          report.advertised_push === false ? " · GitHub meldet nur Lesezugriff" : "";
+        this._sourceChecks.set(repository, {status:"success",
+          message:"Verbindung erfolgreich · " + visibility + " · " + auth + rights});
+      } else {
+        this._sourceChecks.set(repository, {status:"failure",
+          message:"Verbindung fehlgeschlagen · " + (report.reason || "Repository oder Token prüfen.")});
+      }
+    } catch (_error) {
+      this._sourceChecks.set(repository, {status:"failure",
+        message:"Verbindung fehlgeschlagen · Zugriff oder GitHub-Erreichbarkeit prüfen."});
+    } finally {
+      this._connectionBusy = false;
+      if (this.isConnected) this._render();
+    }
+  }
   _openProjectDialog() {
     this._projectDialogOpen = true;
     this._render();
@@ -754,17 +800,27 @@ class DRAV2DevLabPanel extends HTMLElement {
     const unsentRepository = typeof previousRepo === "string" ? previousRepo : null;
     const activeMainProjects = this._projects.filter(p => p.active !== false);
     const mainProject = activeMainProjects.find(p => p.repository === this._selectedMainRepo) || activeMainProjects[0] || null;
+    const iconSvg = (body) => `<svg class="project-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
+    const gearIcon = iconSvg('<circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06-2.87 2.87-.06-.06a1.7 1.7 0 0 0-1.87-.34l-.1.04a1.7 1.7 0 0 0-1.04 1.56V21H10v-.01a1.7 1.7 0 0 0-1.04-1.56l-.1-.04a1.7 1.7 0 0 0-1.87.34l-.06.06-2.87-2.87.06-.06A1.7 1.7 0 0 0 4.46 15a1.7 1.7 0 0 0-1.56-1.04H2.9v-3.92h.01A1.7 1.7 0 0 0 4.47 9a1.7 1.7 0 0 0-.34-1.87l-.06-.06L6.94 4.2l.06.06A1.7 1.7 0 0 0 8.87 4l.1-.04A1.7 1.7 0 0 0 10 2.4V2h3.92v.4A1.7 1.7 0 0 0 14.96 4l.1.04a1.7 1.7 0 0 0 1.87-.34l.06-.06 2.87 2.87-.06.06A1.7 1.7 0 0 0 19.46 9a1.7 1.7 0 0 0 1.56 1.04h.08v3.92h-.08A1.7 1.7 0 0 0 19.46 15Z"></path>');
+    const upIcon = iconSvg('<path d="M12 19V5m-7 7 7-7 7 7"/>');
+    const downIcon = iconSvg('<path d="M12 5v14m-7-7 7 7 7-7"/>');
+    const pendingIcon = iconSvg('<circle cx="12" cy="12" r="9"/><path d="M9.8 9a2.5 2.5 0 0 1 4.4 1.6c0 1.7-2.2 2.1-2.2 3.4"/><path d="M12 17h.01"/>');
+    const onlineIcon = iconSvg('<circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/>');
+    const failureIcon = iconSvg('<circle cx="12" cy="12" r="9"/><path d="m9 9 6 6m0-6-6 6"/>');
     const projectRows = this._projects.map((p,i) => {
-      const state = this._sourceBusy && this._sourceRepository === p.repository ? "Prüfung läuft" :
-        this._sourceChecks.has(p.repository) ? (this._sourceChecks.get(p.repository) ? "Online" : "Nicht verfügbar") : "Nicht geprüft";
-      const color = state === "Online" ? "success" : state === "Nicht verfügbar" ? "error" : "note";
+      const test = this._sourceChecks.get(p.repository);
+      const state = test?.status || "unverified";
+      const label = state === "success" ? "Online" : state === "failure" ? "Fehlgeschlagen" :
+        state === "checking" ? "Prüfung läuft" : "Nicht geprüft";
+      const icon = state === "success" ? onlineIcon : state === "failure" ? failureIcon : pendingIcon;
       return `<tr><td>${i+1}</td>
         <td><strong>${this._escapeProject(p.name)}</strong><div class="note">${this._escapeProject(p.repository)}</div>
           ${p.active === false ? '<span class="note">Inaktiv</span>' : ""}</td>
-        <td><button class="source-check ${color}" data-repo="${this._escapeProject(p.repository)}" ${this._sourceBusy ? "disabled" : ""} aria-label="Git-Status für ${this._escapeProject(p.name)} prüfen">${state}</button></td>
-        <td><button class="project-settings-open" data-repo="${this._escapeProject(p.repository)}" aria-label="Einstellungen für ${this._escapeProject(p.name)}">⚙</button></td>
-        <td><button class="project-move" data-repo="${this._escapeProject(p.repository)}" data-direction="-1" ${i===0 || this._projectBusy ? "disabled" : ""} aria-label="Nach oben">↑</button>
-        <button class="project-move" data-repo="${this._escapeProject(p.repository)}" data-direction="1" ${i===this._projects.length-1 || this._projectBusy ? "disabled" : ""} aria-label="Nach unten">↓</button></td></tr>`;
+        <td><button class="source-check ${state}" data-repo="${this._escapeProject(p.repository)}"
+          ${this._connectionBusy || this._projectBusy ? "disabled" : ""} aria-label="Verbindung für ${this._escapeProject(p.name)} prüfen">${icon}<span>${label}</span></button></td>
+        <td><button class="project-settings-open" data-repo="${this._escapeProject(p.repository)}" aria-label="Einstellungen für ${this._escapeProject(p.name)}">${gearIcon}</button></td>
+        <td><button class="project-move" data-repo="${this._escapeProject(p.repository)}" data-direction="-1" ${i===0 || this._projectBusy ? "disabled" : ""} aria-label="Nach oben">${upIcon}</button>
+        <button class="project-move" data-repo="${this._escapeProject(p.repository)}" data-direction="1" ${i===this._projects.length-1 || this._projectBusy ? "disabled" : ""} aria-label="Nach unten">${downIcon}</button></td></tr>`;
     }).join("");
     const managed = this._projects.find(p => p.repository === this._projectSettingsRepo);
     const batchRows = this._projects.map(p => {
