@@ -31,6 +31,8 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._gitReadBusy = false;
     this._gitReadMessage = "";
     this._v1Candidates = null;
+    this._importDialogOpen = false;
+    this._importSelection = [];
     this._gitConfigured = false;
     this._centralExport = {configured:false,repository_configured:false,server_token_available:false,pending:false,repository:null};
     this._archiveBusy = false;
@@ -426,6 +428,8 @@ class DRAV2DevLabPanel extends HTMLElement {
       });
       if (route === "v1_preview") {
         this._v1Candidates = Array.isArray(result.candidates) ? result.candidates : [];
+        this._importSelection = [];
+        this._importDialogOpen = true;
         this._projectMessage = this._v1Candidates.length + " Projekte gefunden. Übernahme ausdrücklich bestätigen."; 
       } else {
         this._projects = Array.isArray(result.projects) ? result.projects : [];
@@ -441,6 +445,8 @@ class DRAV2DevLabPanel extends HTMLElement {
           this._projectSaved.set(saved.repository, saved.backup_retention);
         }
         this._v1Candidates = null;
+        this._importDialogOpen = false;
+        this._importSelection = [];
         if (route === "import_v1" || route === "add") {
           this._batchSelection = null;
           this._batchPreview = null;
@@ -513,6 +519,18 @@ class DRAV2DevLabPanel extends HTMLElement {
     }
   }
 
+  _cancelProjectImport() {
+    if (this._projectBusy) return;
+    this._importDialogOpen = false;
+    this._v1Candidates = null;
+    this._importSelection = [];
+    this._projectMessage = "";
+    this._render();
+  }
+  _submitProjectImport() {
+    if (!this._importSelection.length) return;
+    return this._projectAction("import_v1", {repositories:[...this._importSelection]});
+  }
   _addProject() {
     const repo = this.shadowRoot?.querySelector("#project-repo")?.value || "";
     const name = this.shadowRoot?.querySelector("#project-name")?.value || "";
@@ -682,7 +700,7 @@ class DRAV2DevLabPanel extends HTMLElement {
       const more = files.length > limit ? `<li>… und ${files.length-limit} weitere</li>` : "";
       return sample + more;
     };
-    const previewRows = Array.isArray(this._v1Candidates) ? this._v1Candidates.map(p => `<li>${this._escapeProject(p.name)} – ${this._escapeProject(p.repository)}</li>`).join("") : "";
+    const importRows = Array.isArray(this._v1Candidates) ? this._v1Candidates.map(p => `<label class="batch-line"><input type="checkbox" class="import-choice" data-repo="${this._escapeProject(p.repository)}" ${this._importSelection.includes(p.repository) ? "checked" : ""} /> <strong>${this._escapeProject(p.name)}</strong><span class="note"> · ${this._escapeProject(p.repository)}</span></label>`).join("") : "";
     const op = this._operation;
     const busy = this._busy || this._active() || this._gitBusy;
     const suite = this._suite && op && this._suite.operation_id === op.operation_id ? this._suite : null;
@@ -1004,10 +1022,7 @@ class DRAV2DevLabPanel extends HTMLElement {
           <button id="backup-dialog-open">Backup &amp; Retention</button>
           <p class="note">Projektmetadaten getrennt von DRA V1 verwalten. V1 bleibt unverändert.
           Übernahme kopiert weder Git-Zugangsdaten noch Installationsstände oder Sicherungsdateien.</p>
-          <button id="project-preview" ${this._projectBusy ? "disabled" : ""}>Projekte aus DRA V1 übernehmen</button>
-          ${this._v1Candidates !== null ? `<p>${this._v1Candidates.length} V1-Projekte gefunden:</p><ul>${previewRows}</ul>
-          <button id="project-import" ${this._projectBusy || this._v1Candidates.length === 0 ? "disabled" : ""}>Diese Projekte in V2 übernehmen</button>
-          <button id="project-cancel">Übernahme abbrechen</button>` : ""}
+          <button id="project-preview" ${this._projectBusy ? "disabled" : ""}>Projektimport</button>
           <p><strong>Neues Projekt hinterlegen</strong></p>
           <label>GitHub-Repository (Eigentümer/Repository)<input id="project-repo" class="project-text" placeholder="TheDaimos/projekt-dev" autocomplete="off" /></label>
           <label>Anzeigename (optional)<input id="project-name" class="project-text" placeholder="Mein Projekt" autocomplete="off" /></label>
@@ -1059,6 +1074,22 @@ class DRAV2DevLabPanel extends HTMLElement {
         </article>
 
         </div>
+        ${this._importDialogOpen ? `
+          <div class="git-dialog-backdrop">
+            <section class="git-dialog" id="project-import-dialog" role="dialog" aria-modal="true" aria-labelledby="project-import-title">
+              <header>
+                <h2 id="project-import-title">Projektimport · DRA V1</h2>
+                <button id="project-import-all" ${this._projectBusy ? "disabled" : ""}>Alle auswählen</button>
+              </header>
+              <p class="note">Nur ausgewählte Projektinformationen werden übernommen. Keine Tokens, Sicherungen oder Installationen.</p>
+              <div class="batch-options">${importRows || '<p class="note">Keine Projekte verfügbar.</p>'}</div>
+              <p class="note" role="status">${this._escapeProject(this._projectMessage)}</p>
+              <div class="dialog-actions">
+                <button id="project-import" ${this._projectBusy || !this._importSelection.length ? "disabled" : ""}>Importieren</button>
+                <button id="project-cancel" ${this._projectBusy ? "disabled" : ""}>Abbrechen</button>
+              </div>
+            </section>
+          </div>` : ""}
         ${this._backupDialogOpen ? `
           <div class="git-dialog-backdrop">
             <section class="git-dialog backup-dialog" id="backup-dialog" role="dialog"
@@ -1218,8 +1249,16 @@ class DRAV2DevLabPanel extends HTMLElement {
     s.querySelector("#git-read-save")?.addEventListener("click", () => this._configureGitRead(false));
     s.querySelector("#git-read-clear")?.addEventListener("click", () => this._configureGitRead(true));
     s.querySelector("#project-preview")?.addEventListener("click", () => this._projectAction("v1_preview"));
-    s.querySelector("#project-import")?.addEventListener("click", () => this._projectAction("import_v1"));
-    s.querySelector("#project-cancel")?.addEventListener("click", () => { this._v1Candidates = null; this._render(); });
+    s.querySelector("#project-import")?.addEventListener("click", () => this._submitProjectImport());
+    s.querySelector("#project-cancel")?.addEventListener("click", () => this._cancelProjectImport());
+    s.querySelector("#project-import-all")?.addEventListener("click", () => {
+      this._importSelection = (this._v1Candidates || []).map(p => p.repository);
+      this._render();
+    });
+    s.querySelectorAll(".import-choice").forEach(input => input.addEventListener("change", () => {
+      this._importSelection = [...s.querySelectorAll(".import-choice")].filter(x => x.checked).map(x => x.dataset.repo);
+      this._render();
+    }));
     s.querySelector("#project-add")?.addEventListener("click", () => this._addProject());
     s.querySelectorAll(".retention-save")?.forEach(button => {
       button.addEventListener("click", () => this._retention(button));
