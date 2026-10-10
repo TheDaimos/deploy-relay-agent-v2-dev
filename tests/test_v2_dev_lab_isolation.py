@@ -289,6 +289,29 @@ class LabIsolationContracts(unittest.TestCase):
         self.assertNotIn('aria-label="Nach oben">↑', frontend)
         self.assertNotIn('aria-label="Nach unten">↓', frontend)
 
+    def test_project_tiles_and_status_buttons_share_fixed_visual_contract(self):
+        frontend = (LAB_ROOT / "frontend/lab.js").read_text(encoding="utf-8")
+        for term in (
+            '"unverified";',
+            '? "Online" : state === "failure" ? "Offline"',
+            ': "Prüfen";',
+            'class="project-row connection-',
+            'recently-moved',
+            'width:154px; max-width:100%; min-width:0; min-height:44px; height:44px;',
+            'justify-content:center; align-items:center;',
+            'class="project-status-label"',
+            'project-moved-glow',
+            'prefers-reduced-motion:reduce',
+            'this._highlightMovedRepo = repo;',
+            'this._scrollToMovedProject = true;',
+            'movedRow?.scrollIntoView({block:"nearest", behavior:"smooth"})',
+            'projectDialog.scrollTop = previousProjectScroll',
+        ):
+            self.assertIn(term, frontend)
+        self.assertIn('connection-success', frontend)
+        self.assertIn('connection-failure', frontend)
+        self.assertNotIn('"Fehlgeschlagen" :', frontend)
+
     def test_config_flow_uses_test_domain_not_v1_domain(self):
         source = (LAB_ROOT / "config_flow.py").read_text(encoding="utf-8")
         self.assertIn("ConfigFlow, domain=DOMAIN", source)
