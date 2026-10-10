@@ -230,6 +230,23 @@ class LabIsolationContracts(unittest.TestCase):
         self.assertIn('this._mainSourceRef = ""', frontend)
         self.assertIn('this._sourceCheck({dataset:{repo:mainProject.repository}})', frontend)
 
+    def test_android_back_from_diagnostics_returns_to_dra_main(self):
+        frontend = (LAB_ROOT / "frontend/lab.js").read_text(encoding="utf-8")
+        for part in (
+            'this._viewHistoryKey = "dra-v2-"',
+            'this._viewHistoryActive = false;',
+            'window.addEventListener("popstate", this._boundHistoryPop)',
+            'window.removeEventListener("popstate", this._boundHistoryPop)',
+            '_onHistoryPop(event) {',
+            '_navigateMainView(nextView) {',
+            'window.history.pushState(state, "", window.location.href)',
+            'window.history.back()',
+            'state.dra_v2_dev_view = this._viewHistoryKey',
+            'this._navigateMainView(this._view==="main"?"settings":"main")',
+        ):
+            self.assertIn(part, frontend)
+        self.assertNotIn('this._view=this._view==="main"?"settings":"main";this._render()', frontend)
+
     def test_main_view_has_no_redundant_project_or_diagnostics_cards(self):
         frontend = (LAB_ROOT / "frontend/lab.js").read_text(encoding="utf-8")
         main_start = frontend.index('id="dra-main-view"')
