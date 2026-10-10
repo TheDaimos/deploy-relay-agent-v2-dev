@@ -398,7 +398,7 @@ class LabIsolationContracts(unittest.TestCase):
         body_open = frontend.index('id="project-management-scroll"', header_end)
         first_paragraph = frontend.index('Reihenfolge: Anzeige, Standardprojekt', body_open)
         footer = frontend.index('id="project-management-dismiss"', first_paragraph)
-        closing = re.search(r"</div>\\s*</section>", frontend[footer:])
+        closing = re.search(r"</div>\s*</section>", frontend[footer:])
         self.assertIsNotNone(closing, "Scroll region must close before modal shell")
         self.assertLess(header_end, body_open)
         self.assertLess(body_open, first_paragraph)
