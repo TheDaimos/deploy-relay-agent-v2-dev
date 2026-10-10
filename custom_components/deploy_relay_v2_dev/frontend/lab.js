@@ -1390,8 +1390,15 @@ class DRAV2DevLabPanel extends HTMLElement {
         .dra-deploy-action.stage-2:disabled {opacity:1;cursor:not-allowed;transform:none;}
         .dra-deploy-action.is-busy {opacity:1;border-color:#56bfdc;cursor:progress;}
         .dra-deploy-action.is-busy .project-icon {animation:dra-deploy-spin 1.15s linear infinite;}
+        .dra-deploy-action.is-busy {overflow:hidden;}
+        .dra-deploy-action.is-busy::after {
+          content:"";position:absolute;inset:0;transform:translateX(-110%);
+          background:linear-gradient(90deg,transparent,rgba(255,255,255,.28),transparent);
+          animation:dra-deploy-sheen 1.15s ease-in-out infinite;pointer-events:none;
+        }
+        @keyframes dra-deploy-sheen {55%,100% {transform:translateX(110%);}}
         @keyframes dra-deploy-spin {to {transform:rotate(360deg);}}
-        .dra-deploy-progress {overflow:hidden;position:relative;margin:17px 0 15px;height:7px;
+        .dra-deploy-progress {overflow:hidden;position:relative;margin:17px 0 15px;height:4px;
           border-radius:99px;border:1px solid #456272;
           background:linear-gradient(180deg,#07141e,#273d49 54%,#101f2b);
           box-shadow:inset 0 1px 3px #000b,0 1px 0 #b8dce01c;}
@@ -1400,12 +1407,13 @@ class DRAV2DevLabPanel extends HTMLElement {
           box-shadow:0 0 7px #32d0ecaa;transition:width .32s ease;}
         .dra-deploy-progress.verified .dra-deploy-progress-fill {width:25%;}
         .dra-deploy-progress.running .dra-deploy-progress-fill {
-          width:40%;animation:dra-v1-loader-sweep 1.8s ease-in-out infinite;
+          width:42%;animation:dra-v1-loader-sweep 1.05s ease-in-out infinite;
           background:linear-gradient(90deg,transparent,#39d7f3 28%,#c1faff 55%,#1b9ec6);
         }
         @keyframes dra-v1-loader-sweep {
           0% {transform:translateX(-110%);}
-          100% {transform:translateX(260%);}
+          55% {transform:translateX(85%);}
+          100% {transform:translateX(245%);}
         }
         .dra-deploy-steps {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;}
         .dra-deploy-step {box-sizing:border-box;display:flex;align-items:center;justify-content:center;
@@ -1430,6 +1438,7 @@ class DRAV2DevLabPanel extends HTMLElement {
         }
         @media(prefers-reduced-motion:reduce){
           .dra-deploy-action.is-busy .project-icon {animation:none;}
+          .dra-deploy-action.is-busy::after {animation:none;display:none;}
           .dra-deploy-progress.running .dra-deploy-progress-fill {animation:none;width:40%;}
           .dra-deploy-progress-fill {transition:none;}
         }
@@ -2635,7 +2644,9 @@ class DRAV2DevLabPanel extends HTMLElement {
       // Source previews are bound to the exact requested reference.
       this._sourcePreview=null;
       this._deploymentPreviewRef=null;
+      this._sourceMessage="Referenz geändert. Vorschau erneut berechnen.";
     });
+    s.querySelector("#dra-main-ref")?.addEventListener("change",()=>this._render());
     s.querySelector("#dra-project-manage")?.addEventListener("click",()=>this._openProjectDialog());
     s.querySelector("#dra-preview")?.addEventListener("click",()=>{
       if (deploymentBusy || deploymentStage !== 1) return;
