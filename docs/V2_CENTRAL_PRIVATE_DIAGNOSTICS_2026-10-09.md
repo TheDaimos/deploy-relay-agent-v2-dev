@@ -181,3 +181,9 @@ Offen für einen echten produktiven V2-Einsatz: eigenständige sichere Schreibfr
 ## V2 DEV 0.1.35 – Direkte Referenzwahl in der Hauptansicht (10.10.2026)
 
 Unter „Quelle & Version“ kann die Git-Referenz (Branch, Tag oder Commit; leer für Standardzweig) direkt in der neuen Hauptansicht angegeben werden. Schritt 2 ruft die existierende schreibgeschützte V2-Git-Prüfung für das ausgewählte registrierte Projekt und diese Referenz auf. Ergebnis, Commit und Dateidifferenz-Zähler erscheinen ohne Wechsel in das Untermenü. Die Schritte 3 und 4 bleiben aus Sicherheitsgründen gesperrt, da die eigenständige V2-Transaktionsabnahme noch aussteht.
+
+## V2 DEV 0.1.36 – Mobile Schaltflächenanordnung (10.10.2026)
+
+Die Kopfzeile der V2-Hauptansicht stellt bei Bildschirmbreiten bis 760 px den Status GESPERRT und die Versionsangabe gemeinsam oberhalb der beiden gleichzeilig angeordneten Schaltflächen „Aktualisieren“ und „Diagnose & Einstellungen“ dar. Die Aktionsschaltflächen dürfen dabei nicht auf zwei Zeilen umgebrochen werden; ihre Größen und Abstände wurden für Smartphonebreiten reduziert.
+
+Im Modal „Projekteinstellungen“ erscheinen die drei unteren Aktionen „Projekt entfernen“, „Abbrechen“ und „Speichern“ nebeneinander in einer einzigen Zeile. Auch die Zwei-Schaltflächenvariante beim Hinzufügen von Projekten bleibt in einer Reihe. Für sehr kleine Displays bis 360 px gelten kompaktere Abstände und Schriftgrößen. Die zweistufige Löschbestätigung und alle Backend-Berechtigungen bleiben unverändert. Mobile Darstellung wird im nächsten HA-Realtest visuell abgenommen.
