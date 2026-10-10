@@ -173,6 +173,15 @@ class LabIsolationContracts(unittest.TestCase):
         for field in ('settings-mode', 'settings-readonly', 'settings-workers'):
             self.assertEqual(frontend.count('id="' + field + '"'), 1)
 
+    def test_all_buttons_have_visible_press_and_focus_states(self):
+        frontend = (LAB_ROOT / "frontend/lab.js").read_text(encoding="utf-8")
+        self.assertIn('button:not(:disabled):active', frontend)
+        self.assertIn('button:not(:disabled):hover', frontend)
+        self.assertIn('button:focus-visible', frontend)
+        self.assertIn('prefers-reduced-motion:reduce', frontend)
+        self.assertIn('id="settings-save"', frontend)
+        self.assertNotIn('>Vorgaben speichern</button>', frontend)
+
     def test_config_flow_uses_test_domain_not_v1_domain(self):
         source = (LAB_ROOT / "config_flow.py").read_text(encoding="utf-8")
         self.assertIn("ConfigFlow, domain=DOMAIN", source)
