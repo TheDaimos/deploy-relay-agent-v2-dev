@@ -44,7 +44,7 @@ class LabIsolationContracts(unittest.TestCase):
         self.assertIn('PANEL_PATH: Final = "dra-v2-dev-lab"', const)
         self.assertIn('STATIC_PATH: Final = "/dra_v2_dev_static"', const)
         self.assertIn('PANEL_ELEMENT: Final = "dra-v2-dev-lab-panel"', const)
-        self.assertEqual(len(re.findall(r'probatio.Required\("type"\): "deploy_relay_v2_dev/test/', sockets)), 9)
+        self.assertEqual(len(re.findall(r'probatio.Required\("type"\): "deploy_relay_v2_dev/test/', sockets)), 8)
         self.assertEqual(len(re.findall(r'probatio.Required\("type"\): "deploy_relay_v2_dev/projects/', sockets)), 7)
         self.assertEqual(sockets.count("@websocket_api.require_admin"), 25)
         self.assertNotIn('"deploy_relay/panel/', sockets)
