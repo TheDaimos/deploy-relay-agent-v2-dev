@@ -235,8 +235,6 @@ class ProjectCatalog:
             if idx is None or any(i != idx and p["repository"].casefold() == replacement.casefold() for i,p in enumerate(rows)):
                 raise CatalogError("project missing or duplicate")
             candidate = sanitize_entry({**rows[idx], "repository":replacement, "name":name, "note":note, "active":active})
-            if replacement.casefold() != repo.casefold():
-                raise CatalogError("repository changes require a separate identity migration")
             rows[idx] = candidate
             await self._save(rows)
 
