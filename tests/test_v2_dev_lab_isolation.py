@@ -138,7 +138,9 @@ class LabIsolationContracts(unittest.TestCase):
         self.assertIn('class="source-inline" role="status"', frontend)
         self.assertIn('Prüfung läuft …', frontend)
         self.assertIn('Prüfung nicht erfolgreich', frontend)
-        self.assertIn('<th>Sammelupdate</th><th>Git-Quelle</th>', frontend)
+        self.assertIn('<th>Sicherungen behalten</th><th>Git-Quelle</th>', frontend)
+        self.assertNotIn('class="preselect-toggle"', frontend)
+        self.assertIn('class="batch-choice"', frontend)
         self.assertIn('@media (max-width:760px)', frontend)
 
     def test_config_flow_uses_test_domain_not_v1_domain(self):
