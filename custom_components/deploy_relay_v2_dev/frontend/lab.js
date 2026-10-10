@@ -874,6 +874,7 @@ class DRAV2DevLabPanel extends HTMLElement {
         .dra-main-grid article {margin-top:12px}
         .dra-steps {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
         .dra-steps button {margin:0;background:#233943;border:1px solid #396a96;padding:10px 4px}
+        .dra-steps button.current {background:#14516a;border-color:#14a8dc;font-weight:700}
         .dra-warning {border:1px solid #987323;background:rgba(160,110,10,.12);border-radius:10px;padding:14px;margin-top:14px}
         @media(max-width:760px){.dra-main-grid{grid-template-columns:1fr}.dra-steps{grid-template-columns:repeat(2,minmax(0,1fr))}}
         h1 { font-size:24px; margin:0 0 12px; }
@@ -1020,7 +1021,7 @@ class DRAV2DevLabPanel extends HTMLElement {
           <button disabled>Sicherungen</button></article>
           <div class="dra-warning"><strong>Gesperrter Betrieb</strong><div>Deployment-Schreibzugriffe sind deaktiviert. Vorschau und Diagnose bleiben verfügbar.</div></div>
           <article><h2>Geführter Ablauf</h2><p class="note">Orientierung am bewährten DRA-V1-Aufbau.</p>
-          <div class="dra-steps"><button id="dra-step1">1 · Stand auswählen</button><button id="dra-step2">2 · Vorschau prüfen</button>
+          <div class="dra-steps"><button id="dra-step1" class="current">1 · Stand auswählen</button><button id="dra-step2" class="${this._sourceRepository === mainProject?.repository && this._sourcePreview ? "current" : ""}">2 · Vorschau prüfen</button>
           <button disabled>3 · Schreibzugriff</button><button disabled>4 · Installieren</button></div></article>
           <div class="dra-main-grid">
           <article><h2>${mainProject ? this._escapeProject(mainProject.name) : "Kein aktives Projekt"}</h2>
@@ -1036,7 +1037,7 @@ class DRAV2DevLabPanel extends HTMLElement {
           <button disabled>3 · Schreibzugriff freigeben</button><button disabled>0 Änderungen installieren</button>
           <p class="note" role="status">${this._sourceRepository === mainProject?.repository ? this._escapeProject(this._sourceMessage) : "Noch keine Vorschau berechnet."}</p>
           ${this._sourceRepository === mainProject?.repository && this._sourcePreview ? `<p>Commit: ${this._escapeProject(this._sourcePreview.source_commit?.slice(0,12))} · Hinzugefügt: ${this._sourcePreview.add.length} · Geändert: ${this._sourcePreview.change.length} · Entfernt: ${this._sourcePreview.remove.length} · Unverändert: ${this._sourcePreview.unchanged_count}</p>` : ""}</article>
-          <article><h2>Diagnose & Logs</h2><p class="note">Bestehende Diagnose, Teststeuerung, Projektverwaltung und Git-Export bleiben erhalten.</p>
+          <article><h2>Diagnose & Logs</h2><p><strong>Letzter Teststatus:</strong> ${label} · ${progress}</p><p><strong>Diagnoseexport:</strong> ${this._diagnosticsExportReady ? "Verfügbar" : "Noch kein freigegebener Messlauf"}</p><p class="note">Teststeuerung, Projektverwaltung und Git-Export bleiben im Untermenü erreichbar.</p>
           <button id="dra-open-diagnostics">Diagnose & Einstellungen öffnen</button></article>
         </section>
         <section id="dra-settings-view" ${this._view==="settings"?"":"hidden"}>
