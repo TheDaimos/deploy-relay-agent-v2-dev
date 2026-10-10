@@ -186,8 +186,17 @@ class ProjectCatalog:
             await self._save(rows + [candidate])
             return dict(candidate)
 
-    async def import_v1(self, config_entries: object) -> dict[str, int]:
+    async def import_v1(self, config_entries: object, repositories: list[str]) -> dict[str, int]:
         proposals = v1_proposals(config_entries)
+        if type(repositories) is not list or len(repositories) > MAX_PROJECTS:
+            raise CatalogError("invalid selection")
+        selected = [normalize_repo(value).casefold() for value in repositories]
+        if len(set(selected)) != len(selected):
+            raise CatalogError("duplicate selection")
+        allowed = {p["repository"].casefold() for p in proposals}
+        if any(value not in allowed for value in selected):
+            raise CatalogError("unknown V1 project")
+        proposals = [p for p in proposals if p["repository"].casefold() in selected]
         async with self._lock:
             rows = self.list()
             have = {x["repository"].casefold() for x in rows}
