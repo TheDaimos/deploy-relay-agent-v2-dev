@@ -1120,13 +1120,11 @@ class DRAV2DevLabPanel extends HTMLElement {
           .dra-picker-header h2 {font-size:18px;}
           .dra-project-picker-field {width:100%;}
         }
-        .dra-main-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
-        .dra-main-grid article {margin-top:12px}
         .dra-steps {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
         .dra-steps button {margin:0;background:#233943;border:1px solid #396a96;padding:10px 4px}
         .dra-steps button.current {background:#14516a;border-color:#14a8dc;font-weight:700}
         .dra-warning {border:1px solid #987323;background:rgba(160,110,10,.12);border-radius:10px;padding:14px;margin-top:14px}
-        @media(max-width:760px){.dra-main-grid{grid-template-columns:1fr}.dra-steps{grid-template-columns:repeat(2,minmax(0,1fr))}}
+        @media(max-width:760px){.dra-steps{grid-template-columns:repeat(2,minmax(0,1fr))}}
         h1 { font-size:24px; margin:0 0 12px; }
         article { background:var(--card-background-color,#202020); border:1px solid var(--divider-color,#555); border-radius:14px; padding:20px; margin-top:18px; }
         p { line-height:1.5; }
@@ -1702,24 +1700,17 @@ class DRAV2DevLabPanel extends HTMLElement {
           <article><h2>Geführter Ablauf</h2><p class="note">Orientierung am bewährten DRA-V1-Aufbau.</p>
           <div class="dra-steps"><button id="dra-step1" class="current">1 · Stand auswählen</button><button id="dra-step2" class="${this._sourceRepository === mainProject?.repository && this._sourcePreview ? "current" : ""}">2 · Vorschau prüfen</button>
           <button disabled>3 · Schreibzugriff</button><button disabled>4 · Installieren</button></div></article>
-          <div class="dra-main-grid">
-          <article><h2>${mainProject ? this._escapeProject(mainProject.name) : "Kein aktives Projekt"}</h2>
-          <p>Repository: ${mainProject ? this._escapeProject(mainProject.repository) : "—"}</p>
-          <p>Manifest: deploy-relay.json</p><p>Status: Registrierung vorhanden; Quelle noch nicht geprüft</p>
-          <p>GitHub-Zugang: ${mainProject?.token_configured ? "Projekttoken vorhanden" : "Kein Projekttoken"}</p>
-          <button id="dra-settings-project" ${!mainProject?"disabled":""}>Projekt / Token verwalten</button></article>
           <article><h2>Quelle & Version</h2><div class="dra-warning">Empfohlenes Deployment konnte noch nicht sicher bestimmt werden.</div>
           <p>Ausgewählt: ${mainProject ? this._escapeProject(mainProject.repository) : "—"}</p>
           <p>Quellstand: ${this._sourceRepository === mainProject?.repository && this._sourcePreview ? this._escapeProject(this._sourcePreview.source_commit?.slice(0,12)) : "Noch nicht geprüft"}</p>
           <label>Git-Referenz (Branch, Tag oder Commit; leer = Standardzweig)
           <input id="dra-main-ref" class="project-text" placeholder="z. B. deploy/dev" value="${this._escapeProject(this._mainSourceRef)}" autocomplete="off" /></label>
-          <button id="dra-source" ${!mainProject?"disabled":""}>Erweiterte Quellenauswahl</button></article></div>
+          <button id="dra-source" ${!mainProject?"disabled":""}>Erweiterte Quellenauswahl</button></article>
           <article><h2>Vorschau</h2><button id="dra-preview" ${!mainProject?"disabled":""}>2 · Vorschau vorbereiten</button>
           <button disabled>3 · Schreibzugriff freigeben</button><button disabled>0 Änderungen installieren</button>
           <p class="note" role="status">${this._sourceRepository === mainProject?.repository ? this._escapeProject(this._sourceMessage) : "Noch keine Vorschau berechnet."}</p>
           ${this._sourceRepository === mainProject?.repository && this._sourcePreview ? `<p>Commit: ${this._escapeProject(this._sourcePreview.source_commit?.slice(0,12))} · Hinzugefügt: ${this._sourcePreview.add.length} · Geändert: ${this._sourcePreview.change.length} · Entfernt: ${this._sourcePreview.remove.length} · Unverändert: ${this._sourcePreview.unchanged_count}</p>` : ""}</article>
-          <article><h2>Diagnose & Logs</h2><p><strong>Letzter Teststatus:</strong> ${label} · ${progress}</p><p><strong>Diagnoseexport:</strong> ${this._diagnosticsExportReady ? "Verfügbar" : "Noch kein freigegebener Messlauf"}</p><p class="note">Teststeuerung, Projektverwaltung und Git-Export bleiben im Untermenü erreichbar.</p>
-          <button id="dra-open-diagnostics">Diagnose & Einstellungen öffnen</button></article>
+
         </section>
         <section id="dra-settings-view" ${this._view==="settings"?"":"hidden"}>
         <h1>DRA V2 DEV · Diagnose & Einstellungen</h1>
@@ -1837,6 +1828,7 @@ class DRAV2DevLabPanel extends HTMLElement {
         </article>
 
         </div>
+        <p class="note">Während eines laufenden Tests wird der Status etwa alle 1,5 Sekunden aktualisiert. Im Leerlauf erfolgt keine regelmäßige Abfrage. Nach einem Home-Assistant-Neustart bleiben abgeschlossene Aufträge im begrenzten Verlauf abrufbar. Vorher laufende Testaufträge erscheinen als unterbrochen und werden nicht neu gestartet.</p>
         </section>
         ${this._projectPickerOpen ? `
           <div class="git-dialog-backdrop" id="dra-picker-backdrop">
@@ -2124,7 +2116,7 @@ class DRAV2DevLabPanel extends HTMLElement {
                  rel="noopener noreferrer">Privaten Export öffnen</a>` : ""}
             </section>
           </div>` : ""}
-        <p class="note">Während eines laufenden Tests wird der Status etwa alle 1,5 Sekunden aktualisiert. Im Leerlauf erfolgt keine regelmäßige Abfrage. Nach einem Home-Assistant-Neustart bleiben abgeschlossene Aufträge im begrenzten Verlauf abrufbar. Vorher laufende Testaufträge erscheinen als unterbrochen und werden nicht neu gestartet.</p>
+
       </main>
     `;
     s.querySelector("#dra-toggle")?.addEventListener("click",()=>{this._view=this._view==="main"?"settings":"main";this._render();});
@@ -2139,11 +2131,9 @@ class DRAV2DevLabPanel extends HTMLElement {
     s.querySelector("#dra-picker-batch")?.addEventListener("click",()=>this._openPickerBatch());
     s.querySelector("#dra-main-ref")?.addEventListener("input",e=>{this._mainSourceRef=e.target.value;});
     s.querySelector("#dra-project-manage")?.addEventListener("click",()=>this._openProjectDialog());
-    s.querySelector("#dra-settings-project")?.addEventListener("click",()=>{if(mainProject){this._projectDialogOpen=true;this._openProjectSettings(mainProject.repository);}});
     for(const id of ["dra-preview","dra-step2"]){s.querySelector("#"+id)?.addEventListener("click",()=>{if(mainProject)this._sourceCheck({dataset:{repo:mainProject.repository}});});}
     s.querySelector("#dra-source")?.addEventListener("click",()=>this._openProjectDialog());
     s.querySelector("#dra-step1")?.addEventListener("click",()=>this._openProjectPicker());
-    s.querySelector("#dra-open-diagnostics")?.addEventListener("click",()=>{this._view="settings";this._render();});
     s.querySelector("#measure")?.addEventListener("click", () => this._measure());
     s.querySelector("#multicore")?.addEventListener("click", () => this._runSequence("multicore"));
     s.querySelector("#all")?.addEventListener("click", () => this._runSequence("full"));
