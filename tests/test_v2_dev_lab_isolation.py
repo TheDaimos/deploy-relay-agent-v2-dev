@@ -461,7 +461,7 @@ class LabIsolationContracts(unittest.TestCase):
         self.assertIn('id="dra-picker-close"', frontend)
         self.assertIn('class="dra-picker-entry', frontend)
         self.assertIn('data-repo=', frontend)
-        self.assertIn('class="dra-picker-divider"', frontend)
+        self.assertIn('class="dra-picker-entry dra-picker-batch-entry', frontend)
         self.assertIn('id="dra-picker-batch"', frontend)
         self.assertIn('Sammelupdate', frontend)
         self.assertIn('Installation gesperrt', frontend)
@@ -539,6 +539,30 @@ class LabIsolationContracts(unittest.TestCase):
         self.assertIn('Erweiterte Quellprüfung (optional)', frontend)
         self.assertNotIn('Backup-Richtlinie:', frontend)
         self.assertIn('V1-Sicherungen bleiben unangetastet', frontend)
+
+    def test_synthetic_batch_picker_reorder_is_not_git_repo(self):
+        frontend = (LAB_ROOT / "frontend/lab.js").read_text(encoding="utf-8")
+        socket = (LAB_ROOT / "websocket_api.py").read_text(encoding="utf-8")
+        catalog = (LAB_ROOT / "project_catalog.py").read_text(encoding="utf-8")
+        for marker in (
+            '_pickerEntries() {',
+            '_movePickerEntry(repository,direction) {',
+            'kind:"batch"',
+            'repository === "__batch_picker__"',
+            'action === "move_batch"',
+            'class="project-row project-batch-picker-row',
+            'class="dra-picker-entry dra-picker-batch-entry',
+            'this._pickerBatchPosition = Number.isInteger(data.picker_batch_position)',
+            'this._pickerBatchPosition = result.picker_batch_position',
+        ):
+            self.assertIn(marker,frontend)
+        self.assertIn('elif action == "move_batch":',socket)
+        self.assertIn('await runtime.projects.move_picker_batch',socket)
+        self.assertIn('picker_batch_position',socket)
+        self.assertIn('async def move_picker_batch(self, direction: int)',catalog)
+        self.assertIn('picker_batch_position',catalog)
+        self.assertIn('position = len(records)',catalog)
+        self.assertNotIn('normalize_repo("__batch_picker__")',catalog)
 
     def test_config_flow_uses_test_domain_not_v1_domain(self):
         source = (LAB_ROOT / "config_flow.py").read_text(encoding="utf-8")
