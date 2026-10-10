@@ -560,7 +560,7 @@ class LabIsolationContracts(unittest.TestCase):
             'Sammelupdate · ${mainBatchProjects.length} Projekte',
             'id="dra-picker-batch"',
             'id="dra-preview"',
-            'Quellstände ungeprüft',
+            'Die Quellstände sind noch nicht geprüft',
             'Installation noch gesperrt',
         ):
             self.assertIn(term, frontend)
