@@ -13,6 +13,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._expandedSections = new Set();
     this._view = "main";
     this._selectedMainRepo = null;
+    this._projectPickerOpen = false;
     this._mainSourceRef = "";
     this._settingsMessage = "";
     this._cpuStatus = {available_cores:null,warning:null};
@@ -599,6 +600,30 @@ class DRAV2DevLabPanel extends HTMLElement {
       if (this.isConnected) this._render();
     }
   }
+  _openProjectPicker() {
+    if (this._view !== "main") return;
+    this._projectPickerOpen = true;
+    this._render();
+    this.shadowRoot?.querySelector("#dra-picker-dialog")?.focus();
+  }
+  _closeProjectPicker() {
+    this._projectPickerOpen = false;
+    this._render();
+    this.shadowRoot?.querySelector("#dra-project-picker-open")?.focus();
+  }
+  _chooseMainProject(repository) {
+    if (!this._projectPickerOpen) return;
+    if (!this._projects.some(p => p.repository === repository && p.active !== false)) return;
+    this._selectedMainRepo = repository;
+    this._sourcePreview = null;
+    this._projectPickerOpen = false;
+    this._render();
+    this.shadowRoot?.querySelector("#dra-project-picker-open")?.focus();
+  }
+  _openPickerBatch() {
+    this._projectPickerOpen = false;
+    this._openBatchDialog(); // Existing non-installing project selection dialog.
+  }
   _openProjectDialog() {
     this._projectDialogOpen = true;
     this._render();
@@ -1006,6 +1031,95 @@ class DRAV2DevLabPanel extends HTMLElement {
         .dra-projectbar {display:flex;gap:12px;align-items:end;flex-wrap:wrap}
         .dra-projectbar label {flex:1;min-width:210px}
         .dra-projectbar select {display:block;width:100%;min-height:44px;padding:8px;border-radius:8px;background:var(--primary-background-color,#111);color:inherit;border:1px solid var(--divider-color,#555)}
+        /* Native Android select replacement: framed, scalable, accessible project picker. */
+        .dra-project-picker-field {flex:1 1 250px;min-width:0;display:flex;flex-direction:column;gap:7px;}
+        .dra-project-picker-trigger {
+          display:flex;align-items:center;justify-content:space-between;gap:12px;
+          box-sizing:border-box;width:100%;min-height:54px;margin:0;padding:10px 14px;
+          background:linear-gradient(165deg,#283946 0%,#111c27 65%,#0d1821 100%);
+          color:var(--primary-text-color,#fff);
+          border:1px solid #698b9e;border-radius:12px;
+          box-shadow:inset 0 1px 0 rgba(229,248,255,.25),inset 0 -2px 4px #0006,
+            0 2px 9px rgba(0,0,0,.3);
+          text-align:left;transition:filter .14s,transform .14s;
+        }
+        .dra-project-picker-trigger:hover:not(:disabled) {filter:brightness(1.17);}
+        .dra-project-picker-trigger:active:not(:disabled) {transform:translateY(2px);filter:brightness(.86);}
+        .dra-project-picker-trigger:focus-visible {outline:2px solid #e2c071;outline-offset:3px;}
+        .dra-project-picker-current {display:flex;flex-direction:column;min-width:0;gap:2px;}
+        .dra-project-picker-current-name {font-size:15px;font-weight:700;line-height:1.25;overflow-wrap:anywhere;}
+        .dra-project-picker-current-repo {font-size:12px;color:#abbcc8;line-height:1.3;overflow-wrap:anywhere;}
+        .dra-project-picker-trigger svg {flex:none;color:#b7e3f6;}
+        .dra-picker-dialog {
+          display:flex;flex-direction:column;overflow:hidden;width:min(100%,620px);
+          padding:18px;max-height:92dvh;
+          background:linear-gradient(150deg,#252e35,#181e24 50%,#121a22);
+          border:1px solid #7597a9;border-radius:18px;
+          box-shadow:inset 0 1px 0 rgba(232,249,255,.28),inset 0 0 1px #bcefff,
+            0 20px 50px #000c,0 0 0 1px #0007;
+        }
+        .dra-picker-dialog .dra-picker-header {
+          flex:0 0 auto;display:flex;justify-content:space-between;align-items:center;gap:16px;
+          padding:0 0 15px;border-bottom:1px solid #638093;
+        }
+        .dra-picker-header h2 {margin:0 0 3px;font-size:21px;}
+        .dra-picker-header p {margin:0;font-size:12px;}
+        .dra-picker-header button {
+          display:flex;justify-content:center;align-items:center;
+          flex:none;width:43px;height:43px;min-width:43px;margin:0;padding:9px;
+          border-radius:12px;border:1px solid #658a9c;
+          background:linear-gradient(145deg,#355465,#1b303c);
+          color:#e0f5ff;
+        }
+        .dra-picker-list {
+          flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;
+          scrollbar-gutter:stable;
+        }
+        .dra-picker-entry {
+          box-sizing:border-box;display:flex;align-items:center;gap:13px;width:100%;
+          padding:15px 12px;margin:0;background:transparent;
+          color:#e8eff5;border:0;border-bottom:1px solid #43535f;
+          text-align:left;min-height:79px;border-radius:0;transition:background .16s;
+        }
+        .dra-picker-entry:hover:not(:disabled) {background:rgba(79,133,163,.18);}
+        .dra-picker-entry:active:not(:disabled) {background:rgba(46,106,135,.38);}
+        .dra-picker-entry:focus-visible {outline:2px solid #e2c071;outline-offset:-3px;}
+        .dra-picker-entry.selected {
+          background:linear-gradient(95deg,rgba(38,120,98,.24),rgba(51,93,124,.12));
+          box-shadow:inset 3px 0 0 #69cda9;
+        }
+        .dra-picker-entry:disabled {opacity:.55;cursor:not-allowed;}
+        .dra-picker-entry-number {width:24px;flex:none;text-align:center;font-size:13px;color:#c1cbd4;}
+        .dra-picker-entry-content {display:flex;flex:1 1 auto;min-width:0;flex-direction:column;gap:4px;}
+        .dra-picker-entry-content strong {font-size:15px;overflow-wrap:anywhere;}
+        .dra-picker-entry-repository {font-size:12px;color:#a7b4be;overflow-wrap:anywhere;}
+        .dra-picker-check {flex:none;display:flex;color:#9eafbc;}
+        .dra-picker-entry.selected .dra-picker-check {color:#8ce7c4;}
+        .dra-picker-inactive {font-size:11px;color:#ff8c9a;font-weight:800;}
+        .dra-picker-footer {flex:0 0 auto;padding-top:10px;}
+        .dra-picker-divider {
+          height:1px;margin-bottom:10px;
+          background:linear-gradient(90deg,transparent,#91acbf 12%,#91acbf 88%,transparent);
+        }
+        .dra-picker-batch {
+          box-sizing:border-box;display:flex;align-items:center;gap:12px;
+          margin:0;width:100%;padding:12px 14px;text-align:left;
+          color:#e8f9ff;border:1px solid #628ba0;border-radius:11px;
+          background:linear-gradient(140deg,#264858,#173142 65%,#122a38);
+          box-shadow:inset 0 1px 0 rgba(242,252,255,.2),0 2px 7px #0005;
+        }
+        .dra-picker-batch>svg {flex:none;}
+        .dra-picker-batch span {flex:1;display:flex;flex-direction:column;gap:3px;}
+        .dra-picker-batch small {font-size:11px;font-weight:400;color:#c2d3dc;}
+        .dra-picker-batch:hover:not(:disabled) {filter:brightness(1.18);}
+        .dra-picker-batch:active:not(:disabled) {transform:translateY(2px);filter:brightness(.83);}
+        .dra-picker-batch:focus-visible {outline:2px solid #e2c071;outline-offset:2px;}
+        @media(max-width:760px) {
+          .dra-picker-dialog {width:100%;max-height:93dvh;padding:15px;}
+          .dra-picker-entry {min-height:75px;padding:13px 8px;gap:8px;}
+          .dra-picker-header h2 {font-size:18px;}
+          .dra-project-picker-field {width:100%;}
+        }
         .dra-main-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
         .dra-main-grid article {margin-top:12px}
         .dra-steps {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
@@ -1565,10 +1679,25 @@ class DRAV2DevLabPanel extends HTMLElement {
           <button id="dra-toggle">${this._view === "main" ? "Diagnose & Einstellungen" : "Hauptmenü"}</button></div>
         </header>
         <section id="dra-main-view" ${this._view==="main"?"":"hidden"}>
-          <article class="dra-projectbar"><label><strong>Projekt</strong>
-          <select id="dra-select">${activeMainProjects.map(p=>`<option value="${this._escapeProject(p.repository)}" ${mainProject?.repository===p.repository?"selected":""}>${this._escapeProject(p.name)}</option>`).join("")}</select>
-          </label><button id="dra-project-manage">Projektverwaltung</button>
-          <button disabled>Sicherungen</button></article>
+          <article class="dra-projectbar">
+            <div class="dra-project-picker-field">
+              <strong id="dra-project-label">Projekt</strong>
+              <button id="dra-project-picker-open" class="dra-project-picker-trigger"
+                aria-haspopup="dialog" aria-label="Projekt auswählen" aria-expanded="${this._projectPickerOpen}"
+                ${!this._projects.length ? "disabled" : ""}>
+                <span class="dra-project-picker-current">
+                  <span class="dra-project-picker-current-name">${mainProject ? this._escapeProject(mainProject.name) : "Kein aktives Projekt"}</span>
+                  <span class="dra-project-picker-current-repo">${mainProject ? this._escapeProject(mainProject.repository) : "Projektverwaltung öffnen, um Projekte zu aktivieren"}</span>
+                </span>
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor"
+                  stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="m6 9 6 6 6-6"/>
+                </svg>
+              </button>
+            </div>
+            <button id="dra-project-manage">Projektverwaltung</button>
+            <button disabled>Sicherungen</button>
+          </article>
           <div class="dra-warning"><strong>Gesperrter Betrieb</strong><div>Deployment-Schreibzugriffe sind deaktiviert. Vorschau und Diagnose bleiben verfügbar.</div></div>
           <article><h2>Geführter Ablauf</h2><p class="note">Orientierung am bewährten DRA-V1-Aufbau.</p>
           <div class="dra-steps"><button id="dra-step1" class="current">1 · Stand auswählen</button><button id="dra-step2" class="${this._sourceRepository === mainProject?.repository && this._sourcePreview ? "current" : ""}">2 · Vorschau prüfen</button>
@@ -1709,6 +1838,51 @@ class DRAV2DevLabPanel extends HTMLElement {
 
         </div>
         </section>
+        ${this._projectPickerOpen ? `
+          <div class="git-dialog-backdrop" id="dra-picker-backdrop">
+            <section class="git-dialog dra-picker-dialog" id="dra-picker-dialog"
+              role="dialog" aria-modal="true" aria-labelledby="dra-picker-title" tabindex="-1">
+              <header class="dra-picker-header">
+                <div>
+                  <h2 id="dra-picker-title">Projekt auswählen</h2>
+                  <p class="note">Gewünschtes Projekt für die Hauptansicht auswählen.</p>
+                </div>
+                <button id="dra-picker-close" aria-label="Projektauswahl schließen" title="Schließen">
+                  ${closeIcon}
+                </button>
+              </header>
+              <div class="dra-picker-list" role="list" aria-label="Registrierte Projekte">
+                ${this._projects.map((p,i) => {
+                  const inactive = p.active === false;
+                  const current = mainProject?.repository === p.repository;
+                  return `<button type="button" class="dra-picker-entry ${current ? "selected" : ""}"
+                    data-repo="${this._escapeProject(p.repository)}" ${inactive ? "disabled" : ""}
+                    aria-current="${current ? "true" : "false"}"
+                    aria-label="${this._escapeProject(p.name)}${inactive ? ", inaktiv" : ""}">
+                    <span class="dra-picker-entry-number">${i+1}</span>
+                    <span class="dra-picker-entry-content">
+                      <strong>${this._escapeProject(p.name)}</strong>
+                      <span class="dra-picker-entry-repository">${this._escapeProject(p.repository)}</span>
+                    </span>
+                    ${inactive ? '<span class="dra-picker-inactive">Inaktiv</span>' : ""}
+                    <span class="dra-picker-check" aria-hidden="true">
+                      ${current ? iconSvg('<circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/>',22) :
+                        iconSvg('<circle cx="12" cy="12" r="9"/>',22)}
+                    </span>
+                  </button>`;
+                }).join("")}
+              </div>
+              <div class="dra-picker-footer">
+                <div class="dra-picker-divider" aria-hidden="true"></div>
+                <button id="dra-picker-batch" class="dra-picker-batch">
+                  ${iconSvg('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 14h8"/>',21)}
+                  <span><strong>Sammelupdate</strong>
+                    <small>Projektauswahl und Vorschau · Installation gesperrt</small></span>
+                  ${iconSvg('<path d="m9 18 6-6-6-6"/>',19)}
+                </button>
+              </div>
+            </section>
+          </div>` : ""}
         ${this._projectDialogOpen ? `
           <div class="git-dialog-backdrop" id="project-management-backdrop">
             <section class="git-dialog project-management-dialog project-card"
@@ -1955,13 +2129,20 @@ class DRAV2DevLabPanel extends HTMLElement {
     `;
     s.querySelector("#dra-toggle")?.addEventListener("click",()=>{this._view=this._view==="main"?"settings":"main";this._render();});
     s.querySelector("#dra-refresh")?.addEventListener("click",()=>this._refresh());
-    s.querySelector("#dra-select")?.addEventListener("change",e=>{this._selectedMainRepo=e.target.value;this._sourcePreview=null;this._render();});
+    s.querySelector("#dra-project-picker-open")?.addEventListener("click",()=>this._openProjectPicker());
+    s.querySelector("#dra-picker-close")?.addEventListener("click",()=>this._closeProjectPicker());
+    s.querySelector("#dra-picker-dialog")?.addEventListener("keydown",event=>{
+      if(event.key === "Escape") {event.preventDefault();this._closeProjectPicker();}
+    });
+    s.querySelectorAll(".dra-picker-entry").forEach(button=>
+      button.addEventListener("click",()=>this._chooseMainProject(button.dataset.repo)));
+    s.querySelector("#dra-picker-batch")?.addEventListener("click",()=>this._openPickerBatch());
     s.querySelector("#dra-main-ref")?.addEventListener("input",e=>{this._mainSourceRef=e.target.value;});
     s.querySelector("#dra-project-manage")?.addEventListener("click",()=>this._openProjectDialog());
     s.querySelector("#dra-settings-project")?.addEventListener("click",()=>{if(mainProject){this._projectDialogOpen=true;this._openProjectSettings(mainProject.repository);}});
     for(const id of ["dra-preview","dra-step2"]){s.querySelector("#"+id)?.addEventListener("click",()=>{if(mainProject)this._sourceCheck({dataset:{repo:mainProject.repository}});});}
     s.querySelector("#dra-source")?.addEventListener("click",()=>this._openProjectDialog());
-    s.querySelector("#dra-step1")?.addEventListener("click",()=>s.querySelector("#dra-select")?.focus());
+    s.querySelector("#dra-step1")?.addEventListener("click",()=>this._openProjectPicker());
     s.querySelector("#dra-open-diagnostics")?.addEventListener("click",()=>{this._view="settings";this._render();});
     s.querySelector("#measure")?.addEventListener("click", () => this._measure());
     s.querySelector("#multicore")?.addEventListener("click", () => this._runSequence("multicore"));
