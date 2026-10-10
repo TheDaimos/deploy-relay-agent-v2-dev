@@ -10,6 +10,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._projects = [];
     this._settings = {mode:"sequential",max_readonly_jobs:2,max_worker_processes:4};
     this._settingsBusy = false;
+    this._expandedSections = new Set();
     this._settingsMessage = "";
     this._cpuStatus = {available_cores:null,warning:null};
     this._cpuBusy = false;
@@ -865,6 +866,13 @@ class DRAV2DevLabPanel extends HTMLElement {
          .settings-fields > label { display:flex; flex-direction:column; gap:6px; min-width:0; }
          .settings-fields .project-text { margin:0; width:100%; }
          @media (max-width:850px) { .settings-fields { grid-template-columns:1fr; } }
+         .section-body[hidden] { display:none !important; }
+         .section-toggle-title { margin:0 !important; padding:0 !important; border-bottom:none !important; }
+         .section-toggle { display:flex; align-items:center; justify-content:space-between; gap:12px; width:100%; margin:0; padding:4px 2px 12px; text-align:left; color:inherit; background:transparent; font-weight:700; font-size:inherit; border-radius:4px; }
+         .section-toggle:hover { background:var(--secondary-background-color,rgba(128,128,128,.08)); }
+         .section-body { border-top:1px solid var(--divider-color,#555); padding-top:12px; }
+         .section-toggle[aria-expanded="false"] { padding-bottom:4px; }
+         .section-card:has(.section-toggle[aria-expanded="false"]) { padding-bottom:14px; }
          .section-card { min-width:0; border:1px solid var(--divider-color,#555); box-shadow:0 2px 12px rgba(0,0,0,.08); }
          .section-card h2 { font-size:18px; margin:0 0 12px; padding-bottom:12px; border-bottom:1px solid var(--divider-color,#555); }
          .inner-panel { border:1px solid var(--divider-color,#555); background:var(--secondary-background-color,rgba(127,127,127,.07)); border-radius:10px; padding:12px 14px; margin-top:14px; }
@@ -891,7 +899,7 @@ class DRAV2DevLabPanel extends HTMLElement {
         <p>Dieser Test liest keine Projektdateien und führt keine Installation, Wiederherstellung oder Neustarts aus.</p>
         <div class="dashboard-grid">
         <article class="section-card test-card">
-          <h2>01 · Teststeuerung</h2>
+          <h2 class="section-toggle-title"><button class="section-toggle" data-section="1" aria-expanded="${this._expandedSections.has('1')}" aria-controls="section-body-1"><span>01 · Teststeuerung</span><span aria-hidden="true">${this._expandedSections.has('1') ? "▾" : "▸"}</span></button></h2><div id="section-body-1" class="section-body" ${this._expandedSections.has('1') ? "" : "hidden"}>
           <p>Starte eine CPU-/RAM-Messung, die Mehrkern-Diagnose oder den Gesamttest. Die Aufträge laufen unabhängig vom geöffneten Browser weiter.</p>
           <div class="inner-panel status-panel"><h3>Aktueller Auftrag</h3>
           <p><strong>Status:</strong> ${label}</p>
@@ -909,9 +917,10 @@ class DRAV2DevLabPanel extends HTMLElement {
           <p class="note">Messlauf: 10 Sekunden Basis, 20 Sekunden begrenzte Rechenarbeit
           außerhalb der HA-Ereignisschleife, 10 Sekunden Nachlauf. Maximal ein Auftrag gleichzeitig.</p>
           </div>
+          </div>
         </article>
         <article class="section-card export-card">
-          <h2>02 · Diagnoseexport</h2>
+          <h2 class="section-toggle-title"><button class="section-toggle" data-section="2" aria-expanded="${this._expandedSections.has('2')}" aria-controls="section-body-2"><span>02 · Diagnoseexport</span><span aria-hidden="true">${this._expandedSections.has('2') ? "▾" : "▸"}</span></button></h2><div id="section-body-2" class="section-body" ${this._expandedSections.has('2') ? "" : "hidden"}>
           <p class="note">Lokale JSON-Datei oder Export in dein selbst eingerichtetes privates GitHub-Repository.</p>
           <div class="git-main-actions">
             <button id="json-download" ${this._downloadBusy || busy ||
@@ -940,17 +949,19 @@ class DRAV2DevLabPanel extends HTMLElement {
           ${this._gitStatus ? `<p class="note">${this._escapeProject(this._gitStatus)}</p>` : ""}
           ${this._lastExport ? `<p><strong>Export-ID:</strong> ${this._escapeProject(this._lastExport.export_id)}
             · <strong>Zielpfad:</strong> ${this._escapeProject(this._lastExport.path)}</p>` : ""}
+          </div>
         </article>
         </div>
         <article class="diagnostic-results section-card">
-          <h2>03 · Messergebnisse und Auswertung</h2>
+          <h2 class="section-toggle-title"><button class="section-toggle" data-section="3" aria-expanded="${this._expandedSections.has('3')}" aria-controls="section-body-3"><span>03 · Messergebnisse und Auswertung</span><span aria-hidden="true">${this._expandedSections.has('3') ? "▾" : "▸"}</span></button></h2><div id="section-body-3" class="section-body" ${this._expandedSections.has('3') ? "" : "hidden"}>
           <p class="note">Ausführliche Messwerte und Mehrkern-Ergebnisse erscheinen hier nach dem Test.</p>
           ${report}
           ${multicoreReport}
+          </div>
         </article>
         <div class="administration-grid">
         <article class="section-card">
-          <h2>04 · Auftragsverarbeitung</h2>
+          <h2 class="section-toggle-title"><button class="section-toggle" data-section="4" aria-expanded="${this._expandedSections.has('4')}" aria-controls="section-body-4"><span>04 · Auftragsverarbeitung</span><span aria-hidden="true">${this._expandedSections.has('4') ? "▾" : "▸"}</span></button></h2><div id="section-body-4" class="section-body" ${this._expandedSections.has('4') ? "" : "hidden"}>
           <p class="note">Gespeicherte Planungsvorgaben. Die aktive Testlabor-Sperre bleibt bei
           einem Leseauftrag und null Schreibaufträgen. Dies begrenzt derzeit keine echten Prozessorkerne.</p>
           <div class="settings-fields">
@@ -985,14 +996,15 @@ class DRAV2DevLabPanel extends HTMLElement {
           <p class="note">${this._escapeProject(this._settingsMessage)}</p>
           <p class="note">Die separate feste Mehrkern-Diagnose bleibt unverändert. Kein
           Schreibzugriff, kein CPU-Pinning und keine automatische Ressourcensteuerung.</p>
+          </div>
         </article>
 
         <article class="section-card project-card">
-          <h2>05 · Meine Projekte</h2>
+          <h2 class="section-toggle-title"><button class="section-toggle" data-section="5" aria-expanded="${this._expandedSections.has('5')}" aria-controls="section-body-5"><span>05 · Meine Projekte</span><span aria-hidden="true">${this._expandedSections.has('5') ? "▾" : "▸"}</span></button></h2><div id="section-body-5" class="section-body" ${this._expandedSections.has('5') ? "" : "hidden"}>
           <button id="backup-dialog-open">Backup &amp; Retention</button>
           <p class="note">Projektmetadaten getrennt von DRA V1 verwalten. V1 bleibt unverändert.
           Übernahme kopiert weder Git-Zugangsdaten noch Installationsstände oder Sicherungsdateien.</p>
-          <button id="project-preview" ${this._projectBusy ? "disabled" : ""}>V1-Projekte ansehen</button>
+          <button id="project-preview" ${this._projectBusy ? "disabled" : ""}>Projekte aus DRA V1 übernehmen</button>
           ${this._v1Candidates !== null ? `<p>${this._v1Candidates.length} V1-Projekte gefunden:</p><ul>${previewRows}</ul>
           <button id="project-import" ${this._projectBusy || this._v1Candidates.length === 0 ? "disabled" : ""}>Diese Projekte in V2 übernehmen</button>
           <button id="project-cancel">Übernahme abbrechen</button>` : ""}
@@ -1035,13 +1047,15 @@ class DRAV2DevLabPanel extends HTMLElement {
           <p class="note"><strong>Backup-Richtlinie:</strong> 10 gesicherte Stände je Projekt, individuell 3–100.
           Neue Einträge sind zunächst ungeprüft. Installation, tatsächliche Sicherung,
           Rotation und Wiederherstellung bleiben bis zur separaten Transaktionsabnahme gesperrt.</p>
+          </div>
         </article>
         <article class="section-card">
-          <h2>06 · Sammelaktualisierung</h2>
+          <h2 class="section-toggle-title"><button class="section-toggle" data-section="6" aria-expanded="${this._expandedSections.has('6')}" aria-controls="section-body-6"><span>06 · Sammelaktualisierung</span><span aria-hidden="true">${this._expandedSections.has('6') ? "▾" : "▸"}</span></button></h2><div id="section-body-6" class="section-body" ${this._expandedSections.has('6') ? "" : "hidden"}>
           <p class="note">Projektvorauswahl für spätere Sammelaktualisierungen. Keine Installation.</p>
           <button id="batch-open" ${this._projects.length === 0 ? "disabled" : ""}>Projektauswahl bearbeiten</button>
           <p class="note">${this._projects.filter(p => p.batch_preselect !== false).length} von ${this._projects.length} Projekten ausgewählt.</p>
           <p class="note" role="status">${this._escapeProject(this._batchDialogOpen ? "" : this._batchMessage)}</p>
+          </div>
         </article>
 
         </div>
@@ -1181,6 +1195,12 @@ class DRAV2DevLabPanel extends HTMLElement {
     s.querySelector("#git-dialog-save")?.addEventListener("click", () => this._configureArchiveDialog());
     s.querySelector("#git-dialog-clear")?.addEventListener("click", () => this._clearArchiveDialog());
     s.querySelector("#git-retry")?.addEventListener("click", () => this._exportGit(true));
+    s.querySelectorAll(".section-toggle").forEach(button => button.addEventListener("click", () => {
+      const id = button.dataset.section;
+      if (this._expandedSections.has(id)) this._expandedSections.delete(id);
+      else this._expandedSections.add(id);
+      this._render();
+    }));
     s.querySelector("#settings-save")?.addEventListener("click", () => this._saveSettings());
     s.querySelector("#cpu-warning-ack")?.addEventListener("click", () => this._ackCpuWarning());
     s.querySelector("#backup-dialog-open")?.addEventListener("click", () => this._openBackupDialog());
