@@ -615,9 +615,6 @@ class DRAV2DevLabPanel extends HTMLElement {
         <td><input class="retention" type="number" min="3" max="100" value="${Number.isInteger(p.backup_retention) ? p.backup_retention : 10}" aria-label="Sicherungen" />
         <button class="retention-save ${saved ? "retention-saved" : ""}" data-repo="${this._escapeProject(p.repository)}"
         ${this._projectBusy ? "disabled" : ""}>${saved ? "Gespeichert" : "Speichern"}</button></td>
-        <td><button class="preselect-toggle" data-repo="${this._escapeProject(p.repository)}"
-        data-enabled="${p.batch_preselect === false}" ${this._projectBusy ? "disabled" : ""}>
-        ${p.batch_preselect === false ? "Aus" : "Ein"}</button></td>
         <td><button class="source-check" data-repo="${this._escapeProject(p.repository)}"
         ${this._sourceBusy ? "disabled" : ""}>${selected && this._sourceBusy ? "Prüft …" : "Prüfen"}</button></td></tr>`;
     }).join("");
@@ -802,8 +799,7 @@ class DRAV2DevLabPanel extends HTMLElement {
            .project-card td { border:none; padding:7px; white-space:normal; min-width:0 !important; }
            .project-card td:nth-child(2)::before { content:"Herkunft: "; font-weight:bold; }
            .project-card td:nth-child(3)::before { content:"Sicherungen behalten"; display:block; font-weight:bold; margin-bottom:4px; }
-           .project-card td:nth-child(4)::before { content:"Sammelupdate"; display:block; font-weight:bold; }
-           .project-card td:nth-child(5)::before { content:"Git-Quelle"; display:block; font-weight:bold; }
+           .project-card td:nth-child(4)::before { content:"Git-Quelle"; display:block; font-weight:bold; }
          }
          .section-card { min-width:0; border:1px solid var(--divider-color,#555); box-shadow:0 2px 12px rgba(0,0,0,.08); }
          .section-card h2 { font-size:18px; margin:0 0 12px; padding-bottom:12px; border-bottom:1px solid var(--divider-color,#555); }
@@ -938,7 +934,7 @@ class DRAV2DevLabPanel extends HTMLElement {
           <label>Anzeigename (optional)<input id="project-name" class="project-text" placeholder="Mein Projekt" autocomplete="off" /></label>
           <button id="project-add" ${this._projectBusy ? "disabled" : ""}>Projekt vormerken</button>
           <p class="note">${this._escapeProject(this._projectMessage)}</p>
-          ${this._projects.length ? `<div class="table-wrap"><table><thead><tr><th>Projekt</th><th>Herkunft</th><th>Sicherungen behalten</th><th>Sammelupdate</th><th>Git-Quelle</th></tr></thead>
+          ${this._projects.length ? `<div class="table-wrap"><table><thead><tr><th>Projekt</th><th>Herkunft</th><th>Sicherungen behalten</th><th>Git-Quelle</th></tr></thead>
           <tbody>${projectRows}</tbody></table></div>` : `<p class="note">Noch keine Projekte in V2 hinterlegt.</p>`}
           <p><strong>Privater GitHub-Lesezugang für V2</strong></p>
           <p class="note">Optional für private Projekt-Repositories. Nur einen
@@ -1084,7 +1080,6 @@ class DRAV2DevLabPanel extends HTMLElement {
       this._batchPreview = null;
       this._batchMessage = "Auswahl geändert – Vorschau erneut prüfen.";
     }));
-    s.querySelectorAll(".preselect-toggle")?.forEach(button => button.addEventListener("click", () => this._togglePreselect(button)));
     s.querySelectorAll(".source-check")?.forEach(button => button.addEventListener("click", () => this._sourceCheck(button)));
     s.querySelector("#git-read-save")?.addEventListener("click", () => this._configureGitRead(false));
     s.querySelector("#git-read-clear")?.addEventListener("click", () => this._configureGitRead(true));
