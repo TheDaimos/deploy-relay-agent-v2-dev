@@ -20,6 +20,7 @@ _ENTRY_KEYS = frozenset({
     "origin", "status", "backup_retention", "batch_preselect",
 })
 _LEGACY_ENTRY_KEYS = _ENTRY_KEYS - {"batch_preselect"}
+_EXTENDED_KEYS = _ENTRY_KEYS | {"active", "note"}
 
 
 class CatalogError(ValueError):
@@ -48,7 +49,7 @@ def normalize_repo(repository: object) -> str:
 
 
 def sanitize_entry(row: object) -> dict[str, object]:
-    if type(row) is not dict or set(row) not in (_ENTRY_KEYS, _LEGACY_ENTRY_KEYS):
+    if type(row) is not dict or set(row) not in (_ENTRY_KEYS, _LEGACY_ENTRY_KEYS, _EXTENDED_KEYS):
         raise CatalogError("invalid project record")
     repo = normalize_repo(row["repository"])
     if type(row["project_id"]) is not str or not _PROJECT_ID.fullmatch(row["project_id"]):
@@ -68,7 +69,12 @@ def sanitize_entry(row: object) -> dict[str, object]:
     preselect = row.get("batch_preselect", True)
     if type(preselect) is not bool:
         raise CatalogError("invalid batch preselection")
+    active = row.get("active", True)
+    note = row.get("note", "")
+    if type(active) is not bool or type(note) is not str or len(note) > 500 or any(ord(c) < 32 and c not in "\\n\\t" for c in note):
+        raise CatalogError("invalid project settings")
     return {
+        "active": active, "note": note,
         "project_id": row["project_id"], "name": name, "repository": repo,
         "manifest_path": _MANIFEST, "origin": row["origin"],
         "status": "pending_review", "backup_retention": retention,
@@ -205,6 +211,43 @@ class ProjectCatalog:
                 await self._save(rows + fresh)
             return {"added": len(fresh), "already_present": len(proposals)-len(fresh)}
 
+    async def move(self, repository: str, direction: int) -> None:
+        repo = normalize_repo(repository)
+        if type(direction) is not int or direction not in (-1, 1):
+            raise CatalogError("invalid direction")
+        async with self._lock:
+            rows = self.list()
+            idx = next((i for i, p in enumerate(rows) if p["repository"].casefold() == repo.casefold()), None)
+            if idx is None:
+                raise CatalogError("unknown project")
+            target = idx + direction
+            if 0 <= target < len(rows):
+                rows[idx], rows[target] = rows[target], rows[idx]
+                await self._save(rows)
+
+    async def configure(self, repository: str, new_repository: str, name: str, note: str, active: bool) -> None:
+        repo = normalize_repo(repository)
+        replacement = normalize_repo(new_repository)
+        async with self._lock:
+            rows = self.list()
+            idx = next((i for i, p in enumerate(rows) if p["repository"].casefold() == repo.casefold()), None)
+            if idx is None or any(i != idx and p["repository"].casefold() == replacement.casefold() for i,p in enumerate(rows)):
+                raise CatalogError("project missing or duplicate")
+            candidate = sanitize_entry({**rows[idx], "repository":replacement, "name":name, "note":note, "active":active})
+            if replacement.casefold() != repo.casefold():
+                raise CatalogError("repository changes require a separate identity migration")
+            rows[idx] = candidate
+            await self._save(rows)
+
+    async def remove(self, repository: str) -> None:
+        repo = normalize_repo(repository)
+        async with self._lock:
+            rows = self.list()
+            after = [p for p in rows if p["repository"].casefold() != repo.casefold()]
+            if len(rows) == len(after):
+                raise CatalogError("unknown project")
+            await self._save(after)
+
     async def set_retention(self, repository: str, retention: int) -> dict[str, object]:
         value = normalize_repo(repository)
         if type(retention) is not int or not MIN_RETENTION <= retention <= MAX_RETENTION:
@@ -249,6 +292,9 @@ class ProjectCatalog:
         available = {r["repository"].casefold(): r for r in self.list()}
         if any(repo not in available for repo in requested):
             raise CatalogError("unknown batch project")
+        ordered = [p["repository"].casefold() for p in self.list() if p.get("active", True) and p["repository"].casefold() in requested]
+        if len(ordered) != len(requested):
+            raise CatalogError("inactive project selected")
         return {
             "schema": "dra-v2-dev-batch-preview.v1",
             "selected": [
@@ -256,7 +302,7 @@ class ProjectCatalog:
                  "project_id": available[repo]["project_id"],
                  "name": available[repo]["name"],
                  "status": "not_checked"}
-                for repo in requested
+                for repo in ordered
             ],
             "count": len(requested),
             "sources_verified": False,
