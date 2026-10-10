@@ -125,3 +125,7 @@ Die veraltete Schaltfläche „Testauftrag starten“ für die künstliche 40-Se
 ## V2 DEV 0.1.20 – Künstlichen Altauftrag vollständig entfernt (10.10.2026)
 
 Der alte schreibgeschützte 40-Sekunden-Warteauftrag einschließlich WebSocket-Route und Frontend-Startmethode entfällt vollständig. Der echte 40-Sekunden-CPU-/RAM-Messlauf verwendet weiterhin die serverseitige Auftragsverwaltung und funktioniert unabhängig vom Browser. Mehrkern-Diagnose, Gesamttest und Diagnoseexport bleiben erhalten. Frühere Journal-Einträge werden nicht gelöscht. Keine HA-Installation oder automatischer Neustart.
+
+## V2 DEV 0.1.21 – Git-Quellprüfung im Projekt sichtbar (10.10.2026)
+
+Die Projektliste erhält eigene Spalten für Sammelupdate und Git-Quelle, mobil als einzeln beschriftete Projektkarten. Die schreibgeschützte Quellprüfung zeigt den laufenden Zustand sowie Erfolg/Fehler und bei Erfolg Commit und Dateizahlen unmittelbar beim betroffenen Projekt; die ausführliche Ergebnisliste bleibt darunter verfügbar. Ursache der vorher unklaren Bedienung: Rückmeldung ausschließlich unterhalb des weit entfernten GitHub-Lesezugangbereichs. Kein Installations- oder Schreibpfad geändert. Eine erfolgreiche Quelle ist keine Installationsfreigabe.
