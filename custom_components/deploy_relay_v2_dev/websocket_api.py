@@ -395,6 +395,7 @@ async def async_projects_v1_preview(hass, connection, msg):
 
 @websocket_api.websocket_command({
     probatio.Required("type"): "deploy_relay_v2_dev/projects/import_v1",
+    probatio.Required("repositories"): list,
 })
 @websocket_api.require_admin
 @websocket_api.async_response
@@ -404,7 +405,7 @@ async def async_projects_import_v1(hass, connection, msg):
         connection.send_error(msg["id"], "not_ready", "Projektverwaltung nicht bereit")
         return
     try:
-        result = await runtime.projects.import_v1(hass.config_entries)
+        result = await runtime.projects.import_v1(hass.config_entries, msg["repositories"])
     except CatalogError:
         connection.send_error(msg["id"], "import_failed", "Übernahme konnte nicht gespeichert werden")
         return
