@@ -1173,6 +1173,98 @@ class DRAV2DevLabPanel extends HTMLElement {
              border:1px solid var(--divider-color,#555); color:var(--primary-text-color,#fff);
            }
          }
+         /* DRA V2 icon system: resolution-independent vectors and light-touch surfaces. */
+         .project-management-dialog .project-icon {display:block;flex:none;vector-effect:non-scaling-stroke;}
+         .project-management-dialog .project-management-table .source-check {
+           box-sizing:border-box; display:inline-flex; width:auto; max-width:100%;
+           min-width:0; height:42px; min-height:42px; margin:0; padding:8px 12px;
+           align-items:center; justify-content:flex-start; gap:7px;
+           white-space:nowrap; text-align:left; font-size:12px; font-weight:600;
+           border-radius:10px; box-shadow:none;
+         }
+         .project-management-dialog .project-management-table .source-check.unverified {
+           background:#2b343b; color:#e3eaf0; border:1px solid #657783;
+         }
+         .project-management-dialog .project-management-table .source-check.checking {
+           background:#31424e; color:#e7f3fa; border:1px solid #69889d;
+         }
+         .project-management-dialog .project-management-table .source-check.success {
+           background:#174b2f; color:#dcffe8; border:1px solid #419765;
+         }
+         .project-management-dialog .project-management-table .source-check.failure {
+           background:#5a252b; color:#ffe0e0; border:1px solid #ae4b58;
+         }
+         .project-management-dialog .project-management-table .project-settings-open,
+         .project-management-dialog .project-management-table .project-move {
+           box-sizing:border-box; display:inline-flex; width:42px; height:42px;
+           min-width:42px; min-height:42px; padding:9px; margin:0;
+           justify-content:center; align-items:center; color:#cbeaf5;
+           background:#263a45; border:1px solid #44606d; border-radius:10px;
+           box-shadow:none;
+         }
+         .project-management-dialog .project-management-table .project-settings-open {
+           color:#91daf6; border-color:#52788b; background:#253c49;
+         }
+         .project-management-dialog .project-management-table .project-move:disabled {
+           color:#8e9aa2; background:#212b31; border-color:#394751; opacity:.44;
+         }
+         .project-management-dialog .project-management-table button:not(:disabled):hover {
+           filter:brightness(1.18); box-shadow:0 1px 8px #0005;
+         }
+         .project-management-dialog .project-management-table button:not(:disabled):active {
+           transform:translateY(2px) scale(.95); filter:brightness(.8);
+         }
+         .project-management-dialog .project-actions {display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;}
+         .project-management-dialog .project-actions .project-action-primary {
+           box-sizing:border-box; display:inline-flex; gap:8px; align-items:center;
+           justify-content:center; margin:0; padding:10px 12px; min-height:42px;
+           background:#263e4b; color:#e3f6ff; border:1px solid #52788b;
+           border-radius:10px; font-size:13px; font-weight:600;
+           white-space:nowrap; box-shadow:none;
+         }
+         .project-management-dialog .project-actions .project-action-primary .project-icon {width:20px;height:20px;}
+         .project-management-dialog #project-management-close {
+           box-sizing:border-box; width:44px; height:44px; min-width:44px;
+           display:inline-flex; align-items:center; justify-content:center;
+           background:#263a45; border:1px solid #52788b;
+           padding:10px; border-radius:12px;
+         }
+         .project-management-dialog .project-management-footer button {
+           display:inline-flex; align-items:center; justify-content:center; gap:7px;
+           background:#263a45; color:#e3f6ff; border:1px solid #52788b;
+           font-size:13px; padding:10px 12px; min-height:42px;
+         }
+         @media (max-width:760px) {
+           .project-management-dialog .project-card tr,
+           .project-management-dialog.project-card tr {
+             gap:7px 6px; margin-bottom:7px; padding:9px;
+             grid-template-columns:24px minmax(0,1fr) 42px 90px;
+           }
+           .project-management-dialog .project-management-table td:nth-child(3) button {
+             display:inline-flex; width:auto; max-width:100%;
+             min-width:0; height:42px; padding:7px 9px; font-size:12px;
+           }
+           .project-management-dialog .project-management-table td:nth-child(4) button,
+           .project-management-dialog .project-management-table td:nth-child(5) button {
+             display:inline-flex; width:42px; height:42px; flex:0 0 42px;
+             min-width:42px; padding:8px; margin:0;
+           }
+           .project-management-dialog .project-management-table td:nth-child(5) {
+             min-width:0; gap:5px; display:flex; justify-content:flex-end;
+           }
+           .project-management-dialog .project-management-table .project-icon {
+             width:20px; height:20px;
+           }
+           .project-management-dialog .project-management-table .source-check .project-icon {
+             width:18px; height:18px;
+           }
+           .project-management-dialog .project-actions {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;}
+           .project-management-dialog .project-actions .project-action-primary {
+             width:100%; min-width:0; padding:10px 7px; font-size:clamp(11px,3vw,13px);
+             white-space:normal; text-align:center;
+           }
+           .project-management-dialog #backup-dialog-open {grid-column:1 / -1;}
+         }
          .batch-options { max-height:55vh; overflow:auto; }
          .backup-dialog { width:min(100%,760px); }
          .backup-entry { border:1px solid var(--divider-color,#555); border-radius:10px; margin:10px 0; padding:12px; }
