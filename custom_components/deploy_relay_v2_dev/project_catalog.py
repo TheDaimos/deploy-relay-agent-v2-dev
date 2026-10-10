@@ -20,7 +20,7 @@ _ENTRY_KEYS = frozenset({
     "origin", "status", "backup_retention", "batch_preselect",
 })
 _LEGACY_ENTRY_KEYS = _ENTRY_KEYS - {"batch_preselect"}
-_EXTENDED_KEYS = _ENTRY_KEYS | {"active", "note"}
+_EXTENDED_KEYS = _ENTRY_KEYS | {"active", "note", "access_mode"}
 
 
 class CatalogError(ValueError):
@@ -73,8 +73,11 @@ def sanitize_entry(row: object) -> dict[str, object]:
     note = row.get("note", "")
     if type(active) is not bool or type(note) is not str or len(note) > 500 or any(ord(c) < 32 and c not in (chr(10), chr(9)) for c in note):
         raise CatalogError("invalid project settings")
+    access_mode = row.get("access_mode", "read_only")
+    if access_mode not in ("read_only", "read_write") or type(access_mode) is not str:
+        raise CatalogError("invalid declared access mode")
     return {
-        "active": active, "note": note,
+        "active": active, "note": note, "access_mode": access_mode,
         "project_id": row["project_id"], "name": name, "repository": repo,
         "manifest_path": _MANIFEST, "origin": row["origin"],
         "status": "pending_review", "backup_retention": retention,
@@ -183,9 +186,10 @@ class ProjectCatalog:
             raise CatalogError("catalog save failed") from None
         self._records = records
 
-    async def add(self, repository: str, name: str, note: str = "", active: bool = True) -> dict[str, object]:
+    async def add(self, repository: str, name: str, note: str = "", active: bool = True,
+                  access_mode: str = "read_only") -> dict[str, object]:
         candidate = proposal(repository, name, origin="manual")
-        candidate = sanitize_entry({**candidate, "note": note, "active": active})
+        candidate = sanitize_entry({**candidate, "note": note, "active": active, "access_mode": access_mode})
         async with self._lock:
             rows = self.list()
             if any(x["repository"].casefold() == candidate["repository"].casefold() for x in rows):
@@ -226,7 +230,7 @@ class ProjectCatalog:
                 rows[idx], rows[target] = rows[target], rows[idx]
                 await self._save(rows)
 
-    async def configure(self, repository: str, new_repository: str, name: str, note: str, active: bool) -> None:
+    async def configure(self, repository: str, new_repository: str, name: str, note: str, active: bool, access_mode: str | None = None) -> None:
         repo = normalize_repo(repository)
         replacement = normalize_repo(new_repository)
         async with self._lock:
@@ -234,7 +238,8 @@ class ProjectCatalog:
             idx = next((i for i, p in enumerate(rows) if p["repository"].casefold() == repo.casefold()), None)
             if idx is None or any(i != idx and p["repository"].casefold() == replacement.casefold() for i,p in enumerate(rows)):
                 raise CatalogError("project missing or duplicate")
-            candidate = sanitize_entry({**rows[idx], "repository":replacement, "name":name.strip() or replacement.split("/")[1] if type(name) is str else name, "note":note, "active":active})
+            candidate = sanitize_entry({**rows[idx], "repository":replacement, "name":name.strip() or replacement.split("/")[1] if type(name) is str else name, "note":note, "active":active,
+                                         "access_mode":rows[idx].get("access_mode","read_only") if access_mode is None else access_mode})
             rows[idx] = candidate
             await self._save(rows)
 
