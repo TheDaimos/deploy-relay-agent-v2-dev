@@ -531,8 +531,8 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   assert.match(settingHTML,/id="project-v2-settings-dialog"/);
   assert.match(settingHTML,/id="source-read-token"/);
   assert.match(settingHTML,/id="git-read-save"/);
-  assert.match(settingHTML,/GitHub-Quellprüfung/);
-  assert.match(settingHTML,/Backup-Richtlinie/);
+  assert.match(settingHTML,/Erweiterte Quellprüfung \\(optional\\)/);
+  assert.doesNotMatch(settingHTML,/Backup-Richtlinie/);
   assert.equal((settingHTML.match(/id="source-read-token"/g)||[]).length,1);
   p._closeV2Settings();
   assert.equal(p._v2SettingsOpen,false);
