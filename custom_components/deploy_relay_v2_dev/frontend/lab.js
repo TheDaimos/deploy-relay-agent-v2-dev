@@ -943,6 +943,46 @@ class DRAV2DevLabPanel extends HTMLElement {
         .git-dialog header button { min-width:40px; margin:0; }
         .git-dialog .dialog-actions { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
         .git-dialog .dialog-actions button { margin:0; }
+        /* Project dialog: keep all primary actions in one clearly aligned row. */
+        .git-dialog .manage-dialog-actions {
+          display:grid; grid-template-columns:repeat(2,minmax(0,1fr));
+          align-items:stretch; gap:6px; width:100%; margin-top:12px;
+        }
+        .git-dialog .manage-dialog-actions.has-remove {
+          grid-template-columns:minmax(0,1.5fr) repeat(2,minmax(0,1fr));
+        }
+        .git-dialog .manage-dialog-actions button {
+          box-sizing:border-box; min-width:0; width:100%; margin:0;
+          padding:11px 5px; font-size:clamp(10px,2.8vw,14px);
+          line-height:1.2; white-space:nowrap; overflow:visible;
+        }
+        @media (max-width:760px) {
+          /* Status information above; both top-right actions side by side. */
+          .dra-head { display:block; }
+          .dra-head > div:first-child { margin-bottom:12px; }
+          .dra-actions {
+            display:grid; width:100%; min-width:0; gap:8px;
+            grid-template-columns:minmax(0,.85fr) minmax(0,1.35fr);
+            align-items:center;
+          }
+          .dra-actions .dra-lock {grid-column:1; justify-self:start; white-space:nowrap;}
+          .dra-actions > .note {grid-column:2; justify-self:start; white-space:nowrap;}
+          .dra-actions #dra-refresh {grid-column:1;}
+          .dra-actions #dra-toggle {grid-column:2;}
+          .dra-actions button {
+            box-sizing:border-box; display:block; width:100%; min-width:0;
+            margin:0; padding:11px 5px; font-size:clamp(11px,2.8vw,14px);
+            line-height:1.2; white-space:nowrap; text-align:center;
+          }
+        }
+        @media (max-width:360px) {
+          .git-dialog {padding:14px;}
+          .git-dialog .manage-dialog-actions {gap:4px;}
+          .git-dialog .manage-dialog-actions button {padding:10px 3px;font-size:10px;}
+          .dra-actions {gap:5px;}
+          .dra-actions button {font-size:11px;padding:10px 3px;}
+        }
+
         .git-dialog label { display:block; margin-top:12px; }
         .git-dialog .critical { color:var(--warning-color,#f0bb53); }
         .git-link { display:inline-block; padding:12px 0; color:var(--primary-color,#65b4d2); overflow-wrap:anywhere; }
@@ -1218,7 +1258,7 @@ class DRAV2DevLabPanel extends HTMLElement {
             <label>Notiz <textarea id="manage-note" class="project-text" rows="3">${this._escapeProject(managed?.note || "")}</textarea></label>
             <label>Anzeigename (optional) <input id="manage-name" class="project-text" value="${this._escapeProject(managed?.name || "")}" /></label>
             <label><input id="manage-active" type="checkbox" ${managed?.active !== false ? "checked" : ""} /> Projekt aktiv</label>
-            <div class="dialog-actions">
+            <div class="dialog-actions manage-dialog-actions ${managed ? "has-remove" : ""}">
               ${managed ? '<button id="manage-remove-start" class="danger">Projekt entfernen</button>' : ""}
               <button id="manage-cancel">Abbrechen</button>
               <button id="manage-save">Speichern</button>
