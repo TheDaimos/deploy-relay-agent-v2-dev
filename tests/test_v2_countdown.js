@@ -48,7 +48,45 @@ const mockURL = {
   },
   revokeObjectURL(_id) {},
 };
+const historyListeners = new Map();
+const historyEntries = [{state:{ha_route:"dra-v2-dev-lab"}}];
+let historyIndex = 0;
+let historyPushed = 0;
+const mockWindow = {
+  location:{href:"https://homeassistant.test/dra-v2-dev-lab"},
+  history:{
+    get state() {return historyEntries[historyIndex].state;},
+    pushState(state, unused, url) {
+      assert.equal(url,mockWindow.location.href,"DRA must never change the HA route");
+      historyEntries.splice(historyIndex+1);
+      historyEntries.push({state});
+      historyIndex++;
+      historyPushed++;
+    },
+    back() {
+      if (historyIndex < 1) return;
+      historyIndex--;
+      for (const fn of historyListeners.get("popstate") || [])
+        fn({state:this.state});
+    },
+    forward() {
+      if (historyIndex >= historyEntries.length-1) return;
+      historyIndex++;
+      for (const fn of historyListeners.get("popstate") || [])
+        fn({state:this.state});
+    },
+  },
+  addEventListener(type, fn) {
+    const listeners = historyListeners.get(type) || new Set();
+    listeners.add(fn);
+    historyListeners.set(type,listeners);
+  },
+  removeEventListener(type, fn) {
+    historyListeners.get(type)?.delete(fn);
+  },
+};
 const ctx = {
+  window:mockWindow,
   HTMLElement: FakeElement,
   Blob, document:mockDocument, URL:mockURL,
   customElements: { get: n => elements.get(n), define: (n, x) => elements.set(n, x) },
@@ -499,4 +537,42 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   assert.equal(p._batchSelection.length,1);
   p._cancelBatchDialog();
   console.log("DRA V2 management batch card and compact settings modal PASS");
+})();
+
+(() => {
+  const navigationPanel = new Panel();
+  navigationPanel.connectedCallback(); // Registers browser / native Back listener.
+  assert.equal(navigationPanel._view,"main");
+  const oldIndex = historyIndex;
+  const oldPushes = historyPushed;
+  navigationPanel._navigateMainView("settings");
+  assert.equal(historyIndex,oldIndex+1);
+  assert.equal(historyPushed,oldPushes+1);
+  assert.equal(navigationPanel._view,"settings");
+  assert.equal(historyEntries[historyIndex].state.ha_route,"dra-v2-dev-lab",
+    "Preserve HA router history metadata");
+  assert.equal(historyEntries[historyIndex].state.dra_v2_dev_view,
+               navigationPanel._viewHistoryKey);
+  assert.match(navigationPanel.shadowRoot.innerHTML,/id="dra-settings-view"/);
+  mockWindow.history.back(); // Android native Back
+  assert.equal(navigationPanel._view,"main");
+  assert.equal(navigationPanel._viewHistoryActive,false);
+  assert.equal(historyIndex,oldIndex);
+  assert.match(navigationPanel.shadowRoot.innerHTML,/id="dra-main-view"/);
+  // Home Assistant remains the next normal destination after returning to main.
+  assert.equal(mockWindow.history.state.ha_route,"dra-v2-dev-lab");
+
+  navigationPanel._navigateMainView("settings");
+  navigationPanel._navigateMainView("main"); // "Hauptmenü" UI button
+  assert.equal(navigationPanel._view,"main");
+  assert.equal(historyIndex,oldIndex,"UI Back must consume own duplicate history entry");
+  mockWindow.history.forward();
+  assert.equal(navigationPanel._view,"settings","Browser forward may reopen settings");
+  mockWindow.history.back();
+  assert.equal(navigationPanel._view,"main");
+
+  navigationPanel.disconnectedCallback();
+  assert.equal(historyListeners.get("popstate")?.size || 0,0,
+    "Global popstate event listeners must be removed on panel unmount");
+  console.log("DRA V2 Android native Back / on-screen Main / forward history PASS");
 })();
