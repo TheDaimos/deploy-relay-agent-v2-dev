@@ -494,7 +494,10 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   const settingsStart = mainPanel.shadowRoot.innerHTML.indexOf('id="dra-settings-view"');
   const mainContent = mainPanel.shadowRoot.innerHTML.slice(mainStart,settingsStart);
   const settingsContent = mainPanel.shadowRoot.innerHTML.slice(settingsStart);
-  assert.match(mainContent,/Geführter Ablauf/);
+  assert.doesNotMatch(mainContent,/<h2>Geführter Ablauf<\/h2>/);
+  assert.match(mainContent,/<h2>Deployment<\/h2>/);
+  assert.match(mainContent,/dra-deploy-progress/);
+  assert.match(mainContent,/dra-deploy-steps/);
   assert.match(mainContent,/Quelle &amp; Version|Quelle & Version/);
   assert.match(mainContent,/id="dra-preview"/);
   assert.match(mainContent,/id="dra-project-manage"/);
@@ -674,3 +677,72 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   assert.equal((picker.match(/id="dra-picker-batch"/g)||[]).length,1);
   console.log("DRA V2 virtual Sammelupdate row movement and shared main picker order PASS");
 })().catch(error=>{console.error(error);process.exitCode=1;});
+
+(async () => {
+  const deployment = new Panel();
+  deployment._view = "main";
+  deployment._projects = [{repository:"TheDaimos/example",name:"Example",active:true}];
+  let previewCount=0;
+  deployment._hass = { async callWS(request) {
+    previewCount++;
+    assert.equal(request.type,"deploy_relay_v2_dev/projects/source_preview");
+    assert.equal(request.repository,"TheDaimos/example");
+    assert.equal(request.ref,"deploy/dev");
+    await Promise.resolve(); // let the interim 'loading' state be inspected.
+    return {
+      repository:"TheDaimos/example",installation_enabled:false,sources_verified:true,
+      source_commit:"f".repeat(40),source_ref:"deploy/dev",
+      add:[{path:"added"}],change:[],remove:[],unchanged_count:12,
+    };
+  }};
+  deployment._mainSourceRef="deploy/dev";
+  deployment._render();
+  let view=deployment.shadowRoot.innerHTML;
+  assert.match(view,/data-stage="1"/);
+  assert.match(view,/1\/4 · Vorschau berechnen/);
+  assert.match(view,/dra-deploy-progress idle/);
+  assert.doesNotMatch(view,/3 · Schreibzugriff freigeben<\/button>/);
+  const running=deployment._sourceCheck({dataset:{repo:"TheDaimos/example"}});
+  assert.match(deployment.shadowRoot.innerHTML,/dra-deploy-progress running/);
+  assert.match(deployment.shadowRoot.innerHTML,/Vorschau wird berechnet/);
+  await running;
+  assert.equal(previewCount,1);
+  assert.equal(deployment._deploymentPreviewRef,"deploy/dev");
+  view=deployment.shadowRoot.innerHTML;
+  assert.match(view,/data-stage="2"/);
+  assert.match(view,/2\/4 · Schreibzugriff freigeben/);
+  assert.match(view,/dra-deploy-progress verified/);
+  assert.match(view,/dra-deploy-step orange current/);
+  assert.match(view,/Hinzugefügt: 1/);
+  assert.match(view,/id="dra-preview"[^>]*disabled/);
+  assert.equal((view.match(/id="dra-preview"/g)||[]).length,1);
+  deployment._mainSourceRef="main";
+  deployment._deploymentPreviewRef=null;
+  deployment._sourcePreview=null;
+  deployment._render();
+  assert.match(deployment.shadowRoot.innerHTML,/data-stage="1"/);
+  assert.equal(previewCount,1,"A reference change must not write or auto-install");
+  console.log("DRA V2 unified 4-step Deployment button and true preview progress PASS");
+})().catch(error => {console.error(error);process.exitCode=1;});
+
+(async () => {
+  const grouped = new Panel();
+  grouped._view="main";
+  grouped._mainBatchMode=true;
+  grouped._projects=[{name:"Alpha",repository:"TheDaimos/alpha",active:true,batch_preselect:true}];
+  grouped._hass={ async callWS(request) {
+    assert.equal(request.type,"deploy_relay_v2_dev/batch/preview");
+    return {
+      schema:"dra-v2-dev-batch-preview.v1",count:1,
+      selected:[{repository:"TheDaimos/alpha"}],
+      installation_enabled:false,sources_verified:false,
+    };
+  }};
+  grouped._render();
+  assert.match(grouped.shadowRoot.innerHTML,/1\/4 · Projektauswahl prüfen/);
+  await grouped._previewMainBatch();
+  assert.match(grouped.shadowRoot.innerHTML,/Gruppenauswahl bestätigt/);
+  assert.match(grouped.shadowRoot.innerHTML,/data-stage="1"/);
+  assert.doesNotMatch(grouped.shadowRoot.innerHTML,/data-stage="2"/);
+  console.log("DRA V2 unverified group preview does not unlock write step PASS");
+})().catch(error => {console.error(error);process.exitCode=1;});
