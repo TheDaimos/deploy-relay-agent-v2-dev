@@ -305,7 +305,7 @@ class LabIsolationContracts(unittest.TestCase):
             'this._highlightMovedRepo = repo;',
             'this._scrollToMovedProject = true;',
             'movedRow?.scrollIntoView({block:"nearest", behavior:"smooth"})',
-            'projectDialog.scrollTop = previousProjectScroll',
+            'projectScroll.scrollTop = previousProjectScroll',
         ):
             self.assertIn(term, frontend)
         self.assertIn('connection-success', frontend)
@@ -380,6 +380,31 @@ class LabIsolationContracts(unittest.TestCase):
         self.assertIn('event.target?.closest?.("button, a, input, select, textarea, label")', frontend)
         self.assertIn('.project-row:focus-visible', frontend)
         self.assertIn('this._scrollToMovedProject = false', frontend)
+
+    def test_project_management_scroll_content_stays_below_fixed_header(self):
+        frontend = (LAB_ROOT / "frontend/lab.js").read_text(encoding="utf-8")
+        self.assertIn('id="project-management-scroll"', frontend)
+        self.assertIn('class="project-management-scroll"', frontend)
+        self.assertIn('.project-management-dialog {', frontend)
+        self.assertIn('display:flex; flex-direction:column;', frontend)
+        self.assertIn('overflow:hidden; max-height:92dvh;', frontend)
+        self.assertIn('.project-management-dialog .project-management-scroll {', frontend)
+        self.assertIn('min-height:0; flex:1 1 auto; overflow-y:auto; overflow-x:hidden;', frontend)
+        self.assertIn('overscroll-behavior:contain;', frontend)
+        self.assertIn('position:relative; top:auto; z-index:1; flex:0 0 auto;', frontend)
+        self.assertNotIn('.project-management-dialog header { position:sticky;', frontend)
+        opening = frontend.index('id="project-management-dialog"')
+        header_end = frontend.index('</header>', opening)
+        body_open = frontend.index('id="project-management-scroll"', header_end)
+        first_paragraph = frontend.index('Reihenfolge: Anzeige, Standardprojekt', body_open)
+        footer = frontend.index('id="project-management-dismiss"', first_paragraph)
+        close_body = frontend.index('</div>\\n            </section>', footer)
+        self.assertLess(header_end, body_open)
+        self.assertLess(body_open, first_paragraph)
+        self.assertLess(footer, close_body)
+        self.assertIn('const previousProjectScroll = s.querySelector("#project-management-scroll")?.scrollTop ?? 0;', frontend)
+        self.assertIn('const projectScroll = s.querySelector("#project-management-scroll");', frontend)
+        self.assertIn('projectScroll.scrollTop = previousProjectScroll;', frontend)
 
     def test_config_flow_uses_test_domain_not_v1_domain(self):
         source = (LAB_ROOT / "config_flow.py").read_text(encoding="utf-8")
