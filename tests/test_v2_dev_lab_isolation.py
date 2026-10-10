@@ -222,6 +222,17 @@ class LabIsolationContracts(unittest.TestCase):
         self.assertEqual(frontend.count('id="manage-cancel"'), 1)
         self.assertEqual(frontend.count('id="manage-save"'), 1)
 
+    def test_mobile_project_cards_are_compact_and_controls_share_a_row(self):
+        frontend = (LAB_ROOT / "frontend/lab.js").read_text(encoding="utf-8")
+        self.assertIn('grid-template-areas:"number project project project" "status status settings order"', frontend)
+        self.assertIn('grid-area:status;', frontend)
+        self.assertIn('grid-area:settings;', frontend)
+        self.assertIn('grid-area:order;', frontend)
+        self.assertIn('.project-card td::before { content:none !important;', frontend)
+        self.assertIn('.project-card td:nth-child(5) {', frontend)
+        self.assertIn('.project-management-table .source-check.note', frontend)
+        self.assertNotIn('content:"Git-Status"; display:block', frontend)
+
     def test_config_flow_uses_test_domain_not_v1_domain(self):
         source = (LAB_ROOT / "config_flow.py").read_text(encoding="utf-8")
         self.assertIn("ConfigFlow, domain=DOMAIN", source)
