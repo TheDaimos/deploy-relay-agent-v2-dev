@@ -307,6 +307,35 @@ async def _get(session, url: str, *, token: str | None = None) -> dict:
     return obj
 
 
+async def inspect_repository_connection(session, repository: str, *, token: str | None = None) -> dict:
+    """Check GitHub repository visibility using GET only, independent of a DRA manifest.
+
+    This deliberately does not grant, exercise or certify write rights. GitHub's
+    advertised push permission is metadata, not a successful write transaction.
+    """
+    try:
+        repository = normalize_repo(repository)
+    except CatalogError:
+        raise PreflightError("invalid registered repository") from None
+    owner, name = repository.split("/")
+    endpoint = f"{API}/repos/{quote(owner, safe='')}/{quote(name, safe='')}"
+    meta = await _get(session, endpoint, token=token)
+    if type(meta.get("full_name")) is not str or meta["full_name"].casefold() != repository.casefold():
+        raise PreflightError("GitHub repository identity does not match")
+    if type(meta.get("private")) is not bool:
+        raise PreflightError("GitHub repository visibility not verified")
+    permissions = meta.get("permissions")
+    advertised_push = permissions.get("push") if type(permissions) is dict else None
+    if type(advertised_push) is not bool:
+        advertised_push = None
+    return {
+        "connected": True, "repository": repository, "private": meta["private"],
+        "authenticated": token is not None,
+        "advertised_push": advertised_push,
+        "write_tested": False,
+    }
+
+
 async def inspect_public_repository(session, config_root: Path, repository: str, ref: str = "", *, token: str | None = None) -> dict:
     """Actual pinned remote tree versus read-only HA inventory; no write capability.
 
