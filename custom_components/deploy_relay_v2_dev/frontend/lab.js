@@ -940,6 +940,19 @@ class DRAV2DevLabPanel extends HTMLElement {
           border-radius:14px; padding:18px; box-shadow:0 14px 38px #0009; }
         .git-dialog header { display:flex; align-items:center; justify-content:space-between; gap:12px; }
         .project-management-dialog { width:min(100%,1080px); }
+        .project-management-dialog .project-management-table { table-layout:auto; }
+        .project-management-dialog .project-management-table td:first-child { min-width:0; width:42px; }
+        .project-management-dialog .project-management-table td:nth-child(2) { overflow-wrap:anywhere; }
+        .project-management-dialog header { position:sticky; top:0; z-index:1;
+          background:var(--card-background-color,#222); padding-bottom:12px;
+          border-bottom:1px solid var(--divider-color,#555); }
+        @media (max-width:760px) {
+          .project-management-dialog { width:100%; max-height:94dvh; padding:14px; }
+          .project-management-dialog header h2 { font-size:17px; }
+          .project-management-dialog .project-management-table td:first-child { width:auto; }
+          .project-management-dialog .project-actions {gap:6px;}
+          .project-management-dialog .project-actions button {margin:0;}
+        }
         .project-management-dialog .project-management-footer { justify-content:flex-end; margin-top:18px; }
         .project-management-dialog .project-management-footer button { min-width:130px; }
         .git-dialog button.git-check-success { background:var(--success-color,#2e994e);
