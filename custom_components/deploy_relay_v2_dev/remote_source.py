@@ -98,6 +98,80 @@ class GitReadAuth:
                 raise GitReadAuthError("GitHub read-auth clear failed") from None
             self._token = None
 
+class ProjectReadAuth:
+    """Separate per-project V2-only secret store. Never return raw tokens to the panel."""
+    SCHEMA = "dra-v2-dev-project-read-auth.v1"
+
+    def __init__(self, store):
+        self._store = store
+        self._lock = asyncio.Lock()
+        self._tokens = None
+
+    async def load(self):
+        try:
+            obj = await self._store.async_load()
+        except Exception:
+            raise GitReadAuthError("project auth unavailable") from None
+        if obj is None:
+            self._tokens = {}
+            return
+        if type(obj) is not dict or set(obj) != {"schema", "tokens"} or obj["schema"] != self.SCHEMA:
+            raise GitReadAuthError("project auth store invalid")
+        entries = obj["tokens"]
+        if type(entries) is not dict or len(entries) > 32:
+            raise GitReadAuthError("project auth records invalid")
+        from .project_catalog import normalize_repo, CatalogError
+        checked = {}
+        for repo, token in entries.items():
+            try:
+                name = normalize_repo(repo).casefold()
+            except CatalogError:
+                raise GitReadAuthError("invalid project auth identity") from None
+            if name in checked or not GitReadAuth._valid_token(token):
+                raise GitReadAuthError("invalid project auth secret")
+            checked[name] = token
+        self._tokens = checked
+
+    def token(self, repository):
+        if self._tokens is None:
+            return None
+        return self._tokens.get(repository.casefold())
+
+    def status(self, repository):
+        value = self.token(repository)
+        return {"configured": value is not None, "suffix": value[-5:] if value else None}
+
+    async def save(self, repository, token):
+        from .project_catalog import normalize_repo
+        key = normalize_repo(repository).casefold()
+        if not GitReadAuth._valid_token(token):
+            raise GitReadAuthError("invalid project token")
+        async with self._lock:
+            if self._tokens is None:
+                raise GitReadAuthError("project auth unavailable")
+            new = {**self._tokens, key: token}
+            if len(new) > 32:
+                raise GitReadAuthError("too many project credentials")
+            try:
+                await self._store.async_save({"schema":self.SCHEMA,"tokens":new})
+            except Exception:
+                raise GitReadAuthError("project token store failed") from None
+            self._tokens = new
+
+    async def delete(self, repository):
+        from .project_catalog import normalize_repo
+        key = normalize_repo(repository).casefold()
+        async with self._lock:
+            if self._tokens is None:
+                raise GitReadAuthError("project auth unavailable")
+            new = {k:v for k,v in self._tokens.items() if k != key}
+            try:
+                await self._store.async_save({"schema":self.SCHEMA,"tokens":new})
+            except Exception:
+                raise GitReadAuthError("project token deletion failed") from None
+            self._tokens = new
+
+
 def source_ref(value: object) -> str:
     if type(value) is not str or len(value) > 100:
         raise PreflightError("invalid Git source reference")
