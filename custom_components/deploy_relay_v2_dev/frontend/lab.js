@@ -815,7 +815,7 @@ class DRAV2DevLabPanel extends HTMLElement {
         <div class="dashboard-grid">
         <article class="section-card test-card">
           <h2>01 · Teststeuerung</h2>
-          <p>Starte einen 40-Sekunden-Test. Schließe dann diese Ansicht auf dem Smartphone. Öffne dieses Testlabor auf dem Notebook und prüfe, ob derselbe Auftrag noch läuft oder abgeschlossen ist.</p>
+          <p>Starte eine CPU-/RAM-Messung, die Mehrkern-Diagnose oder den Gesamttest. Die Aufträge laufen unabhängig vom geöffneten Browser weiter.</p>
           <div class="inner-panel status-panel"><h3>Aktueller Auftrag</h3>
           <p><strong>Status:</strong> ${label}</p>
           <p><strong>Fortschritt:</strong> ${progress}</p>
@@ -824,7 +824,6 @@ class DRAV2DevLabPanel extends HTMLElement {
           ${this._error ? `<p class="error">${this._error}</p>` : ""}
           <button id="refresh" ${this._busy ? "disabled" : ""}>Status aktualisieren</button>
           </div><div class="inner-panel"><h3>Testarten</h3>
-          <button id="start" ${busy ? "disabled" : ""}>Testauftrag starten</button>
           <button id="measure" ${busy ? "disabled" : ""}>Messlauf starten (40 s)</button>
           <button id="multicore" ${busy ? "disabled" : ""}>Mehrkern-Diagnose (1 / 2 / 4 / 6 / 8 / 10 / 12)</button>
           <button id="all" ${busy ? "disabled" : ""}>Alle Tests nacheinander starten</button>
@@ -1048,7 +1047,6 @@ class DRAV2DevLabPanel extends HTMLElement {
         <p class="note">Während eines laufenden Tests wird der Status etwa alle 1,5 Sekunden aktualisiert. Im Leerlauf erfolgt keine regelmäßige Abfrage. Nach einem Home-Assistant-Neustart bleiben abgeschlossene Aufträge im begrenzten Verlauf abrufbar. Vorher laufende Testaufträge erscheinen als unterbrochen und werden nicht neu gestartet.</p>
       </main>
     `;
-    s.querySelector("#start")?.addEventListener("click", () => this._start());
     s.querySelector("#measure")?.addEventListener("click", () => this._measure());
     s.querySelector("#multicore")?.addEventListener("click", () => this._runSequence("multicore"));
     s.querySelector("#all")?.addEventListener("click", () => this._runSequence("full"));
