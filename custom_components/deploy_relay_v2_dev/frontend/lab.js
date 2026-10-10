@@ -27,6 +27,8 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._projectSettingsRepo = null;
     this._projectDeleteConfirm = false;
     this._projectDialogOpen = false;
+    this._v2SettingsOpen = false;
+    this._v2SourceRef = "";
     this._projectSaved = new Map();
     this._backupDialogOpen = false;
     this._projectMessage = "";
@@ -624,6 +626,18 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._projectPickerOpen = false;
     this._openBatchDialog(); // Existing non-installing project selection dialog.
   }
+  _openV2Settings() {
+    if (!this._projectDialogOpen || this._checkAllBusy || this._gitReadBusy) return;
+    this._v2SettingsOpen = true;
+    this._render();
+    this.shadowRoot?.querySelector("#project-v2-settings-dialog")?.focus();
+  }
+  _closeV2Settings() {
+    if (this._gitReadBusy || this._sourceBusy) return;
+    this._v2SettingsOpen = false;
+    this._render();
+    this.shadowRoot?.querySelector("#project-v2-settings-open")?.focus();
+  }
   _openProjectDialog() {
     this._projectDialogOpen = true;
     this._render();
@@ -631,6 +645,7 @@ class DRAV2DevLabPanel extends HTMLElement {
   _closeProjectDialog() {
     if (this._projectBusy || this._sourceBusy || this._gitReadBusy || this._checkAllBusy) return;
     this._projectDialogOpen = false;
+    this._v2SettingsOpen = false;
     this._highlightMovedRepo = null;
     this._render();
   }
@@ -1818,15 +1833,6 @@ class DRAV2DevLabPanel extends HTMLElement {
           </div>
         </article>
 
-        <article class="section-card">
-          <h2 class="section-toggle-title"><button class="section-toggle" data-section="5" aria-expanded="${this._expandedSections.has('5')}" aria-controls="section-body-5"><span>05 · Sammelaktualisierung</span><span aria-hidden="true">${this._expandedSections.has('5') ? "▾" : "▸"}</span></button></h2><div id="section-body-5" class="section-body" ${this._expandedSections.has('5') ? "" : "hidden"}>
-          <p class="note">Projektvorauswahl für spätere Sammelaktualisierungen. Keine Installation.</p>
-          <button id="batch-open" ${this._projects.length === 0 ? "disabled" : ""}>Projektauswahl bearbeiten</button>
-          <p class="note">${this._projects.filter(p => p.active !== false && p.batch_preselect !== false).length} von ${this._projects.filter(p => p.active !== false).length} aktiven Projekten ausgewählt.</p>
-          <p class="note" role="status">${this._escapeProject(this._batchDialogOpen ? "" : this._batchMessage)}</p>
-          </div>
-        </article>
-
         </div>
         <p class="note">Während eines laufenden Tests wird der Status etwa alle 1,5 Sekunden aktualisiert. Im Leerlauf erfolgt keine regelmäßige Abfrage. Nach einem Home-Assistant-Neustart bleiben abgeschlossene Aufträge im begrenzten Verlauf abrufbar. Vorher laufende Testaufträge erscheinen als unterbrochen und werden nicht neu gestartet.</p>
         </section>
@@ -1899,7 +1905,33 @@ class DRAV2DevLabPanel extends HTMLElement {
           </div>
           <p class="project-check-all-feedback" role="status" aria-live="polite">${this._escapeProject(this._checkAllProgress)}</p>
           <p class="note" role="status">${this._escapeProject(this._projectMessage)}</p>
-          <p><strong>Privater GitHub-Lesezugang für V2</strong></p>
+          <section class="project-batch-card" aria-labelledby="project-batch-title">
+            <div class="project-batch-head">
+              <span class="project-batch-icon">${iconSvg('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="m9 15 2 2 4-4"/>',22)}</span>
+              <div class="project-batch-text">
+                <strong id="project-batch-title">Sammelaktualisierung</strong>
+                <span class="note">Projektvorauswahl für spätere Sammelaktualisierungen · keine Installation</span>
+                <span class="project-batch-count">${this._projects.filter(p => p.active !== false && p.batch_preselect !== false).length} von ${this._projects.filter(p => p.active !== false).length} aktiven Projekten ausgewählt</span>
+              </div>
+              <button id="batch-open" class="project-batch-edit" ${this._projects.length === 0 || this._batchBusy || this._checkAllBusy ? "disabled" : ""}>
+                ${iconSvg('<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L9 17l-4 1 1-4Z"/>',19)}
+                <span>Auswahl bearbeiten</span>
+              </button>
+            </div>
+            <p class="note" role="status">${this._escapeProject(this._batchDialogOpen ? "" : this._batchMessage)}</p>
+          </section>
+          <div class="project-v2-card">
+            <div class="project-v2-details">
+              <strong>Deploy Relay Agent V2</strong>
+              <span class="note">Zentrale Einstellungen · GitHub-Lesezugang · Quellprüfung</span>
+            </div>
+            <div class="project-v2-status ${this._gitReadConfigured ? "configured" : "unconfigured"}">
+              ${this._gitReadConfigured ? "Lesezugang eingerichtet" : "Lesezugang nicht eingerichtet"}
+            </div>
+            <button id="project-v2-settings-open" class="project-v2-settings-button"
+              title="V2-Einstellungen öffnen" aria-label="Einstellungen für Deploy Relay Agent V2 öffnen"
+              ${this._checkAllBusy || this._gitReadBusy ? "disabled" : ""}>${metalSvg(gearIcon,"v2",0)}</button>
+          </div>
           <p class="note">Optional für private Projekt-Repositories. Nur einen
           eigenen GitHub-Token mit möglichst minimalem Leserecht auf die
           benötigten Repositories verwenden. Niemals V1-Zugangsdaten oder
