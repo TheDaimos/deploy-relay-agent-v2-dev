@@ -27,9 +27,70 @@ MAX_REPORTS = 8
 _FIELDS = frozenset({
     "schema", "run_id", "captured_at", "status", "stage",
     "reason", "duration_ms", "sources_verified", "installation_enabled",
+    "resources", "steps",
 })
 _DATE_RE = re.compile(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ\Z")
 _HEX = re.compile(r"[a-f0-9]{32}\Z")
+
+
+RESOURCE_FIELDS = frozenset({
+    "available_cores", "configured_readonly_jobs", "configured_worker_processes",
+    "configured_mode", "active_readonly_limit", "active_mutation_limit",
+    "worker_budget_enforced",
+})
+
+
+def sanitize_resources(value: object) -> dict:
+    if type(value) is not dict or set(value) != RESOURCE_FIELDS:
+        raise SourceDiagnosticsError("invalid resources")
+    if (value["available_cores"] is not None and
+        (type(value["available_cores"]) is not int or
+         not 1 <= value["available_cores"] <= 4096)):
+        raise SourceDiagnosticsError("invalid available cores")
+    if (type(value["configured_readonly_jobs"]) is not int or
+        not 1 <= value["configured_readonly_jobs"] <= 4 or
+        type(value["configured_worker_processes"]) is not int or
+        not 1 <= value["configured_worker_processes"] <= 12 or
+        value["configured_mode"] not in ("sequential", "controlled") or
+        type(value["configured_mode"]) is not str or
+        value["active_readonly_limit"] != 1 or
+        type(value["active_readonly_limit"]) is not int or
+        value["active_mutation_limit"] != 0 or
+        type(value["active_mutation_limit"]) is not int or
+        value["worker_budget_enforced"] is not False):
+        raise SourceDiagnosticsError("invalid runtime resource limits")
+    return dict(value)
+
+
+def resource_snapshot(settings) -> dict:
+    configured = settings.snapshot()
+    observed = settings.core_status()
+    effective = settings.effective()
+    return sanitize_resources({
+        "available_cores": observed["available_cores"],
+        "configured_readonly_jobs": configured["max_readonly_jobs"],
+        "configured_worker_processes": configured["max_worker_processes"],
+        "configured_mode": configured["mode"],
+        "active_readonly_limit": effective["active_readonly_limit"],
+        "active_mutation_limit": effective["mutation_limit"],
+        "worker_budget_enforced": effective["worker_budget_enforced"],
+    })
+
+
+def sanitize_steps(steps: object, duration: int) -> list[dict]:
+    if type(steps) is not list or not 1 <= len(steps) <= 12:
+        raise SourceDiagnosticsError("invalid diagnostic stage sequence")
+    checked = []
+    prev = -1
+    for step in steps:
+        if (type(step) is not dict or set(step) != {"stage", "elapsed_ms"} or
+            type(step["stage"]) is not str or step["stage"] not in ALLOWED_STAGES or
+            type(step["elapsed_ms"]) is not int or
+            not prev <= step["elapsed_ms"] <= duration):
+            raise SourceDiagnosticsError("invalid diagnostic stage")
+        prev = step["elapsed_ms"]
+        checked.append(dict(step))
+    return checked
 
 
 class SourceDiagnosticsError(ValueError):
@@ -54,11 +115,13 @@ def sanitize_source_diagnostic(value: object) -> dict:
         (value["status"] == "success" and value["reason"] != "none") or
         (value["status"] == "failed" and value["reason"] == "none")):
         raise SourceDiagnosticsError("invalid source diagnostic")
+    resources = sanitize_resources(value["resources"])
+    steps = sanitize_steps(value["steps"], value["duration_ms"])
     try:
         datetime.strptime(value["captured_at"], "%Y-%m-%dT%H:%M:%SZ")
     except ValueError:
         raise SourceDiagnosticsError("invalid diagnostic time") from None
-    return dict(value)
+    return {**value, "resources": resources, "steps": steps}
 
 
 def classify_source_failure(stage: str, error: BaseException) -> str:
@@ -89,15 +152,25 @@ class SourceDiagnosticLog:
         self._entries: deque[dict] = deque(maxlen=MAX_REPORTS)
 
     def begin(self) -> dict:
-        return {"run_id": uuid4().hex, "started": monotonic(), "stage": "admission"}
+        start = monotonic()
+        return {"run_id": uuid4().hex, "started": start, "stage": "admission",
+                "steps": [{"stage": "admission", "elapsed_ms": 0}]}
 
     @staticmethod
     def stage(context: dict, name: str) -> None:
         if name not in ALLOWED_STAGES:
             raise SourceDiagnosticsError("invalid diagnostic stage")
         context["stage"] = name
+        context["steps"].append({
+            "stage": name,
+            "elapsed_ms": min(60000, max(0, round((monotonic()-context["started"])*1000))),
+        })
 
-    def finish(self, context: dict, *, success: bool, reason: str = "none") -> dict:
+    def finish(self, context: dict, *, success: bool, resources: dict,
+               reason: str = "none") -> dict:
+        duration = min(60000, max(0, round((monotonic()-context["started"])*1000)))
+        steps = [dict(row, elapsed_ms=min(row["elapsed_ms"], duration))
+                 for row in context["steps"]]
         record = sanitize_source_diagnostic({
             "schema": SCHEMA,
             "run_id": context["run_id"],
@@ -105,7 +178,8 @@ class SourceDiagnosticLog:
             "status": "success" if success else "failed",
             "stage": context["stage"],
             "reason": reason,
-            "duration_ms": min(60000, max(0, round((monotonic()-context["started"])*1000))),
+            "duration_ms": duration,
+            "resources": resources, "steps": steps,
             "sources_verified": bool(success),
             "installation_enabled": False,
         })
