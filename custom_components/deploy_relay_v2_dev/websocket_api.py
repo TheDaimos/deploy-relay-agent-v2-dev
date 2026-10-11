@@ -10,6 +10,7 @@ from pathlib import Path
 
 from .remote_source import inspect_public_repository, inspect_repository_connection, GitReadAuthError
 from .source_preflight import PreflightError
+from .source_diagnostics import classify_source_failure, resource_snapshot
 from .target_ownership import TargetClaimError, assess_target_claims
 
 from .const import DOMAIN, VERSION
@@ -731,16 +732,22 @@ async def async_projects_source_preview(hass, connection, msg):
     if runtime is None:
         connection.send_error(msg["id"], "not_ready", "Projektverwaltung nicht bereit")
         return
-    # No arbitrary GitHub URL or unregistered project can trigger a local scan.
+    # Source diagnostics are server-owned, bounded and deliberately omit both
+    # repo identity and raw exception details.
+    trace = runtime.source_diagnostics.begin()
+    resources = resource_snapshot(runtime.settings)
     repo = msg["repository"]
     if type(repo) is not str or not any(
         project["repository"].casefold() == repo.casefold()
         for project in _project_list(runtime)
     ):
+        runtime.source_diagnostics.finish(
+            trace, success=False, reason="source_unavailable", resources=resources)
         connection.send_error(msg["id"], "not_registered", "Projekt nicht registriert")
         return
-    # Do not spawn multiple network scans/filesystem enumerations simultaneously.
     if runtime.source_scan_lock.locked():
+        runtime.source_diagnostics.finish(
+            trace, success=False, reason="source_unavailable", resources=resources)
         connection.send_error(msg["id"], "busy", "Quellprüfung läuft bereits")
         return
     try:
@@ -751,20 +758,93 @@ async def async_projects_source_preview(hass, connection, msg):
                     Path(hass.config.path()),
                     repo,
                     msg["ref"], token=runtime.project_auth.token(repo) or runtime.source_auth.token,
+                    stage_hook=lambda stage: runtime.source_diagnostics.stage(trace, stage),
                 ),
                 timeout=45,
             )
-            # A validated preview is still not proof of exclusive V2 ownership.
-            # External V1 ownership/locks and backup verification remain unknown.
+            runtime.source_diagnostics.stage(trace, "target_claims")
+            # Unknown V1 ownership is NEVER a successful handover.
             report["target_claims"] = assess_target_claims([report])
-    except (PreflightError, TargetClaimError, TimeoutError, OSError, ValueError):
+    except (PreflightError, TargetClaimError, TimeoutError, OSError, ValueError) as exc:
+        runtime.source_diagnostics.finish(
+            trace, success=False,
+            reason=classify_source_failure(trace["stage"], exc), resources=resources)
         connection.send_error(
             msg["id"], "source_unavailable",
             "Quellprüfung nicht möglich oder Quelle nicht vertrauenswürdig",
         )
         return
+    except Exception:
+        runtime.source_diagnostics.finish(
+            trace, success=False, reason="unexpected_error", resources=resources)
+        connection.send_error(msg["id"], "source_unavailable", "Quellprüfung fehlgeschlagen")
+        return
+    runtime.source_diagnostics.finish(trace, success=True, resources=resources)
     connection.send_result(msg["id"], report)
 
+
+
+@websocket_api.websocket_command({
+    probatio.Required("type"): "deploy_relay_v2_dev/deployment/logs",
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def async_deployment_logs(hass, connection, msg):
+    runtime = _runtime(hass)
+    if runtime is None:
+        connection.send_error(msg["id"], "not_ready", "Diagnose nicht bereit")
+        return
+    connection.send_result(msg["id"], {
+        "schema": "dra-v2-dev-deployment-logs.v1",
+        "version": VERSION,
+        "records": runtime.source_diagnostics.entries(),
+        "installation_enabled": False,
+    })
+
+
+@websocket_api.websocket_command({
+    probatio.Required("type"): "deploy_relay_v2_dev/deployment/logs/download",
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def async_deployment_logs_download(hass, connection, msg):
+    runtime = _runtime(hass)
+    if runtime is None:
+        connection.send_error(msg["id"], "not_ready", "Diagnose nicht bereit")
+        return
+    record = runtime.source_diagnostics.latest()
+    if record is None:
+        connection.send_error(msg["id"], "no_logs", "Noch keine Deployment-Prüfung vorhanden")
+        return
+    try:
+        result = runtime.git_export.local_download(record, version=VERSION)
+    except GitMeasurementError:
+        connection.send_error(msg["id"], "invalid_logs", "Diagnose nicht exportierbar")
+        return
+    connection.send_result(msg["id"], result)
+
+
+@websocket_api.websocket_command({
+    probatio.Required("type"): "deploy_relay_v2_dev/deployment/logs/export",
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def async_deployment_logs_export(hass, connection, msg):
+    runtime = _runtime(hass)
+    if runtime is None:
+        connection.send_error(msg["id"], "not_ready", "Diagnose nicht bereit")
+        return
+    record = runtime.source_diagnostics.latest()
+    if record is None:
+        connection.send_error(msg["id"], "no_logs", "Noch keine Deployment-Prüfung vorhanden")
+        return
+    try:
+        result = await runtime.git_export.export(record, version=VERSION)
+    except GitMeasurementError:
+        connection.send_error(msg["id"], "archive_export_failed",
+                              "Privater Diagnoseexport fehlgeschlagen")
+        return
+    connection.send_result(msg["id"], result)
 
 
 @websocket_api.websocket_command({
@@ -819,6 +899,8 @@ def async_register_commands(hass: HomeAssistant) -> None:
                     async_settings_get, async_settings_save, async_settings_ack_cpu_warning,
                     async_batch_preview, async_projects_connection_check,
                     async_projects_source_preview,
+                    async_deployment_logs, async_deployment_logs_download,
+                    async_deployment_logs_export,
                     async_git_read_configure, async_git_read_clear,
                     async_archive_repository_set, async_archive_repository_clear,
                     async_archive_repository_configure,
