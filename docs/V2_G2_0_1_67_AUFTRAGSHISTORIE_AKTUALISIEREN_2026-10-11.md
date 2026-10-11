@@ -2,7 +2,7 @@
 
 **Datum:** 11.10.2026  
 **Entwicklungszweig:** `feature/v2-10-inventory-operation-contract`  
-**Status:** Code umgesetzt, isolierte CI grün; **HA-Realabnahme von 0.1.67 noch offen**.  
+**Status:** Code umgesetzt, isolierte CI grün; **HA-Sicht- und Funktionsabnahme der neuen Aktualisierungsschaltfläche unter 0.1.67 am 11.10.2026 erfolgreich**. Nachweis eines konkreten neuen Quellauftrags ist für diese reine Leseaktion nicht erforderlich.  
 **Abgrenzung:** ausschließlich Bedienoberfläche + bestehende schreibgeschützte WebSocket-Leseendpunkte. Keine neuen Rechte.
 
 ## Ausgangslage und realer HA-Befund
@@ -42,6 +42,20 @@ Automatischer GitHub-Actions-Lauf **[38162164733](https://github.com/TheDaimos/d
 - Keine Artefakte und keine Installation aus CI heraus
 
 **HA-Realtest nach vom Betreiber ausgeführtem V1-Update und üblichem HA-Neustart:** In DRA V2 DEV **Logs** öffnen, `Aktualisieren` antippen und prüfen, ob sich die Liste unmittelbar aktualisiert, auch nach Wechsel zwischen Companion App und Browser. Eine bereits vorhandene erledigte Kennung muss weiterhin als „Damals erfolgreich“ erscheinen. **Kein zusätzlicher G2-60-Test notwendig.**
+
+## Realtest V2 DEV 0.1.67 – 11.10.2026, 20:30 Ortszeit
+
+Der Betreiber übermittelte drei Screenshots aus der realen Home-Assistant-Oberfläche, nachdem der neue Entwicklungsstand installiert worden war.
+
+- Die neue goldgestaltete Schaltfläche steht **direkt im Bereich „Serverseitige Auftragshistorie“**, ist auf dem Smartphone gut lesbar und entspricht dem vorgesehenen gold-dunklen Design.
+- Nach dem Antippen zeigt die Bedienoberfläche **„Protokolle und Auftragshistorie sind aktuell.“**. Im freigegebenen Quellcode wird diese Erfolgsmeldung nur angezeigt, wenn die beiden getrennten schreibgeschützten Leseanforderungen erfolgreich verarbeitet wurden. Die Anzeige wurde real beobachtet. Die Ladeanimation kann aus einzelnen Standbildern nicht unabhängig qualitativ beurteilt werden; ihre isolierten Bedienungs- und Sicherheitsprüfungen sind grün.
+- Die Auftragshistorie zeigte zwei sehr aktuelle terminale Aufträge als **„Damals erfolgreich“**. Ein früherer G2-Netzwechselauftrag war vor dem Aktualisieren ebenfalls sichtbar und korrekt historisch gekennzeichnet.
+- Auf einem Screenshot nach dem Aktualisieren sind nur die beiden neuesten Aufträge zu sehen. **Das ist kein Beweis einer Löschung:** Beide Logansichten besitzen einen eigenen, auf **250 CSS-Pixel** begrenzten Bereich mit `overflow-y:auto`. Weitere historische Einträge können darin außerhalb des gerade sichtbaren Ausschnitts liegen. Der Quellcode für den Leseaufruf führt keinerlei serverseitige Löschung oder Abkürzung der Aufbewahrungsgrenze aus.
+- Ein neuer Schreibauftrag, Installation, Git-Export, automatischer Neustart oder eine Freigabe aus früheren Ergebnissen ist nicht zu sehen und durch die neue Schaltfläche auch nicht vorgesehen.
+
+**Abnahme:** Optik, mobile Darstellung, Auslösung und Erfolgsmeldung des gemeinsamen manuellen Leseabrufs unter V2 DEV **0.1.67** **bestanden**. Damit ist die zuvor beanstandete Notwendigkeit, die Companion-App-V2-Ansicht zur Aktualisierung verlassen zu müssen, mit einer eigenen Schaltfläche adressiert.
+
+**Getrennt offen:** HA-Prozessneustart **während** eines laufenden Leseauftrags und ausdrücklich erzwungene Wiederholung einer zuvor fehlgeschlagenen privaten Git-Übertragung. Ein bereits erfolgreich abgeschlossener historischer Auftrag nach einem regulären Update-Neustart beweist nicht den Unterbrechungsfall bei einem gerade laufenden Auftrag.
 
 ## Unveränderte Sicherheitsgrenzen
 
