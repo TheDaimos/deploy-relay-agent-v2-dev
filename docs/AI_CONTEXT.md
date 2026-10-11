@@ -1,6 +1,6 @@
 # DRA V2 – aktueller Projekt-Einstiegspunkt
 
-**Stand:** 11.10.2026 – DRA V2 DEV **0.1.65** (isoliertes Home-Assistant-Testlabor, **keine V2-FINAL-/HACS-Freigabe**).
+**Stand:** 11.10.2026 – DRA V2 DEV **0.1.66** (isoliertes Home-Assistant-Testlabor, **keine V2-FINAL-/HACS-Freigabe**).
 
 ## Für jede Fortsetzung
 
@@ -23,6 +23,8 @@
 17. **Nächster Arbeitsschwerpunkt:** sichere serverseitige Auftrags-/Transaktionsarchitektur, nachweislich vollständige eigene Backups und unabhängiger Rückfall, dann schrittweise explizit freigegebene Installation und konfliktsichere parallele Sammelaktualisierung. **Keine automatische HA-Installation/kein Neustart.**
 
 **Neu festgelegte Sicherheitsanforderung (11.10.2026):** Eine fehlende Installierbarkeit wird vor Schreibbeginn **ohne Mutation** gesperrt. Ein eindeutig gescheiterter begonnener Schreibvorgang soll nur mit geprüfter V2-Originalbytes-Sicherung und nachgewiesener Exklusivsperre automatisch auf den früheren Zustand zurückfallen; bei unklaren Bedingungen nur `recovery_required`. Ein ausgefallener HA-Prozess kann nur mittels später eigenständig genehmigtem externem Recovery-Wächter automatisch wiederhergestellt werden. Verbindliche Spezifikation: `docs/V2_INSTALLABILITY_GUARD_AND_AUTOMATIC_ROLLBACK_2026-10-11.md`. **Nur Design; keine Freigabe oder Implementierung, kein Versionssprung.**
+
+**Neu 0.1.66 / G2-60 (11.10.2026):** Der erste G2-Test unter 0.1.65 ließ sich in HA nicht starten. Ein anschließend übertragener echter privater Diagnoseexport trug weiter die Laufzeitkennung 0.1.64; die neue Schaltfläche war bereits sichtbar. Ein ursächlicher veralteter Python-Prozess ist **plausibel, aber nicht abschließend belegt**. Die Quellauftrags-Testpause wurde fest von 30 auf **60 Sekunden** erhöht; die DEV-Oberfläche liest jetzt die **aktive Python-Version direkt über den bestehenden serverseitigen Status** und sperrt den speziellen Verbindungstest bei Versionsabweichung (benötigt 0.1.66). Der HA-Test darf erst nach Code-CI und eigener Installation durch den Betreiber folgen. [Neues verbindliches G2-60-Protokoll](V2_G2_60_ANDROID_VERBINDUNGSTEST_0_1_66_2026-10-11.md). Weiterhin keine Schreib-/Neustartfreigabe, kein automatischer Export.
 
 **Neu 0.1.65 / G2-30 (11.10.2026):** Expliziter, nur lesender **30-Sekunden-Verbindungstest** in der bestehenden HA-eigenen Quellauftragsverwaltung. Neue getrennte Schaltfläche im V2-DEV-Panel; der eigentliche Quellvergleich folgt nach einer ereignisschleifenschonenden Pause. Normale Quellprüfungen werden nicht verzögert. Testmode ist ein fester boolescher Admin-Parameter, keine frei wählbare Dauer, keine Freigabe von Schritt 2. Die persistierte Historie bleibt unverändert minimal. Neue Python-/JS-Tests und getrennte HA-Realabnahme erforderlich. **Version 0.1.65 ist nur Code, nicht schon in HA abgenommen.** [G2-30-Testprotokoll](V2_G2_30_ANDROID_VERBINDUNGSTEST_0_1_65_2026-10-11.md). V1-, V2-main/PUB- und Archiv-Repositorys bleiben unverändert. Alte 0.1.64-Zwischenabnahme gilt fort. Der aktuell letzte CI-Lauf muss vor Installationsfreigabe überprüft werden.
 
