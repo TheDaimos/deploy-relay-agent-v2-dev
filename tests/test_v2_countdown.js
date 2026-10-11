@@ -685,14 +685,30 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   let previewCount=0;
   deployment._hass = { async callWS(request) {
     previewCount++;
-    assert.equal(request.type,"deploy_relay_v2_dev/projects/source_preview");
-    assert.equal(request.repository,"TheDaimos/example");
-    assert.equal(request.ref,"deploy/dev");
-    await Promise.resolve(); // let the interim 'loading' state be inspected.
+    if (request.type === "deploy_relay_v2_dev/projects/source_job/start") {
+      assert.equal(request.repository,"TheDaimos/example");
+      assert.equal(request.ref,"deploy/dev");
+      await Promise.resolve(); // let the interim loading state be inspected
+      return {
+        schema:"dra-v2-source-preview-job.v1",operation_id:"a".repeat(32),
+        repository:"TheDaimos/example",ref:"deploy/dev",status:"queued",
+        installation_enabled:false,
+      };
+    }
+    assert.equal(request.type,"deploy_relay_v2_dev/projects/source_job/status");
+    assert.equal(request.operation_id,"a".repeat(32));
     return {
-      repository:"TheDaimos/example",installation_enabled:false,sources_verified:true,
-      source_commit:"f".repeat(40),source_ref:"deploy/dev",
-      add:[{path:"added"}],change:[],remove:[],unchanged_count:12,
+      schema:"dra-v2-source-preview-job-status.v1",installation_enabled:false,
+      job:{
+        schema:"dra-v2-source-preview-job.v1",operation_id:"a".repeat(32),
+        repository:"TheDaimos/example",ref:"deploy/dev",status:"success",
+        installation_enabled:false,
+        result:{
+          repository:"TheDaimos/example",installation_enabled:false,sources_verified:true,
+          source_commit:"f".repeat(40),source_ref:"deploy/dev",
+          add:[{path:"added"}],change:[],remove:[],unchanged_count:12,
+        },
+      },
     };
   }};
   deployment._mainSourceRef="deploy/dev";
@@ -706,7 +722,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   assert.match(deployment.shadowRoot.innerHTML,/dra-deploy-progress running/);
   assert.match(deployment.shadowRoot.innerHTML,/Vorschau wird berechnet/);
   await running;
-  assert.equal(previewCount,1);
+  assert.equal(previewCount,2);
   assert.equal(deployment._deploymentPreviewRef,"deploy/dev");
   view=deployment.shadowRoot.innerHTML;
   assert.match(view,/data-stage="2"/);
@@ -721,7 +737,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   deployment._sourcePreview=null;
   deployment._render();
   assert.match(deployment.shadowRoot.innerHTML,/data-stage="1"/);
-  assert.equal(previewCount,1,"A reference change must not write or auto-install");
+  assert.equal(previewCount,2,"A reference change must not write or auto-install");
   console.log("DRA V2 unified 4-step Deployment button and true preview progress PASS");
 })().catch(error => {console.error(error);process.exitCode=1;});
 
