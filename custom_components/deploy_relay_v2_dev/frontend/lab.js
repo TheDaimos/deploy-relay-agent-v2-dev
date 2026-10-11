@@ -1,5 +1,5 @@
 /* Separate DRA V2 DEV read-only lab. No V1 custom element or URLs. */
-const G2_TEST_PYTHON_VERSION = "0.1.70";
+const G2_TEST_PYTHON_VERSION = "0.1.71";
 class DRAV2DevLabPanel extends HTMLElement {
   constructor() {
     super();
