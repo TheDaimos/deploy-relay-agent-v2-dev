@@ -21,11 +21,18 @@ REPO = "TheDaimos/gewitterradar"
 
 def successful(repo=REPO):
     return {
+        "schema": "dra-v2-dev-source-preview.v1",
         "repository": repo, "sources_verified": True,
-        "installation_enabled": False, "source_commit": "a" * 40,
+        "local_inventory_readonly": True, "handover_required": True,
+        "backup_verified": False, "installation_enabled": False,
+        "source_commit": "a" * 40,
         "add": ["custom_components/gewitterradar/a.py"],
-        "target_claims": {"exclusive_ownership_verified": False,
-                          "installation_enabled": False},
+        "target_claims": {
+            "exclusive_ownership_verified": False,
+            "cross_process_lock_verified": False,
+            "backup_verified": False,
+            "installation_enabled": False,
+        },
     }
 
 
