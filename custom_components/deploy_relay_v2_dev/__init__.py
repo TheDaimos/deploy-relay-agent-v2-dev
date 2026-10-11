@@ -24,6 +24,7 @@ from .settings import SettingsError, V2Settings
 from .remote_source import GitReadAuth, GitReadAuthError, ProjectReadAuth
 from .readonly_task_supervisor import ReadOnlyTaskSupervisor
 from .source_diagnostics import SourceDiagnosticLog
+from .source_preview_jobs import SourcePreviewJobs
 from .readonly_benchmark import ReadOnlyMeasurement, ReadOnlySuite
 from .ha_preview_task_factory import PreviewTaskFactory
 from .panel import async_register_panel, async_remove_panel
@@ -44,6 +45,7 @@ class LabRuntime:
     source_auth: GitReadAuth
     project_auth: ProjectReadAuth
     source_diagnostics: SourceDiagnosticLog
+    source_preview_jobs: SourcePreviewJobs
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -106,12 +108,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                          projects=projects, settings=settings,
                          source_scan_lock=asyncio.Lock(), source_auth=source_auth,
                          project_auth=project_auth,
-                         source_diagnostics=SourceDiagnosticLog())
+                         source_diagnostics=SourceDiagnosticLog(),
+                         source_preview_jobs=SourcePreviewJobs(PreviewTaskFactory(hass, entry)))
     store["runtime"] = runtime
     try:
         async_register_commands(hass)
         await async_register_panel(hass)
     except Exception:
+        await runtime.source_preview_jobs.close()
         await supervisor.close()
         store.pop("runtime", None)
         raise
@@ -124,6 +128,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     store = hass.data.get(DOMAIN)
     runtime = store.get("runtime") if isinstance(store, dict) else None
     if runtime is not None:
+        await runtime.source_preview_jobs.close()
         await runtime.supervisor.close()
     async_remove_panel(hass)
     if isinstance(store, dict):
