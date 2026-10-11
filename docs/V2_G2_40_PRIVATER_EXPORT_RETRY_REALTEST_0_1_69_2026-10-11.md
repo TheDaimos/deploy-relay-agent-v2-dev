@@ -2,7 +2,7 @@
 
 **Datum:** 11.10.2026  
 **Verbindlicher Zweig:** `feature/v2-10-inventory-operation-contract`  
-**Status:** DEV-Code für kontrollierten HA-Test vorbereitet und vollständig CI-geprüft: [GitHub Actions Run 38167638211](https://github.com/TheDaimos/deploy-relay-agent-v2-dev/actions/runs/38167638211) – **SUCCESS** auf Code-/Kontext-Checkpoint `b44971d124d87473e638b96fd08e82ca16f68335`. **HA-Realabnahme weiterhin offen.** Keine V2-Schreib- oder Installationsfreigabe.
+**Status:** DEV-Code für kontrollierten HA-Test vorbereitet und vollständig CI-geprüft: [GitHub Actions Run 38167638211](https://github.com/TheDaimos/deploy-relay-agent-v2-dev/actions/runs/38167638211) – **SUCCESS** auf Code-/Kontext-Checkpoint `b44971d124d87473e638b96fd08e82ca16f68335`. **HA-Realabnahme des kontrollierten Wiederholversands am 11.10.2026 bestanden.** Der gesonderte HA-Neustarttest bei *wartendem Export* ist weiterhin optional und nicht durchgeführt. Keine V2-Schreib- oder Installationsfreigabe.
 
 ## Hintergrund
 
@@ -23,6 +23,16 @@ Der Backend-Vertrag:
 6. Bei tatsächlichem Fehler bleibt die unveränderte Datei im HA-Store erhalten; der Benutzer kann dieselbe Schaltfläche erneut verwenden. Ein zweiter Vorbereitungsversuch während einer Warteschlange ist gesperrt.
 7. Nach erfolgreicher Übertragung erlischt `pending`. Die vorhandene Antwort mit `pending_retried=true` kennzeichnet den Wiederholversand und zeigt dessen Export-ID an. Ein weiterer Export wäre wieder ein neuer, separat ausdrücklich ausgelöster Vorgang.
 8. **Neustartfestigkeit korrigiert:** Besteht nach dem Neustart eine gespeicherte Warteschlange, darf der Administrator sie auch dann erneut senden, wenn die **flüchtige Quellprotokollliste leer** ist. Der Server prüft den wartenden Bericht **vor** dem Erfordernis einer aktuellen Quellprüfung; die Oberfläche lässt den Retry bei `pending=true` unabhängig von der flüchtigen Loganzahl zu. Ein völlig neuer Export ohne aktuelle Quelle bleibt dagegen gesperrt.
+
+## HA-Realabnahme des kontrollierten Wiederholversands – BESTANDEN
+
+**11.10.2026, V2 DEV 0.1.69 auf HA DEV:** Der Betreiber hat zuerst die echte schreibgeschützte Gewitterradar-Quellprüfung erfolgreich ausgeführt, dann im zweistufig bestätigten DEV-Testmodus einen bereinigten Diagnosebericht **ohne Git-Upload nur lokal** in der HA-Warteschlange abgelegt. Der reale Screenshot zeigte ausdrücklich `nur lokal gesichert`, `Ein Bericht wartet bereits`, die eingetragene Exportkennung und den aktiven Knopf **„Gespeicherten Git-Export erneut senden“**.
+
+**Nach dem ausdrücklich erfolgten Wiederholversand wurde ohne weiteren Nutzerexport direkt das vorhandene private Archiv gelesen:** `TheDaimos/Project-Log-And-Export` enthält genau die anhand des wartenden Berichts identifizierte neu angelegte Datei unter `exports/deploy-relay-agent-v2/2026-10/diagnostics/`, Version `0.1.69`, Quelle `TheDaimos/gewitterradar`, `status=success`, `stage=target_claims` und `reason=none`. **Die Exportkennung aus der vorherigen HA-Warteschlange stimmt exakt mit der in der gespeicherten Git-Datei überein.** Der neue Archivcommit `701c56c5c00ec6020d4efa32077edd2e49ee039f` ist am 11.10.2026 um 20:09:24 UTC geschrieben worden. Der Benutzer muss kein zweites Mal exportieren.
+
+**Beweisabgrenzung:** Der Git-Commit mit derselben Exportkennung beweist die erfolgte Archivierung des zuvor vorbereiteten Berichts. Einen Byte-für-Byte-Vergleich zwischen lokaler HA-Store-Datei und Git-Datei lässt der reale Screenshot allein nicht zu; diese Invariante ist durch die gesonderten isolierten Tests der unveränderten `retry_pending()`-Implementierung gesichert. Ob die Warteschlange im HA nach der Git-Bestätigung tatsächlich geleert angezeigt wird, wurde nicht separat dokumentiert und wird daher nicht als eigenständig real beobachtetes UI-Resultat behauptet. Eine tatsächliche GitHub-HTTP-Störung wurde bewusst **nicht** provoziert; der Test prüft den kontrollierten Vor-PUT-Retry-Pfad.
+
+**G2-40-Realabnahme: BESTANDEN für den vorgesehenen kontrollierten Retry**, keine zusätzliche HA-Installation oder ein Neustart zur Wiederholung notwendig. Der geplante spätere optische Nachtest des neuen kurzen Status unter Version 0.1.70 ist hiervon unabhängig.
 
 ## Sicherheitsgrenzen
 
