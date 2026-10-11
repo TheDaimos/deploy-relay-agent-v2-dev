@@ -10,7 +10,7 @@ from pathlib import Path
 
 from .remote_source import inspect_public_repository, inspect_repository_connection, GitReadAuthError
 from .source_preflight import PreflightError
-from .source_diagnostics import classify_source_failure, resource_snapshot
+from .source_diagnostics import (SourceDiagnosticsError, classify_source_failure, resource_snapshot)
 from .target_ownership import TargetClaimError, assess_target_claims
 
 from .const import DOMAIN, VERSION
@@ -745,6 +745,7 @@ async def async_projects_source_preview(hass, connection, msg):
             trace, success=False, reason="source_unavailable", resources=resources)
         connection.send_error(msg["id"], "not_registered", "Projekt nicht registriert")
         return
+    runtime.source_diagnostics.bind_project(trace, repo)
     if runtime.source_scan_lock.locked():
         runtime.source_diagnostics.finish(
             trace, success=False, reason="source_unavailable", resources=resources)
@@ -803,6 +804,33 @@ async def async_deployment_logs(hass, connection, msg):
 
 
 @websocket_api.websocket_command({
+    probatio.Required("type"): "deploy_relay_v2_dev/deployment/logs/clear",
+    probatio.Required("confirm"): bool,
+    probatio.Required("expected_run_id"): str,
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def async_deployment_logs_clear(hass, connection, msg):
+    """Explicit administrative CAS clear of V2 in-memory preview logs only."""
+    runtime = _runtime(hass)
+    if runtime is None:
+        connection.send_error(msg["id"], "not_ready", "Diagnose nicht bereit")
+        return
+    if msg["confirm"] is not True:
+        connection.send_error(msg["id"], "confirmation_required", "Löschen nicht bestätigt")
+        return
+    try:
+        count = runtime.source_diagnostics.clear(expected_run_id=msg["expected_run_id"])
+    except SourceDiagnosticsError:
+        connection.send_error(msg["id"], "logs_changed", "Protokolle geändert – bitte neu laden")
+        return
+    connection.send_result(msg["id"], {
+        "cleared": count, "remaining": 0, "archive_unchanged": True,
+        "installation_enabled": False,
+    })
+
+
+@websocket_api.websocket_command({
     probatio.Required("type"): "deploy_relay_v2_dev/deployment/logs/download",
 })
 @websocket_api.require_admin
@@ -845,7 +873,9 @@ async def async_deployment_logs_export(hass, connection, msg):
                               "Privates zentrales Diagnosearchiv nicht ausgewählt")
         return
     try:
-        result = await runtime.git_export.export(record, version=VERSION)
+        source_repository = runtime.source_diagnostics.private_repository_for(record["run_id"])
+        result = await runtime.git_export.export(
+            record, version=VERSION, private_source_repository=source_repository)
     except GitMeasurementError:
         connection.send_error(msg["id"], "archive_export_failed",
                               "Privater Diagnoseexport fehlgeschlagen")
@@ -906,7 +936,7 @@ def async_register_commands(hass: HomeAssistant) -> None:
                     async_batch_preview, async_projects_connection_check,
                     async_projects_source_preview,
                     async_deployment_logs, async_deployment_logs_download,
-                    async_deployment_logs_export,
+                    async_deployment_logs_export, async_deployment_logs_clear,
                     async_git_read_configure, async_git_read_clear,
                     async_archive_repository_set, async_archive_repository_clear,
                     async_archive_repository_configure,
