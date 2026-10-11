@@ -289,6 +289,9 @@ class SourceDiagnosticLog:
         self._entries.append(record)
         return dict(record)
 
+    def count(self) -> int:
+        return len(self._entries)
+
     def private_repository_for(self, run_id: str) -> str | None:
         """Private Git sink only; never expose through generic WS / JSON."""
         return self._private_repositories.get(run_id)
