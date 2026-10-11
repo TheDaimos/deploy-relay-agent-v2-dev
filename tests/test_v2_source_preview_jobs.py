@@ -76,7 +76,7 @@ class SourcePreviewJobContract(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len((await self.owner.latest())["result"]["add"]), 1)
 
     async def test_fixed_connection_test_wait_survives_browser_detach(self):
-        self.assertEqual(module.CONNECTION_TEST_SECONDS, 30)
+        self.assertEqual(module.CONNECTION_TEST_SECONDS, 60)
         waiting = asyncio.Event()
         release = asyncio.Event()
         calls = 0
