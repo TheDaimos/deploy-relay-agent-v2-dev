@@ -13,6 +13,7 @@ from uuid import uuid4
 
 from .project_catalog import CatalogError, normalize_repo
 from .remote_source import source_ref, PreflightError
+from .source_job_history import SourceJobHistory, SourceJobHistoryError
 
 MAX_JOBS = 4
 ACTIVE = frozenset({"queued", "running"})
@@ -26,10 +27,14 @@ class SourcePreviewJobError(ValueError):
 class SourcePreviewJobs:
     """Single-flight read-only work owned by the HA ConfigEntry, not a browser."""
 
-    def __init__(self, task_factory: Callable[[Coroutine[Any, Any, None]], asyncio.Task]) -> None:
+    def __init__(
+        self, task_factory: Callable[[Coroutine[Any, Any, None]], asyncio.Task],
+        *, history: SourceJobHistory | None = None,
+    ) -> None:
         if not callable(task_factory):
             raise SourcePreviewJobError("task factory required")
         self._task_factory = task_factory
+        self._history = history
         self._lock = asyncio.Lock()
         self._jobs: OrderedDict[str, dict] = OrderedDict()
         self._tasks: dict[str, asyncio.Task] = {}
@@ -77,6 +82,12 @@ class SourcePreviewJobs:
                 "result": None, "reason": None,
                 "installation_enabled": False,
             }
+            # Commit minimal non-resumable metadata before scheduling work.
+            if self._history is not None:
+                try:
+                    await self._history.queued(job_id)
+                except SourceJobHistoryError:
+                    raise SourcePreviewJobError("source history unavailable") from None
             self._jobs[job_id] = row
             self._prune()
 
@@ -103,16 +114,30 @@ class SourcePreviewJobs:
                             claim.get("backup_verified") is not False or
                             claim.get("installation_enabled") is not False):
                         raise SourcePreviewJobError("untrusted source result")
+                    if self._history is not None:
+                        await self._history.terminal(job_id, "success")
                     row["result"] = self._copy(report)
                     row["stage"] = "complete"
                     row["status"] = "success"
                 except asyncio.CancelledError:
+                    if self._history is not None:
+                        try:
+                            await self._history.terminal(
+                                job_id, "interrupted", reason="interrupted")
+                        except SourceJobHistoryError:
+                            pass  # Queued state will be interrupted on next startup.
                     row["result"] = None
                     row["stage"] = "interrupted"
                     row["reason"] = "interrupted"
                     row["status"] = "interrupted"
                     raise
                 except Exception:
+                    if self._history is not None:
+                        try:
+                            await self._history.terminal(
+                                job_id, "failed", reason="source_unavailable")
+                        except SourceJobHistoryError:
+                            pass  # Never report success without durable evidence.
                     row["result"] = None
                     row["stage"] = "failed"
                     row["reason"] = "source_unavailable"
@@ -127,6 +152,12 @@ class SourcePreviewJobs:
                     raise TypeError("invalid HA task")
             except Exception:
                 coroutine.close()
+                if self._history is not None:
+                    try:
+                        await self._history.terminal(
+                            job_id, "failed", reason="resource_unavailable")
+                    except SourceJobHistoryError:
+                        pass
                 row["status"] = "failed"
                 row["stage"] = "failed"
                 row["reason"] = "resource_unavailable"
