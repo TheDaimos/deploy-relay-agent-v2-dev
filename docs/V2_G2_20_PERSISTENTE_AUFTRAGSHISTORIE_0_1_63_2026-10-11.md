@@ -46,6 +46,16 @@ Bei WLAN-/Browserunterbrechungen wird die Statusabfrage schrittweise von **1,2 S
 
 Der Verlauf wird bewusst erst beim Öffnen von Logs oder beim Verschwinden eines zuvor bekannten Auftrags abgefragt, nicht bei jeder gewöhnlichen Oberflächenaktualisierung.
 
+## Nachträgliche HA-Realabnahme – 11.10.2026
+
+**G2-Neustart-Unterbrechung: bestanden (V2 DEV 0.1.68).**
+
+Der Betreiber startete den 60-Sekunden-G2-Leseauftrag für Gewitterradar und führte noch während der Laufzeit einen regulären Neustart der HA-DEV-Instanz durch.
+
+Nach dem Neustart zeigt die mobile Auftragshistorie den entsprechenden Auftrag als **Unterbrochen** und frühere erfolgreiche Aufträge weiterhin als **Damals erfolgreich**. Die flüchtige Quellprotokollanzeige ist leer und fordert eine neue Vorschau. Dies entspricht dem vorgesehenen Verhalten: kein automatischer Neustart der Quellprüfung, kein Wiederverwenden historischer Erfolge als neue Installationsfreigabe.
+
+**Abnahmeumfang:** Laufende Leseprüfung beim HA-Neustart, persistenter Unterbrechungsstatus und unveränderte historische Erfolge. Der separate Test des ausdrücklich wiederholten privaten Export-Warteschlangeneintrags (`retry_pending`) ist noch offen. Echte Exportdaten verbleiben ausschließlich im privaten Zentralarchiv. Kein Codeänderungs- oder Neustartbedarf für diese Abnahme.
+
 ## Sicherheit und Abgrenzung
 
 Unverändert und nicht freigegeben: V1/V2-Übergabe- oder Zielbesitznachweis, globale Schreibsperre, V2-eigene echte Sicherungen, Integritätswiederherstellung, Einzelinstallation, Sammelinstallation, Home-Assistant-Neustart und Selbstupdate. Sämtliche Änderungen liegen nur im genannten DEV-Featurezweig. **Keine Änderungen an V1 DEV/PUB, V2 PUB/main, WeatherRouter oder dem privaten zentralen Diagnosearchiv `TheDaimos/Project-Log-And-Export`.** PR #2 bleibt offen, Entwurf, nicht zusammengeführt.
