@@ -47,6 +47,10 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._sourceMessage = "";
     this._sourcePreview = null;
     this._deploymentPreviewRef = null;
+    this._deploymentLogsOpen = false;
+    this._deploymentLogsBusy = false;
+    this._deploymentLogs = [];
+    this._deploymentLogsStatus = "";
     this._sourceChecks = new Map();
     this._connectionBusy = false;
     this._checkAllBusy = false;
@@ -580,6 +584,119 @@ class DRAV2DevLabPanel extends HTMLElement {
     }
   }
 
+  async _toggleDeploymentLogs() {
+    if (this._deploymentLogsBusy) return;
+    this._deploymentLogsOpen = !this._deploymentLogsOpen;
+    this._render();
+    if (this._deploymentLogsOpen) await this._refreshDeploymentLogs();
+  }
+
+  async _refreshDeploymentLogs() {
+    if (!this._hass || this._deploymentLogsBusy) return;
+    this._deploymentLogsBusy = true;
+    this._deploymentLogsStatus = "Diagnose wird geladen …";
+    this._render();
+    try {
+      const result = await this._hass.callWS({type:"deploy_relay_v2_dev/deployment/logs"});
+      if (result?.schema !== "dra-v2-dev-deployment-logs.v1" ||
+          result.installation_enabled !== false || !Array.isArray(result.records) ||
+          result.records.length > 8) throw new Error("invalid deployment logs");
+      this._deploymentLogs = result.records;
+      this._deploymentLogsStatus = result.records.length ?
+        "Letzte Quellprüfungen (ohne Repositorynamen oder Zugangsdaten)." :
+        "Noch keine Quellprüfung protokolliert. Zuerst die Vorschau ausführen.";
+    } catch (_error) {
+      this._deploymentLogs = [];
+      this._deploymentLogsStatus = "Protokolle derzeit nicht abrufbar.";
+    } finally {
+      this._deploymentLogsBusy = false;
+      if (this.isConnected) this._render();
+    }
+  }
+
+  async _deploymentLogsAction(kind) {
+    if (!this._hass || this._deploymentLogsBusy || !this._deploymentLogs.length ||
+        !["git","json","copy"].includes(kind)) return;
+    if (kind === "git" && this._centralExport.configured !== true) {
+      this._deploymentLogsStatus = "Zuerst das private Git-Archiv unter Diagnose & Einstellungen einrichten.";
+      this._render();
+      return;
+    }
+    this._deploymentLogsBusy = true;
+    this._deploymentLogsStatus = kind === "git" ? "Privater Git-Export läuft …" :
+      "Bereinigtes JSON wird erstellt …";
+    this._render();
+    try {
+      const result = await this._hass.callWS({
+        type: kind === "git" ? "deploy_relay_v2_dev/deployment/logs/export" :
+          "deploy_relay_v2_dev/deployment/logs/download",
+      });
+      if (kind === "git") {
+        const eid = result?.export_id;
+        if (result.repository !== this._centralExport.repository ||
+            !/^[0-9a-f]{32}$/.test(eid || "") ||
+            !/^[0-9a-f]{40}$/.test(result.commit_sha || "") ||
+            !/^exports\/deploy-relay-agent-v2\/[0-9]{4}-[0-9]{2}\/diagnostics\/.+__diagnostics__[0-9a-f]{32}\.json$/.test(result.path || "") ||
+            !String(result.file_url || "").startsWith("https://github.com/" + result.repository + "/blob/")) {
+          throw new Error("unconfirmed private export");
+        }
+        this._deploymentLogsStatus = "Privat exportiert · Export-ID " + eid;
+        this._centralExport = {...this._centralExport, pending:false};
+      } else {
+        if (!result || result.application_id !== "deploy-relay-agent-v2" ||
+            result.mime_type !== "application/json" ||
+            !/^[0-9a-f]{32}$/.test(result.export_id || "") ||
+            typeof result.content !== "string" || result.content.length > 8192 ||
+            !/^20[0-9]{2}-[0-9]{2}-[0-9T-]+Z__deploy-relay-agent-v2__0\.1\.[0-9]{1,3}__diagnostics__[0-9a-f]{32}\.json$/.test(result.filename || "")) {
+          throw new Error("invalid local diagnostic");
+        }
+        const parsed = JSON.parse(result.content);
+        if (parsed?.application?.id !== result.application_id ||
+            parsed?.export?.exportId !== result.export_id ||
+            parsed?.snapshot?.schema !== "dra-v2-dev-git-source-diagnostic.v1") {
+          throw new Error("invalid diagnostic payload");
+        }
+        if (kind === "json") {
+          const blob = new Blob([result.content], {type:"application/json;charset=utf-8"});
+          const url = URL.createObjectURL(blob);
+          try {
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = result.filename;
+            link.click();
+          } finally {
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+          }
+          this._deploymentLogsStatus = "JSON-Download gestartet.";
+        } else {
+          // The clipboard can be unavailable without HTTPS/gesture permissions.
+          if (navigator.clipboard?.writeText) {
+            await navigator.clipboard.writeText(result.content);
+          } else {
+            const field = document.createElement("textarea");
+            field.value = result.content;
+            field.style.position = "fixed"; field.style.opacity = "0";
+            document.body.appendChild(field);
+            try {
+              field.select();
+              if (!document.execCommand("copy")) throw new Error("clipboard denied");
+            } finally {
+              field.remove();
+            }
+          }
+          this._deploymentLogsStatus = "Bereinigtes JSON in die Zwischenablage kopiert.";
+        }
+      }
+    } catch (_error) {
+      this._deploymentLogsStatus = kind === "git" ?
+        "Privater Export fehlgeschlagen. JSON-Download bleibt verfügbar." :
+        "JSON oder Zwischenablage nicht verfügbar. Bitte erneut versuchen.";
+    } finally {
+      this._deploymentLogsBusy = false;
+      if (this.isConnected) this._render();
+    }
+  }
+
   async _sourceCheck(button) {
     if (!button || !this._hass || this._sourceBusy) return;
     const repository = button.dataset.repo;
@@ -605,6 +722,7 @@ class DRAV2DevLabPanel extends HTMLElement {
       this._sourceMessage = "Quelle nicht erreichbar oder sicherheitstechnisch nicht prüfbar. Kein Update als aktuell bestätigt.";
     } finally {
       this._sourceBusy = false;
+      if (this._deploymentLogsOpen) await this._refreshDeploymentLogs();
       if (this.isConnected) this._render();
     }
   }
@@ -1047,6 +1165,19 @@ class DRAV2DevLabPanel extends HTMLElement {
       this._deploymentPreviewRef === this._mainSourceRef.trim() &&
       this._sourcePreview?.sources_verified === true &&
       this._sourcePreview?.installation_enabled === false;
+    const diagnosticStageLabels = {
+      admission:"Annahme", repository:"Repository", commit:"Quellcommit",
+      manifest:"Manifest", tree:"Git-Dateibaum", local_inventory:"HA-Dateibestand",
+      comparison:"Dateivergleich", target_claims:"Zielbesitz",
+    };
+    const diagnosticReasonLabels = {
+      none:"Kein Fehler", source_unavailable:"Quelle nicht verfügbar",
+      repository_access:"Repositoryzugriff", commit_unavailable:"Commit nicht erreichbar",
+      manifest_invalid:"Manifest ungültig", manifest_resource_limit:"Manifest-Grenzwert",
+      tree_invalid:"Git-Dateibaum ungültig", local_inventory_invalid:"HA-Dateibestand nicht prüfbar",
+      compare_invalid:"Dateivergleich nicht prüfbar", target_claim_invalid:"Zielbesitz nicht prüfbar",
+      timeout:"Zeitüberschreitung", unexpected_error:"Unerwarteter Fehler",
+    };
     const deploymentBusy = this._mainBatchMode ? this._mainBatchBusy : this._sourceBusy;
     const deploymentStage = mainPreviewVerified ? 2 : 1;
     const deploymentCanPreview = this._mainBatchMode
@@ -1377,6 +1508,28 @@ class DRAV2DevLabPanel extends HTMLElement {
         .dra-source-extra input.project-text {box-sizing:border-box;width:100%;}
         .dra-deployment-panel {border-color:#425968;}
         .dra-deployment-panel h2 {margin:0 0 14px;}
+        .dra-deployment-heading {display:flex;align-items:center;justify-content:space-between;
+          gap:12px;min-width:0;margin:0 0 14px;}
+        .dra-deployment-heading h2 {margin:0;}
+        .dra-logs-pill {font:inherit;font-size:12px;font-weight:700;
+          padding:6px 13px;min-height:34px;flex:none;border-radius:20px;
+          border:1px solid #a37b35;background:rgba(148,105,33,.12);color:#e9cf93;}
+        .dra-logs-pill[aria-expanded="true"] {border-color:#e5bc6c;background:rgba(169,124,44,.2);}
+        .dra-logs-pill:focus-visible {outline:2px solid #e8c779;outline-offset:3px;}
+        .dra-logs-panel {margin:0 0 14px;padding:12px;border:1px solid #5c6570;
+          background:rgba(29,41,52,.55);border-radius:12px;}
+        .dra-logs-actions {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;}
+        .dra-logs-actions button {box-sizing:border-box;min-width:0;min-height:42px;margin:0;
+          padding:8px 5px;font-size:12px;overflow-wrap:anywhere;}
+        .dra-logs-actions button:disabled {opacity:.45;cursor:not-allowed;}
+        .dra-logs-events {max-height:250px;overflow-y:auto;font-size:12px;margin-top:11px;
+          overflow-wrap:anywhere;}
+        .dra-logs-event {padding:9px 0;border-top:1px solid #455864;}
+        .dra-logs-event strong {display:block;margin-bottom:4px;}
+        .dra-logs-panel .note {font-size:12px;line-height:1.45;}
+        @media (max-width:420px) {.dra-logs-actions {grid-template-columns:1fr;}
+          .dra-deployment-heading h2 {font-size:17px;}}
+
         .dra-deploy-action {box-sizing:border-box;width:100%;margin:0;padding:17px 18px;
           min-height:79px;border-radius:14px;display:flex;gap:12px;align-items:center;justify-content:center;
           text-align:center;font-size:clamp(16px,2vw,21px);font-weight:800;letter-spacing:.005em;
@@ -2132,7 +2285,37 @@ class DRAV2DevLabPanel extends HTMLElement {
               </details>`}
           </article>
           <article class="dra-deployment-panel">
-            <h2>Deployment</h2>
+            <div class="dra-deployment-heading">
+              <h2>Deployment</h2>
+              <button id="dra-deployment-logs-toggle" class="dra-logs-pill"
+                aria-controls="dra-deployment-logs-panel"
+                aria-expanded="${this._deploymentLogsOpen}">Logs</button>
+            </div>
+            ${this._deploymentLogsOpen ? `
+              <section class="dra-logs-panel" id="dra-deployment-logs-panel"
+                aria-label="Bereinigte Deployment-Protokolle">
+                <div class="dra-logs-actions">
+                  <button id="dra-logs-git" ${!this._deploymentLogs.length || this._deploymentLogsBusy || !this._centralExport.configured ? "disabled" : ""}>Export nach Git</button>
+                  <button id="dra-logs-json" ${!this._deploymentLogs.length || this._deploymentLogsBusy ? "disabled" : ""}>JSON herunterladen</button>
+                  <button id="dra-logs-copy" ${!this._deploymentLogs.length || this._deploymentLogsBusy ? "disabled" : ""}>Zwischenablage</button>
+                </div>
+                <p class="note" role="status" aria-live="polite">${this._escapeProject(this._deploymentLogsStatus)}</p>
+                <div class="dra-logs-events">
+                  ${this._deploymentLogs.map(record => `
+                    <div class="dra-logs-event">
+                      <strong>${record.status === "success" ? "Erfolgreich" : "Fehlgeschlagen"} · ${this._escapeProject(record.captured_at)}</strong>
+                      <span>Prüfschritt: ${diagnosticStageLabels[record.stage] || "Unbekannt"} ·
+                        Ursache: ${diagnosticReasonLabels[record.reason] || "Unbekannt"} ·
+                        Dauer: ${Number.isInteger(record.duration_ms) ? record.duration_ms : "—"} ms</span>
+                      <div class="note">CPU-Kerne: ${Number.isInteger(record.resources?.available_cores) ? record.resources.available_cores : "unbekannt"} ·
+                        Arbeitsprozesse eingestellt: ${record.resources?.configured_worker_processes ?? "—"} ·
+                        Gleichzeitige Leseaufträge eingestellt: ${record.resources?.configured_readonly_jobs ?? "—"} ·
+                        Tatsächlich aktiv möglich: ${record.resources?.active_readonly_limit ?? "—"} Leseauftrag,
+                        ${record.resources?.active_mutation_limit ?? "—"} Schreibaufträge.</div>
+                    </div>`).join("")}
+                </div>
+                <p class="note">Nur bereinigte Quellprüfungen. Kein Schreibzugriff. Git-Export ausschließlich zum eingestellten privaten Archiv.</p>
+              </section>` : ""}
             <button id="dra-preview" class="dra-deploy-action stage-${deploymentStage}
               ${deploymentBusy ? "is-busy" : ""}"
               data-stage="${deploymentStage}"
@@ -2648,6 +2831,10 @@ class DRAV2DevLabPanel extends HTMLElement {
     });
     s.querySelector("#dra-main-ref")?.addEventListener("change",()=>this._render());
     s.querySelector("#dra-project-manage")?.addEventListener("click",()=>this._openProjectDialog());
+    s.querySelector("#dra-deployment-logs-toggle")?.addEventListener("click",()=>this._toggleDeploymentLogs());
+    s.querySelector("#dra-logs-json")?.addEventListener("click",()=>this._deploymentLogsAction("json"));
+    s.querySelector("#dra-logs-git")?.addEventListener("click",()=>this._deploymentLogsAction("git"));
+    s.querySelector("#dra-logs-copy")?.addEventListener("click",()=>this._deploymentLogsAction("copy"));
     s.querySelector("#dra-preview")?.addEventListener("click",()=>{
       if (deploymentBusy || deploymentStage !== 1) return;
       if (this._mainBatchMode) this._previewMainBatch();
