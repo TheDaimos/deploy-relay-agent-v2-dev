@@ -36,15 +36,31 @@ class DeploymentLogUiContract(unittest.TestCase):
         self.assertIn('await navigator.clipboard.writeText(result.content)', js)
         self.assertNotIn("github.com/TheDaimos/Project-Log-And-Export", js)
 
+    def test_conditional_clear_has_confirmation_and_ids_for_screenshots(self):
+        js = self.frontend
+        self.assertIn('this._deploymentLogs.length > 0 ? ', js)
+        self.assertIn('id="dra-deployment-logs-clear"', js)
+        self.assertIn('id="dra-logs-clear-confirm"', js)
+        self.assertIn('id="dra-logs-clear-cancel"', js)
+        self.assertIn('Nur die letzten temporären V2-Protokolle leeren?', js)
+        self.assertIn('expected_run_id:expected', js)
+        self.assertIn('project_ref || "nicht zugeordnet"', js)
+        self.assertIn('record.run_id || "").slice(0,12)', js)
+        self.assertIn('Temporäre Logs geleert. Private Git-Exporte bleiben erhalten.', js)
+
     def test_admin_only_source_log_routes_without_mutations(self):
         ws = self.ws
-        for route in ("logs", "logs/download", "logs/export"):
+        for route in ("logs", "logs/download", "logs/export", "logs/clear"):
             self.assertEqual(ws.count(f'"deploy_relay_v2_dev/deployment/{route}"'), 1)
         for name in ("async_deployment_logs", "async_deployment_logs_download",
-                     "async_deployment_logs_export"):
+                     "async_deployment_logs_export", "async_deployment_logs_clear"):
             definition = ws.index("async def " + name + "(")
             self.assertIn("@websocket_api.require_admin", ws[max(0, definition-210):definition])
         self.assertIn('runtime.git_export.repository != "TheDaimos/Project-Log-And-Export"', ws)
+        self.assertIn('runtime.source_diagnostics.bind_project(trace, repo)', ws)
+        self.assertIn('private_source_repository=source_repository', ws)
+        self.assertIn('msg["confirm"] is not True', ws)
+        self.assertIn('runtime.source_diagnostics.clear(expected_run_id=msg["expected_run_id"])', ws)
         self.assertNotIn('deploy_relay_v2_dev/deployment/install', ws)
         self.assertNotIn('deploy_relay_v2_dev/deployment/restart', ws)
 
