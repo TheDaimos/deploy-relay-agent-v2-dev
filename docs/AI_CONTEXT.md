@@ -1,6 +1,6 @@
 # DRA V2 – aktueller Projekt-Einstiegspunkt
 
-**Stand:** 11.10.2026 – DRA V2 DEV **0.1.64** (isoliertes Home-Assistant-Testlabor, **keine V2-FINAL-/HACS-Freigabe**).
+**Stand:** 11.10.2026 – DRA V2 DEV **0.1.65** (isoliertes Home-Assistant-Testlabor, **keine V2-FINAL-/HACS-Freigabe**).
 
 ## Für jede Fortsetzung
 
@@ -23,6 +23,8 @@
 17. **Nächster Arbeitsschwerpunkt:** sichere serverseitige Auftrags-/Transaktionsarchitektur, nachweislich vollständige eigene Backups und unabhängiger Rückfall, dann schrittweise explizit freigegebene Installation und konfliktsichere parallele Sammelaktualisierung. **Keine automatische HA-Installation/kein Neustart.**
 
 **Neu festgelegte Sicherheitsanforderung (11.10.2026):** Eine fehlende Installierbarkeit wird vor Schreibbeginn **ohne Mutation** gesperrt. Ein eindeutig gescheiterter begonnener Schreibvorgang soll nur mit geprüfter V2-Originalbytes-Sicherung und nachgewiesener Exklusivsperre automatisch auf den früheren Zustand zurückfallen; bei unklaren Bedingungen nur `recovery_required`. Ein ausgefallener HA-Prozess kann nur mittels später eigenständig genehmigtem externem Recovery-Wächter automatisch wiederhergestellt werden. Verbindliche Spezifikation: `docs/V2_INSTALLABILITY_GUARD_AND_AUTOMATIC_ROLLBACK_2026-10-11.md`. **Nur Design; keine Freigabe oder Implementierung, kein Versionssprung.**
+
+**Neu 0.1.65 / G2-30 (11.10.2026):** Expliziter, nur lesender **30-Sekunden-Verbindungstest** in der bestehenden HA-eigenen Quellauftragsverwaltung. Neue getrennte Schaltfläche im V2-DEV-Panel; der eigentliche Quellvergleich folgt nach einer ereignisschleifenschonenden Pause. Normale Quellprüfungen werden nicht verzögert. Testmode ist ein fester boolescher Admin-Parameter, keine frei wählbare Dauer, keine Freigabe von Schritt 2. Die persistierte Historie bleibt unverändert minimal. Neue Python-/JS-Tests und getrennte HA-Realabnahme erforderlich. **Version 0.1.65 ist nur Code, nicht schon in HA abgenommen.** [G2-30-Testprotokoll](V2_G2_30_ANDROID_VERBINDUNGSTEST_0_1_65_2026-10-11.md). V1-, V2-main/PUB- und Archiv-Repositorys bleiben unverändert. Alte 0.1.64-Zwischenabnahme gilt fort. Der aktuell letzte CI-Lauf muss vor Installationsfreigabe überprüft werden.
 
 **Bugfix 0.1.64 (11.10.2026):** Nach einem erfolgreichen lokalen 0.1.63-Quelltest, aber fehlgeschlagenem privaten Git-Export korrigiert 0.1.64 den begrenzten GitHub-Metadatenabruf bis EOF und den expliziten erneuten Versand des konservierten Warteschlangenberichts. [Technische Dokumentation](V2_PRIVATE_GIT_EXPORT_RECOVERY_0_1_64_2026-10-11.md). **HA-Teilabnahme 0.1.64 inzwischen erfolgt:** aktive Laufzeitversion, erfolgreiche Gewitterradar-Quellprüfung und neue private Git-Übertragung real nachgewiesen. **Nicht** nachgewiesen ist der gesonderte Wiederholpfad der vorher fehlgeschlagenen Warteschlange. [Bereinigte Zwischenabnahme](V2_G2_HA_ZWISCHENABNAHME_0_1_64_2026-10-11.md).
 
