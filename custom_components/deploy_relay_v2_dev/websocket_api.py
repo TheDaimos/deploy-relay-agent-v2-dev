@@ -954,10 +954,6 @@ async def async_deployment_logs_export(hass, connection, msg):
     if runtime is None:
         connection.send_error(msg["id"], "not_ready", "Diagnose nicht bereit")
         return
-    record = runtime.source_diagnostics.latest()
-    if record is None:
-        connection.send_error(msg["id"], "no_logs", "Noch keine Deployment-Prüfung vorhanden")
-        return
     # User-mandated exclusive private diagnostic destination.
     # No implicit configuration, fallback repository, or public upload.
     if runtime.git_export.repository != "TheDaimos/Project-Log-And-Export":
@@ -965,6 +961,18 @@ async def async_deployment_logs_export(hass, connection, msg):
                               "Privates zentrales Diagnosearchiv nicht ausgewählt")
         return
     try:
+        # Retrying an already persisted archive report MUST work even after
+        # an HA restart, when transient source diagnostics may be empty.
+        # Existing queued bytes take precedence over the new live report.
+        if not msg["g2_prepare"] and not msg["g2_confirm"] and runtime.git_export.pending:
+            result = await runtime.git_export.retry_pending()
+            connection.send_result(msg["id"], {**result, "pending_retried": True})
+            return
+        record = runtime.source_diagnostics.latest()
+        if record is None:
+            connection.send_error(msg["id"], "no_logs",
+                                  "Noch keine Deployment-Prüfung vorhanden")
+            return
         if msg["g2_prepare"]:
             # DEV-only, explicitly confirmed and exclusively private:
             # persist the real sanitized diagnostic but do not send to GitHub.
@@ -981,14 +989,6 @@ async def async_deployment_logs_export(hass, connection, msg):
         if msg["g2_confirm"]:
             connection.send_error(msg["id"], "invalid_confirmation",
                                   "G2-Bestätigung nur im Prüfmodus zulässig")
-            return
-        if runtime.git_export.pending:
-            # One archived report was durably queued by a previous failed
-            # upload. Retry THAT exact immutable payload and target first;
-            # never replace it, silently discard it or claim it was today's
-            # latest source diagnostic.
-            result = await runtime.git_export.retry_pending()
-            connection.send_result(msg["id"], {**result, "pending_retried": True})
             return
         source_repository = runtime.source_diagnostics.private_repository_for(record["run_id"])
         result = await runtime.git_export.export(
