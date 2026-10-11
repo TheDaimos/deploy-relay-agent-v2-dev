@@ -3,7 +3,7 @@
 **Datum:** 11.10.2026  
 **Repository:** `TheDaimos/deploy-relay-agent-v2-dev`  
 **Verbindlicher Entwicklungszweig:** `feature/v2-10-inventory-operation-contract`  
-**Status:** Code umgesetzt, vollständige GitHub-CI **SUCCESS** ([Lauf 38170793870](https://github.com/TheDaimos/deploy-relay-agent-v2-dev/actions/runs/38170793870), Code- und Dokumentationscheckpoint `d54d63dc9cfcc5b195d41758432896fe8440cab5`). **HA-Realabnahme noch ausstehend. Kein Update von 0.1.69 während des aktiven G2-Export-Wiederholtests erzwingen.**
+**Status:** Code umgesetzt, vollständige GitHub-CI **SUCCESS** ([Lauf 38170793870](https://github.com/TheDaimos/deploy-relay-agent-v2-dev/actions/runs/38170793870), Code- und Dokumentationscheckpoint `d54d63dc9cfcc5b195d41758432896fe8440cab5`). **HA-Sichtabnahme am 11.10.2026 durch den Betreiber bestätigt („Funktioniert“).** Kein weiterer 0.1.70-Test oder Neustart erforderlich.
 
 ## Ausgangslage und ausdrücklich gewünschte Korrektur
 
@@ -28,6 +28,12 @@ Dies war zuvor trotz Dokumentation **in 0.1.69 noch nicht umgesetzt**. Die Sicht
 Der noch laufende G2-Realtest unter der bereits in HA installierten **0.1.69** soll **zuerst** abgeschlossen werden. Für diese optische Nachbesserung wird kein erneuter HA-Neustart während des aktuellen Tests verlangt. Nach positiver isolierter CI kann **0.1.70 separat** durch den Betreiber über DRA V1 installiert und in HA angesehen werden.
 
 DRA V1, V2 `main`/PUB, WeatherRouter, das private Zentralarchiv `TheDaimos/Project-Log-And-Export` und PR #2 bleiben unverändert; PR #2 nicht zusammenführen.
+
+## HA-Abnahme V2 DEV 0.1.70 – Ergebnis
+
+Der Betreiber hat nach Aktualisierung auf V2 DEV 0.1.70 den zuvor übergangenen Wunsch zur **platzsparenden Kopfzeile** in der echten Home-Assistant-Oberfläche geprüft und mit **„Funktioniert, weiter.“** bestätigt. Die goldene Taste bleibt erhalten, der Kurzstatus steht unter der Überschrift und die beiden langen Texte entfallen aus dem sichtbaren Bereich. **UI-Realabnahme bestanden.**
+
+Das ist eine **Darstellungsabnahme**, kein neuer Quellprüf-, Installations-, Übergabe- oder Backupnachweis. Keine automatische DRA-V2-Schreibfreigabe. G2-40 wurde zuvor separat durch den kontrollierten privaten Git-Wiederholversand nachgewiesen.
 
 ## Abnahme
 
