@@ -738,7 +738,8 @@ class DRAV2DevLabPanel extends HTMLElement {
   }
 
   async _deploymentLogsAction(kind) {
-    if (!this._hass || this._deploymentLogsBusy || !this._deploymentLogs.length ||
+    if (!this._hass || this._deploymentLogsBusy ||
+        (!this._deploymentLogs.length && !(kind === "git" && this._centralExport.pending)) ||
         !["git","json","copy","g2_prepare"].includes(kind)) return;
     if (kind === "g2_prepare" && (!this._g2RetryTestConfirm ||
         this._centralExport.pending)) return;
@@ -2699,7 +2700,7 @@ class DRAV2DevLabPanel extends HTMLElement {
                     </div>
                   </div>` : ""}
                 <div class="dra-logs-actions">
-                  <button id="dra-logs-git" ${!this._deploymentLogs.length || this._deploymentLogsBusy || !this._centralExport.configured || this._centralExport.repository !== "TheDaimos/Project-Log-And-Export" ? "disabled" : ""}>${this._centralExport.pending ? "Gespeicherten Git-Export erneut senden" : "Export nach Git"}</button>
+                  <button id="dra-logs-git" ${(!this._deploymentLogs.length && !this._centralExport.pending) || this._deploymentLogsBusy || !this._centralExport.configured || this._centralExport.repository !== "TheDaimos/Project-Log-And-Export" ? "disabled" : ""}>${this._centralExport.pending ? "Gespeicherten Git-Export erneut senden" : "Export nach Git"}</button>
                   <button id="dra-logs-json" ${!this._deploymentLogs.length || this._deploymentLogsBusy ? "disabled" : ""}>JSON herunterladen</button>
                   <button id="dra-logs-copy" ${!this._deploymentLogs.length || this._deploymentLogsBusy ? "disabled" : ""}>Zwischenablage</button>
                 </div>
