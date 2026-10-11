@@ -46,7 +46,7 @@ class LabIsolationContracts(unittest.TestCase):
         self.assertIn('PANEL_ELEMENT: Final = "dra-v2-dev-lab-panel"', const)
         self.assertEqual(len(re.findall(r'probatio.Required\("type"\): "deploy_relay_v2_dev/test/', sockets)), 8)
         self.assertEqual(len(re.findall(r'probatio.Required\("type"\): "deploy_relay_v2_dev/projects/', sockets)), 10)
-        self.assertEqual(sockets.count("@websocket_api.require_admin"), 32)
+        self.assertEqual(sockets.count("@websocket_api.require_admin"), 34)
         self.assertNotIn('"deploy_relay/panel/', sockets)
         self.assertNotIn('"deploy_relay/panel/', frontend)
         self.assertNotIn("deploy-relay-panel", frontend)
@@ -77,9 +77,9 @@ class LabIsolationContracts(unittest.TestCase):
 
     def test_async_ws_handlers_are_scheduled_and_admin_guarded(self):
         sockets = (LAB_ROOT / "websocket_api.py").read_text(encoding="utf-8")
-        self.assertEqual(sockets.count("@websocket_api.async_response"), 32)
-        self.assertEqual(sockets.count("@websocket_api.require_admin"), 32)
-        self.assertEqual(sockets.count("@websocket_api.websocket_command("), 32)
+        self.assertEqual(sockets.count("@websocket_api.async_response"), 34)
+        self.assertEqual(sockets.count("@websocket_api.require_admin"), 34)
+        self.assertEqual(sockets.count("@websocket_api.websocket_command("), 34)
         self.assertIn("import probatio", sockets)
         self.assertNotIn("import voluptuous", sockets)
         for handler in ("async_state", "async_measure", "async_multicore",
@@ -624,7 +624,7 @@ class LabIsolationContracts(unittest.TestCase):
         self.assertIn("No project or file access", (LAB_ROOT / "readonly_benchmark.py").read_text(encoding="utf-8"))
         self.assertNotIn("20-Sekunden-Test", frontend)
         self.assertNotIn("for index in range(1, 21):", sockets)
-        self.assertEqual(sockets.count("@websocket_api.require_admin"), 32)
+        self.assertEqual(sockets.count("@websocket_api.require_admin"), 34)
 
 
 if __name__ == "__main__":
