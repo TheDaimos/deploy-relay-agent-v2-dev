@@ -57,6 +57,48 @@ class DiagnosticsContract(unittest.TestCase):
         self.assertFalse(record["resources"]["worker_budget_enforced"])
         self.assertTrue(all(0 <= t["elapsed_ms"] <= record["duration_ms"] for t in record["steps"]))
 
+    def test_project_reference_is_opaque_and_stable_for_current_runtime(self):
+        log = diagnostics.SourceDiagnosticLog()
+        first = log.begin()
+        ref = log.bind_project(first, "TheDaimos/gewitterradar")
+        log.stage(first, "manifest")
+        one = log.finish(first, success=False, reason="manifest_invalid",
+                         resources=diagnostics.resource_snapshot(MockSettings()))
+        second = log.begin()
+        same_ref = log.bind_project(second, "thedaimos/GEWITTERRADAR")
+        two = log.finish(second, success=False, reason="source_unavailable",
+                         resources=diagnostics.resource_snapshot(MockSettings()))
+        self.assertEqual(ref, same_ref)
+        self.assertRegex(ref, r"^P-[0-9A-F]{12}$")
+        self.assertEqual(one["project_ref"], two["project_ref"])
+        self.assertNotIn("TheDaimos", str(log.entries()))
+        self.assertNotIn("gewitterradar", str(log.entries()).casefold())
+        self.assertEqual(log.private_repository_for(one["run_id"]), "TheDaimos/gewitterradar")
+        self.assertEqual(log.private_repository_for(two["run_id"]), "thedaimos/GEWITTERRADAR")
+        other = log.begin()
+        other_ref = log.bind_project(other, "TheDaimos/weather-router-dev")
+        self.assertNotEqual(other_ref, ref)
+        with self.assertRaises(diagnostics.SourceDiagnosticsError):
+            log.bind_project(other, "TheDaimos/gewitterradar")
+
+    def test_clear_is_guarded_and_only_for_in_memory_logs(self):
+        log = diagnostics.SourceDiagnosticLog()
+        for repo in ("TheDaimos/gewitterradar", "TheDaimos/weather-router-dev"):
+            ctx = log.begin()
+            log.bind_project(ctx, repo)
+            log.finish(ctx, success=False, reason="source_unavailable",
+                       resources=diagnostics.resource_snapshot(MockSettings()))
+        before = log.entries()
+        with self.assertRaises(diagnostics.SourceDiagnosticsError):
+            log.clear(expected_run_id=before[-1]["run_id"])
+        self.assertEqual(len(log.entries()), 2)
+        self.assertEqual(log.clear(expected_run_id=before[0]["run_id"]), 2)
+        self.assertEqual(log.entries(), [])
+        self.assertIsNone(log.private_repository_for(before[0]["run_id"]))
+        self.assertIsNone(log.private_repository_for(before[1]["run_id"]))
+        with self.assertRaises(diagnostics.SourceDiagnosticsError):
+            log.clear(expected_run_id=before[0]["run_id"])
+
     def test_bounded_history_and_independent_snapshots(self):
         log = diagnostics.SourceDiagnosticLog()
         for _ in range(12):
@@ -74,6 +116,9 @@ class DiagnosticsContract(unittest.TestCase):
         attempts = [
             lambda x: x.update({"token":"github_pat_private"}),
             lambda x: x.update({"installation_enabled":True}),
+            lambda x: x.update({"repository":"TheDaimos/private-repo"}),
+            lambda x: x.update({"project_ref":"TheDaimos/private-repo"}),
+            lambda x: x.update({"project_ref":"P-invalid"}),
             lambda x: x.update({"process_cpu_ms":-1}),
             lambda x: x.update({"process_cpu_ms":"shared:secret"}),
             lambda x: x.update({"status":"success"}),
@@ -182,6 +227,43 @@ class DiagnosticsContract(unittest.TestCase):
                    "repository":"TheDaimos/Project-Log-And-Export"}
         self.assertEqual(export._validate_pending(pending), pending)
         self.assertLess(len(pending["raw"].encode()), export.MAX_EXPORT_BYTES)
+
+    def test_private_git_export_has_repository_but_local_json_does_not(self):
+        log = diagnostics.SourceDiagnosticLog()
+        ctx = log.begin()
+        log.bind_project(ctx, "TheDaimos/gewitterradar")
+        record = log.finish(ctx, success=False, reason="manifest_invalid",
+                            resources=diagnostics.resource_snapshot(MockSettings()))
+        now = __import__("datetime").datetime.now(__import__("datetime").timezone.utc)
+        local = export.archive_document(record, version="0.1.59", now=now, export_id="b"*32)
+        self.assertNotIn("private_source_repository", local["snapshot"])
+        self.assertNotIn("TheDaimos/gewitterradar", json.dumps(local))
+        private = export.archive_document(
+            record, version="0.1.59", now=now, export_id="c"*32,
+            private_source_repository=log.private_repository_for(record["run_id"]))
+        self.assertEqual(private["snapshot"]["private_source_repository"], "TheDaimos/gewitterradar")
+        self.assertEqual(private["snapshot"]["source_diagnostic"]["project_ref"], record["project_ref"])
+        self.assertEqual(private["snapshot"]["source_diagnostic"]["run_id"], record["run_id"])
+        rechecked, test_id = export._validated_snapshot(private["snapshot"])
+        self.assertEqual(rechecked, private["snapshot"])
+        self.assertEqual(test_id, "V2-SOURCE-PREVIEW")
+        raw = json.dumps(private, sort_keys=True, separators=(",", ":"), ensure_ascii=True) + "\\n"
+        pending = {
+            "path": export.archive_path(private), "export_id": "c"*32,
+            "raw": raw, "repository": "TheDaimos/Project-Log-And-Export",
+        }
+        self.assertEqual(export._validate_pending(pending), pending)
+        wrong = {**pending, "repository":"TheDaimos/another-private-repo"}
+        with self.assertRaises(export.GitMeasurementError):
+            export._validate_pending(wrong)
+        private["snapshot"]["private_source_repository"] = "https://external.test/example"
+        with self.assertRaises(export.GitMeasurementError):
+            export._validated_snapshot(private["snapshot"])
+        # The server cannot attach a repository to an unbound record.
+        with self.assertRaises(export.GitMeasurementError):
+            export.archive_document(new_record(), version="0.1.59", now=now,
+                                   export_id="d"*32,
+                                   private_source_repository="TheDaimos/gewitterradar")
 
     def test_no_forged_backend_result_passes_archive_revalidation(self):
         record = new_record()
