@@ -848,6 +848,31 @@ async def async_source_job_status(hass, connection, msg):
 
 
 @websocket_api.websocket_command({
+    probatio.Required("type"): "deploy_relay_v2_dev/projects/source_job/history",
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def async_source_job_history(hass, connection, msg):
+    """History metadata only, NEVER reusable reports or Git identifiers."""
+    runtime = _runtime(hass)
+    if runtime is None:
+        connection.send_error(msg["id"], "not_ready", "Auftragshistorie nicht bereit")
+        return
+    try:
+        records = await runtime.source_job_history.list()
+    except Exception:
+        connection.send_error(msg["id"], "history_unavailable", "Auftragshistorie nicht lesbar")
+        return
+    connection.send_result(msg["id"], {
+        "schema": "dra-v2-source-job-history-result.v1",
+        "records": records,
+        "installation_enabled": False,
+        "resume_allowed": False,
+        "source_preview_saved": False,
+    })
+
+
+@websocket_api.websocket_command({
     probatio.Required("type"): "deploy_relay_v2_dev/deployment/logs",
 })
 @websocket_api.require_admin
@@ -999,6 +1024,7 @@ def async_register_commands(hass: HomeAssistant) -> None:
                     async_batch_preview, async_projects_connection_check,
                     async_projects_source_preview,
                     async_source_job_start, async_source_job_status,
+                    async_source_job_history,
                     async_deployment_logs, async_deployment_logs_download,
                     async_deployment_logs_export, async_deployment_logs_clear,
                     async_git_read_configure, async_git_read_clear,
