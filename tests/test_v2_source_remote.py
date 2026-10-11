@@ -203,6 +203,25 @@ class SourceRemoteTests(unittest.IsolatedAsyncioTestCase):
                 with self.assertRaises(p.PreflightError):
                     await m.inspect_public_repository(Session(responses), self.root, REPO)
 
+    async def test_git_tree_http_failures_keep_distinct_fixed_codes(self):
+        # HTTP response details never enter exception text or diagnostics.
+        expected = {
+            401: "github_http_authentication",
+            403: "github_http_forbidden",
+            404: "github_http_not_found",
+            429: "github_http_rate_limited",
+            500: "GitHub request unsuccessful",
+        }
+        for status, message in expected.items():
+            with self.subTest(status=status):
+                replies = payloads()
+                replies[-1] = ({"message": "simulated private response body"}, status)
+                with self.assertRaises(p.PreflightError) as raised:
+                    await m.inspect_public_repository(Session(replies), self.root, REPO)
+                self.assertEqual(str(raised.exception), message)
+                self.assertNotIn("simulated private response body", str(raised.exception))
+        self.assertEqual(list((self.root / "custom_components" / "safe_project").iterdir()), [])
+
     async def test_oversized_file_is_never_scanned(self):
         path = self.root / "custom_components" / "safe_project" / "large.bin"
         path.write_bytes(b"a" * 5000)
