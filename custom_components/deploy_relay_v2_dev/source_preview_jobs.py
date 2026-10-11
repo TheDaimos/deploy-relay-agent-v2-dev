@@ -84,11 +84,24 @@ class SourcePreviewJobs:
                 try:
                     row["status"] = "running"
                     report = await inspect()
+                    claim = report.get("target_claims") if type(report) is dict else None
+                    import re
                     if (type(report) is not dict or
+                            report.get("schema") != "dra-v2-dev-source-preview.v1" or
+                            type(report.get("source_commit")) is not str or
+                            re.fullmatch(r"[0-9a-f]{40}", report["source_commit"]) is None or
                             report.get("sources_verified") is not True or
+                            report.get("local_inventory_readonly") is not True or
+                            report.get("handover_required") is not True or
+                            report.get("backup_verified") is not False or
                             report.get("installation_enabled") is not False or
                             type(report.get("repository")) is not str or
-                            report["repository"].casefold() != canonical.casefold()):
+                            report["repository"].casefold() != canonical.casefold() or
+                            type(claim) is not dict or
+                            claim.get("exclusive_ownership_verified") is not False or
+                            claim.get("cross_process_lock_verified") is not False or
+                            claim.get("backup_verified") is not False or
+                            claim.get("installation_enabled") is not False):
                         raise SourcePreviewJobError("untrusted source result")
                     row["result"] = self._copy(report)
                     row["stage"] = "complete"
