@@ -744,7 +744,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
 (async () => {
   const probe = new Panel();
   probe._view = "main";
-  probe._serverVersion = "0.1.66";
+  probe._serverVersion = "0.1.67";
   probe._projects = [{repository:"TheDaimos/gewitterradar",name:"Gewitterradar",active:true}];
   probe._mainSourceRef = "";
   const calls = [];
@@ -782,7 +782,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   await probe._sourceCheck({dataset:{repo:"TheDaimos/gewitterradar"}},true);
   assert.equal(calls.length,0);
   assert.match(probe._sourceMessage,/Python-Laufzeit 0.1.64/);
-  probe._serverVersion = "0.1.66";
+  probe._serverVersion = "0.1.67";
   probe._render();
   assert.match(probe.shadowRoot.innerHTML,/Laufzeit kompatibel/);
   await probe._sourceCheck({dataset:{repo:"TheDaimos/gewitterradar"}},true);
@@ -859,6 +859,79 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   assert.match(historic.shadowRoot.innerHTML,/Nach HA-Neustart ist immer eine neue Quellprüfung erforderlich/);
   assert.doesNotMatch(historic.shadowRoot.innerHTML,/source_preview_saved:true/);
   console.log("DRA V2 durable metadata is shown without re-authorizing preview PASS");
+})().catch(error=>{console.error(error);process.exitCode=1;});
+
+(async () => {
+  const panel = new Panel();
+  panel._deploymentLogsOpen = true;
+  panel._deploymentLogs = [{status:"success",run_id:"e".repeat(32)}];
+  const requests = [];
+  let resumeLogs, resumeHistory;
+  panel._hass = {async callWS(request) {
+    requests.push(request.type);
+    if (request.type === "deploy_relay_v2_dev/deployment/logs") {
+      return new Promise(resolve => {resumeLogs=()=>resolve({
+        schema:"dra-v2-dev-deployment-logs.v1",installation_enabled:false,
+        records:[{status:"success",run_id:"f".repeat(32)}],count:1,
+      });});
+    }
+    assert.equal(request.type,"deploy_relay_v2_dev/projects/source_job/history");
+    return new Promise(resolve => {resumeHistory=()=>resolve({
+      schema:"dra-v2-source-job-history-result.v1",
+      installation_enabled:false,resume_allowed:false,source_preview_saved:false,
+      records:[{operation_id:"a".repeat(32),status:"success",installation_enabled:false,
+        resume_allowed:false,source_preview_saved:false,created_at:"2026-10-11T17:30:00Z",
+        finished_at:"2026-10-11T17:31:00Z",reason:null}],
+    });});
+  }};
+  panel._render();
+  assert.match(panel.shadowRoot.innerHTML,/id="dra-history-refresh"/);
+  assert.match(panel.shadowRoot.innerHTML,/Quellprotokolle und Auftragshistorie aktualisieren/);
+  assert.match(panel.shadowRoot.innerHTML,/dra-history-refresh:focus-visible/);
+  assert.match(panel.shadowRoot.innerHTML,/prefers-reduced-motion:reduce/);
+  const current = panel._refreshHistoryManually();
+  assert.equal(panel._historyRefreshBusy,true);
+  assert.match(panel.shadowRoot.innerHTML,/Wird aktualisiert/);
+  assert.match(panel.shadowRoot.innerHTML,/id="dra-history-refresh"[^>]*aria-busy="true"[^>]*disabled/);
+  assert.match(panel.shadowRoot.innerHTML,/aria-live="polite"/);
+  await panel._refreshHistoryManually();
+  assert.equal(requests.length,2,"rapid double-tap must not duplicate read requests");
+  assert.deepEqual(requests.sort(),[
+    "deploy_relay_v2_dev/deployment/logs",
+    "deploy_relay_v2_dev/projects/source_job/history",
+  ]);
+  resumeLogs();
+  resumeHistory();
+  await current;
+  assert.equal(panel._historyRefreshBusy,false);
+  assert.equal(panel._sourceJobHistory[0].status,"success");
+  assert.equal(panel._deploymentLogs[0].run_id,"f".repeat(32));
+  assert.match(panel._historyRefreshStatus,/sind aktuell/);
+  assert.match(panel.shadowRoot.innerHTML,/Damals erfolgreich/);
+  assert.match(panel.shadowRoot.innerHTML,/Aktualisieren/);
+  assert.doesNotMatch(panel.shadowRoot.innerHTML,/data-stage="2"/,
+    "refreshing history must not authorize deployment");
+  assert.equal(requests.length,2,"history refresh only reads the two allowlisted endpoints");
+  console.log("DRA V2 premium manual logs/history refresh, busy and read-only gates PASS");
+})().catch(error=>{console.error(error);process.exitCode=1;});
+
+(async () => {
+  const panel = new Panel();
+  panel._deploymentLogsOpen = true;
+  let calls = 0;
+  panel._hass = {async callWS(request) {
+    calls++;
+    assert(["deploy_relay_v2_dev/deployment/logs",
+      "deploy_relay_v2_dev/projects/source_job/history"].includes(request.type));
+    throw new Error("temporary mobile connection lost");
+  }};
+  await panel._refreshHistoryManually();
+  assert.equal(calls,2);
+  assert.equal(panel._historyRefreshBusy,false);
+  assert.match(panel._historyRefreshStatus,/Aktualisierung unvollständig/);
+  assert.match(panel.shadowRoot.innerHTML,/erneut versuchen/);
+  assert.doesNotMatch(panel.shadowRoot.innerHTML,/data-stage="2"/);
+  console.log("DRA V2 manual history refresh failure remains fail-closed PASS");
 })().catch(error=>{console.error(error);process.exitCode=1;});
 
 (async () => {
