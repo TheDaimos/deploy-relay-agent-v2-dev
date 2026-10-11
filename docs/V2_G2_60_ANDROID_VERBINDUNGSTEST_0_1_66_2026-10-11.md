@@ -24,6 +24,16 @@ Bei der ersten HA-Erprobung von 0.1.65 erschien bereits die neue G2-30-Schaltfl�
 - **Netzunterbrechung separat:** Bei einem weiteren G2-Test auf Android WLAN erst **nach bestätigter Auftragskennung** für wenige Sekunden deaktivieren, anschließend aktivieren. Keine HA-/Proxmox-/Router-Unterbrechung. Dasselbe laufende HA-Auftragsobjekt muss über die wiederhergestellte Verbindung weiter abrufbar sein.
 - **HA-Neustart während laufendem Auftrag und Exportwarteschlangen-Wiederholung** bleiben getrennte, noch offene Tests; niemals implizit als bestanden deklarieren.
 
+## HA-Realtest – Zwischenbefund vom 11.10.2026
+
+- Nach der vom Betreiber ausgeführten Aktualisierung und dem HA-Neustart meldete die V2-Oberfläche die **aktive Python-Version 0.1.66** und „Laufzeit kompatibel“. Die Versionsabweichung aus dem ersten 0.1.65-Versuch wurde in diesem Lauf **nicht** mehr beobachtet.
+- Der **G2-Testauftrag über 60 Sekunden** wurde tatsächlich angenommen. Die Companion App zeigte einen laufenden HA-Auftrag mit Kennung und Test-Wartestatus. Die anschließend im direkten Chrome-Zugriff angezeigte Auftragshistorie enthielt denselben Auftrag als abgeschlossenes **Fehlerergebnis**. Damit sind Testannahme und ehrliche Rückmeldung des HA-eigenen Auftrags belegt.
+- Der ausdrücklich vom Betreiber ausgelöste **private Git-Export** zeigte für diesen Versuch die erlaubte Fehlerklasse `manifest_target_protected` auf der Stufe `manifest`. Die im **privaten** Export benannte Quellwahl war das geschützte **DRA-V1-DEV-Projekt**, nicht die für G2 geplante bekannte, ungeschützte Gewitterradar-Quelle. Der Schutz greift damit **erwartungsgemäß**; es handelt sich **nicht** um einen nachgewiesenen Defekt der G2-Auftragsverwaltung.
+- Die Aufnahmen aus Companion App und Chrome unterstützen die Wiederanzeige des serverseitig verwalteten Auftrags über zwei Clients. Ein erfolgreicher **Quellprüfungsabschluss** für den neuen G2-Test fehlt noch. Die tatsächliche Netzwerkunterbrechung über WLAN wurde **nicht** durchgeführt und bleibt separat offen.
+- Bei Wiederholung **Gewitterradar ausdrücklich in V2 auswählen**, dann erneut einen G2-60-Test starten und vor Ablauf der Wartezeit den Client wechseln. Kein Upgrade, keine neue Sicherheitsfreigabe und kein Neustart dafür erforderlich.
+
+**Abnahme:** 0.1.66 aktive Laufzeit, G2-Start, serverseitige Historisierung und geschützte Zielverweigerung bestätigt. Vollständiger G2-60-End-to-End-Erfolg mit Gewitterradar **ausstehend**.
+
 ## CI / Realnachweise
 
 **Isolierte GitHub-CI erfolgreich:** [Run 38158437838](https://github.com/TheDaimos/deploy-relay-agent-v2-dev/actions/runs/38158437838) zum Featurezweig-Checkpoint `efeb9f3c9c729fb46bb85760b0df90a390fb6aea`: Python-Vertragstests, Python-/JavaScript-Syntax, Node-Bedienungstests und keine Artefaktveröffentlichung jeweils erfolgreich. Nachfolgende Änderungen betrafen nur dieses Dokument und den bereinigten AI-Kontext. **HA-Realabnahme noch offen.** Ein in Git vorhandenes 0.1.66-Manifest beweist **nicht**, dass diese Python-Version bereits auf dem HA-Server läuft.
