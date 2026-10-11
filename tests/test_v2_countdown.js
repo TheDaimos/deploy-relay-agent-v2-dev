@@ -960,7 +960,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   }
   assert.match(html,/Weitere Aufträge durch Wischen innerhalb der Liste anzeigen/);
   assert.match(html,/id="dra-history-refresh"/);
-  assert.match(html,/id="dra-logs-notes">/,"technical notes should be closed by default");
+  assert.match(html,/id="dra-logs-notes"\s*>/,"technical notes should be closed by default");
   assert.match(html,/<summary>Hinweise zu Protokollen und Datenschutz<\/summary>/);
   assert.match(html,/Nach HA-Neustart ist immer eine neue Quellprüfung erforderlich/);
   assert.match(html,/CPU-Zeit gilt für den gesamten Home-Assistant-Prozess/);
