@@ -742,6 +742,48 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
 })().catch(error => {console.error(error);process.exitCode=1;});
 
 (async () => {
+  const probe = new Panel();
+  probe._view = "main";
+  probe._projects = [{repository:"TheDaimos/gewitterradar",name:"Gewitterradar",active:true}];
+  probe._mainSourceRef = "";
+  const calls = [];
+  probe._hass = {async callWS(request) {
+    calls.push(request);
+    if (request.type === "deploy_relay_v2_dev/projects/source_job/start") {
+      assert.equal(request.connection_test,true);
+      return {
+        schema:"dra-v2-source-preview-job.v1",operation_id:"e".repeat(32),
+        repository:request.repository,ref:"",status:"queued",
+        connection_test:true,installation_enabled:false,
+      };
+    }
+    assert.equal(request.type,"deploy_relay_v2_dev/projects/source_job/status");
+    return {
+      schema:"dra-v2-source-preview-job-status.v1",installation_enabled:false,
+      job:{
+        schema:"dra-v2-source-preview-job.v1",operation_id:"e".repeat(32),
+        repository:"TheDaimos/gewitterradar",ref:"",
+        status:"success",connection_test:true,installation_enabled:false,
+        result:{repository:"TheDaimos/gewitterradar",
+          sources_verified:true,installation_enabled:false,
+          source_commit:"f".repeat(40),add:[],change:[],remove:[],unchanged_count:12},
+      },
+    };
+  }};
+  probe._render();
+  assert.match(probe.shadowRoot.innerHTML,/id="dra-g2-connection-test"/);
+  assert.match(probe.shadowRoot.innerHTML,/G2 · Verbindungstest \(30 s\)/);
+  await probe._sourceCheck({dataset:{repo:"TheDaimos/gewitterradar"}},true);
+  assert.equal(calls.length,2);
+  assert.equal(probe._sourceConnectionTest,true);
+  assert.match(probe._sourceMessage,/G2-Verbindungstest abgeschlossen/);
+  assert.match(probe.shadowRoot.innerHTML,/data-stage="1"/,
+    "a diagnostic connection test must never advance the deployment gate");
+  assert.match(probe.shadowRoot.innerHTML,/Installation weiterhin gesperrt/);
+  console.log("DRA V2 G2 fixed reconnect test is read-only and not a deployment preview PASS");
+})().catch(error=>{console.error(error);process.exitCode=1;});
+
+(async () => {
   const recovered = new Panel();
   const project = {repository:"TheDaimos/gewitterradar",name:"Gewitterradar",active:true};
   const id = "b".repeat(32);
