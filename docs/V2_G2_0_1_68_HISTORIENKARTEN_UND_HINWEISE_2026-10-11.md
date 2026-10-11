@@ -2,7 +2,7 @@
 
 **Datum:** 11.10.2026  
 **Verbindlicher Zweig:** `feature/v2-10-inventory-operation-contract`  
-**Status:** Nur V2-DEV-Frontend, Versionspaar und zugehörige Prüfungen geändert. **HA-Realabnahme 0.1.68 ausstehend**, keine V2-Schreibfreigabe.
+**Status:** V2-DEV-Frontend 0.1.68 **HA-real bestätigt** (Screenshots vom 11.10.2026, 20:57 Ortszeit); keine V2-Schreibfreigabe. Die angekündigte weitere Verdichtung des Statusbereichs bleibt ausdrücklich ein **separates Folgeupdate**.
 
 ## Anlass aus dem HA-Realtest
 
@@ -33,6 +33,22 @@ Der Native-Aufklappmechanismus nutzt etablierte HTML-Funktionen, keine neue Bibl
 - Node-Oberflächentests für voneinander getrennte Statuskarten, Roll-Hinweis, standardmäßig geschlossenen Aufklappbereich, beharrenden Öffnungszustand bei Oberflächen-Neuzeichnung und weiterhin gesperrte Deployment-Schritte.
 - Der bestehende 60-Sekunden-Verbindungstest bleibt unverändert; sein Laufzeit-Versionstor erwartet beim nächsten DEV-Stand 0.1.68.
 - **CI-Lauf erfolgreich:** [GitHub Actions 38164735204](https://github.com/TheDaimos/deploy-relay-agent-v2-dev/actions/runs/38164735204) auf Entwicklungscheckpoint `928e3dfb651f56ef8aff3012e3ef0ca40f438152`. Python-Vertragstests, Syntaxprüfungen, JavaScript-Oberflächenprüfungen einschließlich der neuen Karten- und Aufklappbereichstests sowie Ausschluss von Artefaktveröffentlichungen sämtlich **SUCCESS**. Folgende Änderungen betreffen nur die bereinigte Dokumentation und den Projektkontext. Die HA-Realabnahme steht weiterhin aus.
+
+## Nachträgliche HA-Sichtabnahme 0.1.68
+
+Die reale Companion-App-Ansicht bestätigt die deutlich getrennten Auftragskarten mit eigenständigem Statusabzeichen, dezenter goldener Bereichstrennung und den standardmäßig geschlossenen Bereich `Hinweise zu Protokollen und Datenschutz`. Die goldene Aktualisierungsschaltfläche funktioniert weiterhin; die Oberfläche zeigt den zuletzt bestätigten aktuellen Stand an. Der alte G2-Netzwechselauftrag ist noch sichtbar. Der geschlossene Aufklapper und die auf dem Mobilgerät lesbaren Karten sind **abgenommen**. Keine weitere Korrektur dieser Karten erforderlich.
+
+Die Ansicht zeigt zudem mehrere ältere **„Damals erfolgreich“**-Datensätze nach dem Versionswechsel samt üblichem HA-Neustart. Dies belegt die Wiederanzeige **bereits abgeschlossener** historischer Aufträge nach dem Restart; es ersetzt **nicht** den noch offenen Test mit HA-Neustart **während eines laufenden** G2-Testauftrags.
+
+### Separat gewünschter Folgeauftrag – Statusbereich weiter verdichten
+
+**Noch NICHT implementieren oder als HA-real abgenommen deklarieren:**
+
+- Die aktuell oberhalb der Karten stehenden Zeilen `Protokolle und Auftragshistorie sind aktuell.` und `Gespeicherte Auftragszustände; alte Ergebnisse sind nicht erneut freigegeben.` aus dem dauernd sichtbaren Layout **entfernen**.
+- Links **direkt unter** der Überschrift `Serverseitige Auftragshistorie` statt dieser Zeilen einen **einzeiligen, zurückhaltenden Kurzstatus** anzeigen, auf gleicher Gesamthöhe wie die goldene Taste **„Aktualisieren“** rechts. Beispielsweise `Aktuell` nach bestätigtem Abruf, `Wird aktualisiert …` nur beim Laden und kurze deutliche Fehlerwarnung bei erfolglosem Abruf. Keinen falschen Aktualitätsstatus vor erfolgter Serverantwort darstellen.
+- Die sicherheitsrelevante Information `Alte Ergebnisse werden nicht erneut freigegeben` nicht ersatzlos beseitigen, sondern in den bereits vorhandenen, standardmäßig geschlossenen Aufklapper **„Hinweise zu Protokollen und Datenschutz“** verschieben.
+- Goldene Schaltfläche, rotierende Ladeanimation, verständliche Fehlerbehandlung, Fokusführung, Mobil-Layout, kein automatisches Ausführen einer Quellprüfung und sämtliche Sicherheitsgrenzen beibehalten.
+- Änderungen in einem **eigenen späteren DEV-Versionsschritt** mit CI/HA-Abnahme prüfen; nicht mit der nächsten G2-Sicherheitsabnahme vermischen.
 
 ## Ein einziger HA-Realtest nach grünem CI
 
