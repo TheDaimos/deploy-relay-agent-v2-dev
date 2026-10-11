@@ -2,7 +2,7 @@
 
 **Datum:** 11.10.2026  
 **Alleiniger Arbeitszweig:** `feature/v2-10-inventory-operation-contract`  
-**Status:** Teilabnahme der schreibgeschützten Quellprüfung und des privaten Git-Exports. **G2 insgesamt noch offen.**
+**Status:** Teilabnahme der schreibgeschützten Quellprüfung, der privaten Git-Übertragung **und der sichtbaren serverseitigen Auftragshistorie im laufenden HA-System**. **G2 insgesamt noch offen.**
 
 ## Verifizierte Ergebnisse
 
@@ -11,6 +11,12 @@
 - Eine in HA tatsächlich ausgeführte **schreibgeschützte Gewitterradar-Quellprüfung** unter 0.1.64 endete erfolgreich. Alle acht vorgesehenen Prüfphasen bis einschließlich berechneter Zielkollision wurden erreicht, Ergebnis `success`, keine Fehlerkategorie, Quelle verifiziert. **Keine Installationsfreigabe.**
 - Der zugehörige, vom Nutzer ausdrücklich angestoßene **private Git-Diagnoseexport** wurde im vorgeschriebenen privaten Archiv nachgewiesen. Damit ist der reguläre Exportweg unter 0.1.64 real bestätigt.
 - Zwei weitere real ausgeführte, aber **erwartbar abgewiesene** Quellprüfungen unter 0.1.64 zeigten die bestehenden Schutzgrenzen: DRA V1 als geschütztes Ziel und V2-DEV-Standardzweig ohne Bereitstellungsmanifest. Diese Prüfungen sind **keine** negativen Befunde zur zuvor erfolgreich geprüften Gewitterradar-Quelle.
+- **Zusätzliche HA-Sichtabnahme (18:21 Ortszeit):** Im geöffneten Bereich `Deployment → Logs` wurde unter „Serverseitige Auftragshistorie“ der zuvor erfolgreiche Gewitterradar-Auftrag als **„Damals erfolgreich“** mit Zeitstempel dargestellt. Vorangegangene abgewiesene Quellprüfungen waren ebenfalls als **„Prüfung gescheitert“** sichtbar. Die Historie ist in der aktuellen HA-Laufzeit lesbar; der Screenshot beweist **keine** Wiederaufnahme eines alten Resultats und **keine** Speicherung über einen HA-Neustart hinweg. Schreibfreigabe blieb gesperrt.
+- Dieselbe Oberfläche zeigte für die letzte schreibgeschützte Gewitterradar-Vorschau die berechneten Dateidifferenzen **0 hinzugefügt, 35 geändert, 16 entfernt, 90 unverändert**. Diese Zahlen belegen **keine tatsächlich ausgeführte Dateisystemmutation**. Die Anzeigen zu Ressourcen unterschieden korrekt 12 verfügbare Kerne von vier konfigurierten Arbeitsprozessen sowie einem tatsächlich möglichen parallelen Leseauftrag und null Schreibaufträgen.
+
+## Zusätzlich beobachteter, nicht sicherheitskritischer Bedienhinweis
+
+Nach Abschluss der Vorschau ist die große zentrale Schaltfläche optisch goldfarben und trägt „2/4 · Schreibzugriff freigeben“. Der Quellcode setzt sie in diesem Zustand aber tatsächlich auf `disabled`, weil nur Stufe 1 bedienbar ist; der erläuternde Text bestätigt die Sperre. **Kein Backend-Freigabefehler nachgewiesen.** Für die spätere Gestaltung sollte die gesperrte zweite Stufe weniger wie eine aktiv bedienbare Schaltfläche aussehen; eine Gestaltungsänderung benötigt eigene Versionierung, Tests und Abnahme.
 
 ## Was ausdrücklich NICHT bewiesen wurde
 
@@ -25,8 +31,8 @@ Diese Datei enthält nur eine **bereinigte, manuell bewertete Abnahmezusammenfas
 
 ## Nächste Abnahme in kleinen Schritten
 
-1. In der bereits installierten V2-DEV-Version `Deployment → Logs` die **serverseitige Auftragshistorie** prüfen: Ein abgeschlossener Test erscheint als historischer Erfolg, ohne alte Vorschau oder Freigabe zu reaktivieren. Screenshot genügt; kein erneuter Git-Export nötig.
-2. Einen gesonderten Android-Verbindungs-/Browserunterbrechungstest **während eines neuen laufenden schreibgeschützten Auftrags** planen. Wegen der derzeit kurzen Prüfzeiten muss die tatsächliche Unterbrechung nachgewiesen werden; bloßes Wiederöffnen nach Abschluss genügt nicht.
+1. **Bereits HA-real geprüft:** Serverseitige Auftragshistorie im selben HA-Lauf: „Damals erfolgreich“, frühere fehlgeschlagene Aufträge, keine Schreibfreigabe. Diesen Test nicht unnötig wiederholen.
+2. Einen gesonderten Android-Verbindungs-/Browserunterbrechungstest **während eines neuen laufenden schreibgeschützten Auftrags** planen. Wegen der derzeit kurzen Prüfzeiten muss die tatsächliche Unterbrechung nachgewiesen werden; bloßes Wiederöffnen nach Abschluss genügt nicht. Vor neuem HA-Auftrag die Testdurchführung möglichst ohne Timing-Risiko klären.
 3. Kontrollierten HA-Neustartfall nur gesondert und durch den Betreiber freigegeben abnehmen; keinen Neustart automatisch auslösen.
 
 **Schreibrechte für V2 bleiben gesperrt.** PR #2 bleibt OPEN/DRAFT/UNMERGED. Keine Änderungen an DRA V1, V2 PUB/main, WeatherRouter oder dem privaten Archiv.
