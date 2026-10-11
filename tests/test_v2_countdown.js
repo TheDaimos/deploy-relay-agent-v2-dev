@@ -1020,7 +1020,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   assert.equal(sent.length,2);
   assert.equal(g2._centralExport.pending,false);
   assert.match(g2._deploymentLogsStatus,/Zuvor gesicherten Export erneut/);
-  assert.match(g2._deploymentLogsStatus,/aktuelles Prüfprotokoll Export nach Git erneut wählen/);
+  assert.match(g2._deploymentLogsStatus,/aktuelle Prüfprotokoll Export nach Git erneut wählen/);
   assert.doesNotMatch(g2.shadowRoot.innerHTML,/data-stage="2"/);
   console.log("DRA V2 G2 admin two-step local-only queue and explicit retry UI PASS");
 })().catch(error=>{console.error(error);process.exitCode=1;});
