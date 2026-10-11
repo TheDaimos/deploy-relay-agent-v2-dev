@@ -18,13 +18,13 @@ from .source_job_history import SourceJobHistory, SourceJobHistoryError
 MAX_JOBS = 4
 # Explicit DEV-only fixed-duration network interruption test. Does not change
 # the real source inspection timeout, and cannot be configured by the caller.
-CONNECTION_TEST_SECONDS = 30
+CONNECTION_TEST_SECONDS = 60
 ACTIVE = frozenset({"queued", "running"})
 RESULT_SCHEMA = "dra-v2-source-preview-job.v1"
 
 
 async def _connection_test_delay() -> None:
-    """Yield to HA for a fixed 30s test window, without blocking its event loop."""
+    """Yield to HA for a fixed 60s test window, without blocking its event loop."""
     await asyncio.sleep(CONNECTION_TEST_SECONDS)
 
 
