@@ -744,7 +744,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
 (async () => {
   const probe = new Panel();
   probe._view = "main";
-  probe._serverVersion = "0.1.69";
+  probe._serverVersion = "0.1.70";
   probe._projects = [{repository:"TheDaimos/gewitterradar",name:"Gewitterradar",active:true}];
   probe._mainSourceRef = "";
   const calls = [];
@@ -782,7 +782,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   await probe._sourceCheck({dataset:{repo:"TheDaimos/gewitterradar"}},true);
   assert.equal(calls.length,0);
   assert.match(probe._sourceMessage,/Python-Laufzeit 0.1.64/);
-  probe._serverVersion = "0.1.69";
+  probe._serverVersion = "0.1.70";
   probe._render();
   assert.match(probe.shadowRoot.innerHTML,/Laufzeit kompatibel/);
   await probe._sourceCheck({dataset:{repo:"TheDaimos/gewitterradar"}},true);
@@ -906,7 +906,11 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   assert.equal(panel._historyRefreshBusy,false);
   assert.equal(panel._sourceJobHistory[0].status,"success");
   assert.equal(panel._deploymentLogs[0].run_id,"f".repeat(32));
-  assert.match(panel._historyRefreshStatus,/sind aktuell/);
+  assert.equal(panel._historyRefreshStatus,"Aktualisiert");
+  assert.equal(panel._historyRefreshTone,"success");
+  assert.match(panel.shadowRoot.innerHTML,/class="dra-history-refresh-status success"/);
+  assert.match(panel.shadowRoot.innerHTML,/aria-atomic="true"/);
+  assert.match(panel.shadowRoot.innerHTML,/Quellprotokolle und Auftragshistorie erfolgreich vom Server geladen/);
   assert.match(panel.shadowRoot.innerHTML,/Damals erfolgreich/);
   assert.match(panel.shadowRoot.innerHTML,/Aktualisieren/);
   assert.doesNotMatch(panel.shadowRoot.innerHTML,/data-stage="2"/,
@@ -928,7 +932,9 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   await panel._refreshHistoryManually();
   assert.equal(calls,2);
   assert.equal(panel._historyRefreshBusy,false);
-  assert.match(panel._historyRefreshStatus,/Aktualisierung unvollständig/);
+  assert.equal(panel._historyRefreshStatus,"Abruf fehlgeschlagen");
+  assert.equal(panel._historyRefreshTone,"error");
+  assert.match(panel.shadowRoot.innerHTML,/Bitte erneut versuchen/);
   assert.match(panel.shadowRoot.innerHTML,/erneut versuchen/);
   assert.doesNotMatch(panel.shadowRoot.innerHTML,/data-stage="2"/);
   console.log("DRA V2 manual history refresh failure remains fail-closed PASS");
@@ -953,6 +959,16 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   assert.match(html,/\.dra-history-section \{border-top:1px solid/);
   assert.match(html,/\.dra-history-item \{/);
   assert.match(html,/dra-history-list" role="list"/);
+  assert.match(html,/class="dra-history-heading-title"/);
+  assert.match(html,/class="dra-history-refresh-status idle"/);
+  assert.match(html,/Nicht geprüft/);
+  assert.match(html,/\.dra-history-heading \{display:flex;align-items:center;justify-content:space-between;/);
+  assert.match(html,/flex-wrap:nowrap;margin:0 0 8px/);
+  const visibleHistory = html.slice(html.indexOf('class="dra-history-section"'),
+    html.indexOf('<details class="dra-logs-notes"'));
+  assert.doesNotMatch(visibleHistory,/Gespeicherte Auftragszustände; alte Ergebnisse sind nicht erneut freigegeben/);
+  assert.doesNotMatch(visibleHistory,/Protokolle und Auftragshistorie sind aktuell/);
+  assert.match(html,/Alte Prüfergebnisse werden niemals erneut freigegeben/);
   assert((html.match(/class="dra-history-item (?:success|failed|interrupted|queued)" role="listitem"/g)||[]).length >= 4,
     "all four records must render as separate accessible cards");
   for(const status of ["success","failed","interrupted","queued"]) {
