@@ -2306,7 +2306,8 @@ class DRAV2DevLabPanel extends HTMLElement {
                       <strong>${record.status === "success" ? "Erfolgreich" : "Fehlgeschlagen"} · ${this._escapeProject(record.captured_at)}</strong>
                       <span>Prüfschritt: ${diagnosticStageLabels[record.stage] || "Unbekannt"} ·
                         Ursache: ${diagnosticReasonLabels[record.reason] || "Unbekannt"} ·
-                        Dauer: ${Number.isInteger(record.duration_ms) ? record.duration_ms : "—"} ms</span>
+                        Dauer: ${Number.isInteger(record.duration_ms) ? record.duration_ms : "—"} ms ·
+                        HA-Prozess-CPU: ${Number.isInteger(record.process_cpu_ms) ? record.process_cpu_ms : "—"} ms</span>
                       <div class="note">CPU-Kerne: ${Number.isInteger(record.resources?.available_cores) ? record.resources.available_cores : "unbekannt"} ·
                         Arbeitsprozesse eingestellt: ${record.resources?.configured_worker_processes ?? "—"} ·
                         Gleichzeitige Leseaufträge eingestellt: ${record.resources?.configured_readonly_jobs ?? "—"} ·
@@ -2314,7 +2315,9 @@ class DRAV2DevLabPanel extends HTMLElement {
                         ${record.resources?.active_mutation_limit ?? "—"} Schreibaufträge.</div>
                     </div>`).join("")}
                 </div>
-                <p class="note">Nur bereinigte Quellprüfungen. Kein Schreibzugriff. Git-Export ausschließlich zum eingestellten privaten Archiv.</p>
+                <p class="note">CPU-Zeit gilt für den gesamten Home-Assistant-Prozess, nicht isoliert für DRA V2.
+                  Eingestellte Arbeitsprozesse sind keine tatsächlich gestarteten Prozesse.
+                  Nur bereinigte Quellprüfungen; kein Schreibzugriff. Git-Export ausschließlich zum eingestellten privaten Archiv.</p>
               </section>` : ""}
             <button id="dra-preview" class="dra-deploy-action stage-${deploymentStage}
               ${deploymentBusy ? "is-busy" : ""}"
