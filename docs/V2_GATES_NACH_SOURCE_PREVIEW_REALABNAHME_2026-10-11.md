@@ -44,6 +44,8 @@ Umsetzung und statische Abnahme:
 
 **Freigabe:** funktionsfähige Sicherung/Integritätsnachweis und klar abgegrenzte Wiederherstellungstests. **Nicht** stillschweigend Installation.
 
+**Ergänzende verbindliche Anforderung:** [Installierbarkeitsprüfung, automatischer Rückfall und unabhängiger Recovery-Wächter](V2_INSTALLABILITY_GUARD_AND_AUTOMATIC_ROLLBACK_2026-10-11.md). Bei nachgewiesenem Preflight-Fehler keine Mutation und kein Rollback; nach belegtem Schreibbeginn ausschließlich geprüfte Restore-Transaktion, sonst `recovery_required`. Ein ausgefallener HA-Prozess benötigt eine gesonderte externe Wiederherstellungslösung.
+
 ### G5 – Schreibende Einzeltransaktion
 
 Erst wenn G2–G4 einzeln bestanden und die V1/V2-Exklusivität tatsächlich belegbar sind:
