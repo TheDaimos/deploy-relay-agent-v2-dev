@@ -203,6 +203,50 @@ class SourceRemoteTests(unittest.IsolatedAsyncioTestCase):
                 with self.assertRaises(p.PreflightError):
                     await m.inspect_public_repository(Session(responses), self.root, REPO)
 
+    async def test_manifest_http_failures_do_not_leak_remote_response(self):
+        codes = {
+            401: "github_http_authentication",
+            403: "github_http_forbidden",
+            404: "github_http_not_found",
+            429: "github_http_rate_limited",
+            500: "GitHub request unsuccessful",
+        }
+        for status, message in codes.items():
+            with self.subTest(status=status):
+                replies = payloads()
+                replies[2] = ({"message": "simulated private server details"}, status)
+                with self.assertRaises(p.PreflightError) as exc:
+                    await m.inspect_public_repository(Session(replies), self.root, REPO)
+                self.assertEqual(str(exc.exception), message)
+                self.assertNotIn("simulated private server details", str(exc.exception))
+
+    async def test_manifest_integrity_schema_and_repo_fail_before_local_scan(self):
+        cases = [
+            ("integrity", lambda replies: replies[2].update({"sha": "0" * 40}),
+             "manifest content integrity failed"),
+            ("schema", lambda replies: replies.__setitem__(
+                2, self._manifest_reply({"schema": "unsupported"})), "unsupported manifest schema"),
+            ("repo", lambda replies: replies.__setitem__(
+                2, self._manifest_reply({"source": {"repository": "Other/project",
+                                                    "mode": "repository_contents"}})),
+             "repository identity mismatch"),
+        ]
+        for label, action, expected in cases:
+            with self.subTest(label=label):
+                replies = payloads()
+                action(replies)
+                with self.assertRaises(p.PreflightError) as exc:
+                    await m.inspect_public_repository(Session(replies), self.root, REPO)
+                self.assertEqual(str(exc.exception), expected)
+
+    @staticmethod
+    def _manifest_reply(patch):
+        obj = json.loads(manifest())
+        obj.update(patch)
+        source = json.dumps(obj).encode()
+        return {"encoding": "base64", "content": base64.b64encode(source).decode(),
+                "size": len(source), "sha": p.git_blob_sha(source)}
+
     async def test_git_tree_http_failures_keep_distinct_fixed_codes(self):
         # HTTP response details never enter exception text or diagnostics.
         expected = {
