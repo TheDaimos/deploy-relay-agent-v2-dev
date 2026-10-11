@@ -56,9 +56,10 @@ class LabIsolationContracts(unittest.TestCase):
         manifest = json.loads((ROOT / "deploy-relay.json").read_text(encoding="utf-8"))
         approved_files = list(LAB_ROOT.rglob("*"))
         self.assertTrue(approved_files)
-        self.assertEqual(manifest["policy"]["max_files"], 43,
-                         "Reviewed V2 engine reuse adds 15 private namespace modules, not arbitrary files")
+        self.assertEqual(manifest["policy"]["max_files"], 44,
+                         "Reviewed V1 engine reuse and one server job adapter, not arbitrary files")
         self.assertTrue((LAB_ROOT / "target_presence.py").is_file())
+        self.assertTrue((LAB_ROOT / "server_deployment_jobs.py").is_file())
         engine = LAB_ROOT / "v1_engine"
         self.assertTrue((engine / "deployment.py").is_file())
         self.assertTrue((engine / "const.py").is_file())
