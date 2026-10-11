@@ -82,6 +82,7 @@ async def async_state(hass, connection, msg):
         "git_configured": runtime.git_export.configured,
         "central_export": runtime.git_export.status(),
         "diagnostics_export_ready": eligible is not None,
+        "deployment_log_count": runtime.source_diagnostics.count(),
         "diagnostics_export_kind": eligible.get("mode") if eligible else None,
         "git_available": runtime.git_export.available,
         "git_read_configured": runtime.source_auth.configured,
@@ -799,6 +800,7 @@ async def async_deployment_logs(hass, connection, msg):
         "schema": "dra-v2-dev-deployment-logs.v1",
         "version": VERSION,
         "records": runtime.source_diagnostics.entries(),
+        "count": runtime.source_diagnostics.count(),
         "installation_enabled": False,
     })
 
