@@ -1,6 +1,6 @@
 # Deploy Relay Agent V2 – öffentliche Entwicklung
 
-**Status: DRA V2 DEV 0.1.62 – isolierte Home-Assistant-Testintegration; weder V2-FINAL noch HACS- oder Installationsfreigabe.**
+**Status: DRA V2 DEV 0.1.63 – isolierte Home-Assistant-Testintegration; weder V2-FINAL noch HACS- oder Installationsfreigabe.**
 
 Dies ist das **öffentliche Entwicklungsrepository** von Deploy Relay Agent V2, einer Home-Assistant-Integration zur sicheren Übernahme ausgewählter Git-Projektstände.
 
@@ -17,7 +17,7 @@ Dies ist das **öffentliche Entwicklungsrepository** von Deploy Relay Agent V2, 
 
 Die Ausgangsdateien stammen aus dem **bereits öffentlichen** V1-Code. Die 52 Dateien des vorbereiteten öffentlichen V2-Repositorys wurden anhand ihrer Git-Blobs in dieses neu angelegte Entwicklungsrepository übernommen. Die vollständige Herkunft ist in [SOURCE_PROVENANCE.md](docs/SOURCE_PROVENANCE.md) dokumentiert. Weder private Git-Historie noch lokale Home-Assistant-Diagnosen wurden übernommen.
 
-Die übernommene **historische Ausgangsbasis** meldete Version 1.0.0. Der aktuelle **V2-DEV-Testlaborstand ist 0.1.62** unter `custom_components/deploy_relay_v2_dev` mit eigener Domain; die ursprüngliche V1-Komponente bleibt als öffentliche Referenz unangetastet. **Keine produktive V2-Installation, keine automatische HA-Installation und kein Neustart aus V2 freigegeben.**
+Die übernommene **historische Ausgangsbasis** meldete Version 1.0.0. Der aktuelle **V2-DEV-Testlaborstand ist 0.1.63** unter `custom_components/deploy_relay_v2_dev` mit eigener Domain; die ursprüngliche V1-Komponente bleibt als öffentliche Referenz unangetastet. **Keine produktive V2-Installation, keine automatische HA-Installation und kein Neustart aus V2 freigegeben.**
 
 ## Aktueller Entwicklungsstand (11.10.2026)
 
@@ -44,6 +44,8 @@ Nicht vorhanden/freigegeben: tatsächliche V2-eigene Sicherungsarchive, unabhän
 Die echte HA-Abnahme der Gewitterradar-Vorschau ist hier dokumentiert: [HA-Realabnahme 0.1.61](docs/HA_REALABNAHME_SOURCE_PREVIEW_0_1_61_2026-10-11.md). Der nächste verbindliche Abschnitt steht in [G2–G5: Auftragsführung, Zielbesitz, Backup, Einzelinstallation](docs/V2_GATES_NACH_SOURCE_PREVIEW_REALABNAHME_2026-10-11.md). Eine erfolgreiche Vorschau ist **keine** Installations- oder Veröffentlichungsfreigabe.
 
 Seit **0.1.62** ist die zuvor HA-real geprüfte GitHub-Quellvorschau als **serverseitig besessener, rein lesender Home-Assistant-Auftrag** mit eigener Auftragskennung, Statusabfrage und Wiederanzeige nach Neuöffnung des Panels angebunden. Die Ausführung hängt nicht mehr an einer geöffneten Browser-WebSocket-Anfrage. Ergebnisse sind auf vier Aufträge der aktuellen HA-Laufzeit begrenzt; bei HA-Neustart gilt konservativ eine Unterbrechung, nicht Wiederaufnahme. Vollständige echte HA-/Android-Wiederverbindung und dauerhafte Journale stehen noch aus. [G2-10 Sicherheits- und Testbericht](docs/V2_G2_10_HA_OWNED_SOURCE_JOBS_0_1_62_2026-10-11.md). Installationsstufen bleiben strikt gesperrt.
+
+Seit **0.1.63 / G2-20** besitzt der schreibgeschützte serverseitige Vorschauauftrag zusätzlich eine **dauerhafte, streng begrenzte HA-Auftragshistorie** mit acht Metadaten-Einträgen – ohne Repositorynamen, Tokens, Dateiinhalte oder wiederverwendbare Prüfergebnisse. Unterbrochene Aufträge werden beim nächsten HA-Start konservativ markiert und **niemals automatisch wiederaufgenommen**. Die mobile Logansicht zeigt den historischen Zustand; wiederholte Browserstatusabfragen werden bei Verbindungsproblemen zurückgenommen. [G2-20: Vertrag, Sicherheitsgrenzen und Tests](docs/V2_G2_20_PERSISTENTE_AUFTRAGSHISTORIE_0_1_63_2026-10-11.md). Die HA-Realabnahmen von 0.1.62 und 0.1.63 stehen noch aus, auch wenn die automatischen Tests grün sind. Schreibstufen bleiben gesperrt.
 
 ## Geplante Schwerpunkte
 
