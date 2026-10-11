@@ -1,5 +1,5 @@
 /* Separate DRA V2 DEV read-only lab. No V1 custom element or URLs. */
-const G2_TEST_PYTHON_VERSION = "0.1.69";
+const G2_TEST_PYTHON_VERSION = "0.1.70";
 class DRAV2DevLabPanel extends HTMLElement {
   constructor() {
     super();
@@ -60,7 +60,9 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._deploymentLogsOpen = false;
     this._deploymentLogsBusy = false;
     this._historyRefreshBusy = false;
-    this._historyRefreshStatus = "";
+    this._historyRefreshStatus = "Nicht geprüft";
+    this._historyRefreshDetail = "Noch keine aktuellen Serverdaten abgefragt.";
+    this._historyRefreshTone = "idle";
     this._logsNotesOpen = false;
     this._deploymentLogs = [];
     this._deploymentLogCount = 0;
@@ -621,27 +623,41 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._deploymentLogsConfirm = false;
     this._render();
     if (this._deploymentLogsOpen) {
-      await this._refreshDeploymentLogs();
-      await this._refreshSourceJobHistory();
+      this._historyRefreshStatus = "Wird geladen …";
+      this._historyRefreshDetail = "Quellprotokolle und Auftragshistorie werden geladen.";
+      this._historyRefreshTone = "busy";
+      if (this.isConnected) this._render();
+      const logsOk = await this._refreshDeploymentLogs();
+      const historyOk = await this._refreshSourceJobHistory();
+      this._setHistoryRefreshResult(logsOk && historyOk);
     }
+  }
+
+  _setHistoryRefreshResult(ok) {
+    this._historyRefreshStatus = ok ? "Aktualisiert" : "Abruf fehlgeschlagen";
+    this._historyRefreshDetail = ok
+      ? "Quellprotokolle und Auftragshistorie erfolgreich vom Server geladen."
+      : "Quellprotokolle oder Auftragshistorie konnten nicht geladen werden. Bitte erneut versuchen.";
+    this._historyRefreshTone = ok ? "success" : "error";
+    if (this.isConnected) this._render();
   }
 
   async _refreshHistoryManually() {
     if (!this._hass || !this._deploymentLogsOpen ||
         this._historyRefreshBusy || this._deploymentLogsBusy) return;
     this._historyRefreshBusy = true;
-    this._historyRefreshStatus = "Protokolle und Auftragshistorie werden aktualisiert …";
+    this._historyRefreshStatus = "Wird aktualisiert …";
+    this._historyRefreshDetail = "Quellprotokolle und Auftragshistorie werden aktualisiert.";
+    this._historyRefreshTone = "busy";
     if (this.isConnected) this._render();
     try {
       const [logsOk, historyOk] = await Promise.all([
         this._refreshDeploymentLogs(),
         this._refreshSourceJobHistory(),
       ]);
-      this._historyRefreshStatus = logsOk && historyOk
-        ? "Protokolle und Auftragshistorie sind aktuell."
-        : "Aktualisierung unvollständig. Bitte Verbindung prüfen und erneut versuchen.";
+      this._setHistoryRefreshResult(logsOk && historyOk);
     } catch (_error) {
-      this._historyRefreshStatus = "Aktualisierung fehlgeschlagen. Bitte erneut versuchen.";
+      this._setHistoryRefreshResult(false);
     } finally {
       this._historyRefreshBusy = false;
       if (this.isConnected) this._render();
@@ -1831,8 +1847,11 @@ class DRAV2DevLabPanel extends HTMLElement {
         .dra-logs-event strong {display:block;margin-bottom:4px;}
         /* G2 history refresh: premium gold-on-slate control, inside logs only. */
         .dra-history-heading {display:flex;align-items:center;justify-content:space-between;
-          gap:12px;min-width:0;flex-wrap:wrap;margin:0 0 10px;}
-        .dra-history-heading > strong {font-size:13px;letter-spacing:.015em;color:#f2f5f7;}
+          gap:12px;min-width:0;flex-wrap:nowrap;margin:0 0 8px;}
+        .dra-history-heading-title {display:flex;flex:1 1 0;min-width:0;
+          flex-direction:column;align-items:flex-start;gap:5px;}
+        .dra-history-heading-title > strong {font-size:13px;line-height:1.4;
+          letter-spacing:.015em;color:#f2f5f7;overflow-wrap:normal;}
         .dra-history-refresh {box-sizing:border-box;display:inline-flex;align-items:center;
           justify-content:center;gap:9px;margin:0;padding:9px 14px;min-height:44px;
           min-width:142px;flex:none;border:1px solid #ba9651;border-radius:13px;
@@ -1850,12 +1869,16 @@ class DRAV2DevLabPanel extends HTMLElement {
         .dra-history-refresh:focus-visible {outline:3px solid #ffe5a8;outline-offset:3px;}
         .dra-history-refresh:disabled {opacity:.78;cursor:progress;}
         .dra-history-refresh.is-loading svg {animation:dra-history-spin 1s linear infinite;}
-        .dra-history-refresh-status {font-size:12px;margin:4px 0 10px;color:#d6c8aa;}
-        .dra-history-refresh-status:empty {display:none;}
+        .dra-history-refresh-status {font-size:12px;line-height:1.4;
+          margin:0;color:#b4c0c9;overflow-wrap:anywhere;}
+        .dra-history-refresh-status.success {color:#a9e7c1;}
+        .dra-history-refresh-status.busy {color:#e7c78e;}
+        .dra-history-refresh-status.error {color:#f0b6ae;}
         @keyframes dra-history-spin {to{transform:rotate(360deg);}}
         @media(max-width:420px) {
-          .dra-history-heading {align-items:flex-start;gap:8px;}
+          .dra-history-heading {gap:8px;}
           .dra-history-refresh {min-width:132px;padding:9px 11px;}
+          .dra-history-heading-title > strong {font-size:12px;}
         }
         @media(prefers-reduced-motion:reduce) {
           .dra-history-refresh {transition:none;}
@@ -2747,7 +2770,14 @@ class DRAV2DevLabPanel extends HTMLElement {
                 </div>
                 <div class="dra-history-section" aria-label="Serverseitige Auftragshistorie">
                   <div class="dra-history-heading">
-                    <strong>Serverseitige Auftragshistorie</strong>
+                    <div class="dra-history-heading-title">
+                      <strong>Serverseitige Auftragshistorie</strong>
+                      <span class="dra-history-refresh-status ${this._historyRefreshTone}"
+                        role="status" aria-live="polite" aria-atomic="true"
+                        title="${this._escapeProject(this._historyRefreshDetail)}"
+                        aria-label="${this._escapeProject(this._historyRefreshDetail)}"
+                      >${this._escapeProject(this._historyRefreshStatus)}</span>
+                    </div>
                     <button type="button" id="dra-history-refresh"
                       class="dra-history-refresh ${this._historyRefreshBusy ? "is-loading" : ""}"
                       aria-label="Quellprotokolle und Auftragshistorie aktualisieren"
@@ -2760,9 +2790,10 @@ class DRAV2DevLabPanel extends HTMLElement {
                       <span>${this._historyRefreshBusy ? "Wird aktualisiert …" : "Aktualisieren"}</span>
                     </button>
                   </div>
-                  <p class="dra-history-refresh-status" role="status" aria-live="polite">${this._escapeProject(this._historyRefreshStatus)}</p>
-                  <p class="note">${this._escapeProject(this._sourceJobHistoryStatus)}</p>
                   <div class="dra-history-list" role="list" aria-label="Gespeicherte Aufträge; innerhalb der Liste scrollen">
+                    ${this._sourceJobHistory.length === 0
+                      ? `<p class="note">${this._escapeProject(this._sourceJobHistoryStatus || "Noch keine gespeicherten Aufträge.")}</p>`
+                      : ""}
                     ${this._sourceJobHistory.map(item => `
                       <div class="dra-history-item ${item.status}" role="listitem">
                         <div class="dra-history-item-head">
@@ -2781,6 +2812,7 @@ class DRAV2DevLabPanel extends HTMLElement {
                 <details class="dra-logs-notes" id="dra-logs-notes" ${this._logsNotesOpen ? "open" : ""}>
                   <summary>Hinweise zu Protokollen und Datenschutz</summary>
                   <div class="dra-logs-notes-content">
+                    <p class="note">Gespeicherte Auftragszustände: Alte Prüfergebnisse werden niemals erneut freigegeben.</p>
                     <p class="note">Die Historie enthält weder Projektdateien noch Repositorynamen.
                       Nach HA-Neustart ist immer eine neue Quellprüfung erforderlich.</p>
                     <p class="note">Repositorynamen werden nur dem ausdrücklich freigegebenen privaten Git-Export beigefügt.
