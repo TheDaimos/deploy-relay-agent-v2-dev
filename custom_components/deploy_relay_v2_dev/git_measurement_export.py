@@ -15,6 +15,8 @@ from datetime import datetime, timezone
 from typing import Protocol
 from urllib.parse import quote
 
+from .source_diagnostics import SCHEMA as SOURCE_DIAGNOSTIC_SCHEMA, sanitize_source_diagnostic
+
 SOURCE_REPOSITORY = "TheDaimos/deploy-relay-agent-v2-dev"
 APPLICATION_ID = "deploy-relay-agent-v2"
 APPLICATION_NAME = "Deploy Relay Agent V2"
@@ -269,7 +271,18 @@ def archive_document(summary: object, *, version: str, now: datetime,
         raise GitMeasurementError("invalid export time")
     normalized = now.astimezone(timezone.utc)
     captured = normalized.isoformat(timespec="seconds").replace("+00:00", "Z")
-    if type(summary) is dict and summary.get("schema") == SUITE_SCHEMA:
+    if type(summary) is dict and summary.get("schema") == SOURCE_DIAGNOSTIC_SCHEMA:
+        snapshot = {
+            "schema": "dra-v2-dev-git-source-diagnostic.v1",
+            "created_at": captured,
+            "component": "deploy_relay_v2_dev",
+            "version": version,
+            "mode": "READ_ONLY_TEST",
+            "source_diagnostic": sanitize_source_diagnostic(summary),
+            "note": "Allowlisted source-preview stages and reasons; no raw HA or GitHub data.",
+        }
+        test_id = "V2-SOURCE-PREVIEW"
+    elif type(summary) is dict and summary.get("schema") == SUITE_SCHEMA:
         mode = summary.get("mode")
         snapshot = {
             "schema": SUITE_EXPORT_SCHEMA,
@@ -376,6 +389,16 @@ def _validated_snapshot(value: object) -> tuple[dict, str]:
     if type(value) is not dict:
         raise GitMeasurementError("invalid archived snapshot")
     if set(value) == {
+        "schema", "created_at", "component", "version", "mode", "source_diagnostic", "note",
+    } and value["schema"] == "dra-v2-dev-git-source-diagnostic.v1":
+        try:
+            sanitized = sanitize_source_diagnostic(value["source_diagnostic"])
+        except ValueError:
+            raise GitMeasurementError("invalid archived source diagnostics") from None
+        expected_note = "Allowlisted source-preview stages and reasons; no raw HA or GitHub data."
+        test_id = "V2-SOURCE-PREVIEW"
+        key = "source_diagnostic"
+    elif set(value) == {
         "schema", "created_at", "component", "version", "mode", "suite", "note",
     } and value["schema"] == SUITE_EXPORT_SCHEMA:
         report = value["suite"]
@@ -467,6 +490,7 @@ def _validate_pending(value: object) -> dict | None:
                 or set(snap) not in (
                     {"schema", "created_at", "component", "version", "mode", "suite", "note"},
                     {"schema", "created_at", "component", "version", "mode", "measurement", "note"},
+                    {"schema", "created_at", "component", "version", "mode", "source_diagnostic", "note"},
                 )
                 or snap["version"] != app["version"]
                 or snap["created_at"] != exp["capturedAt"]
