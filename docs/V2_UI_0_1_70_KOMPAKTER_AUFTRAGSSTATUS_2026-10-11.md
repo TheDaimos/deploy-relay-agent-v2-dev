@@ -3,7 +3,7 @@
 **Datum:** 11.10.2026  
 **Repository:** `TheDaimos/deploy-relay-agent-v2-dev`  
 **Verbindlicher Entwicklungszweig:** `feature/v2-10-inventory-operation-contract`  
-**Status:** Code vorbereitet, vollständige CI und HA-Realabnahme getrennt verifizieren. **Kein Update von 0.1.69 während des aktiven G2-Export-Wiederholtests erzwingen.**
+**Status:** Code umgesetzt, vollständige GitHub-CI **SUCCESS** ([Lauf 38170793870](https://github.com/TheDaimos/deploy-relay-agent-v2-dev/actions/runs/38170793870), Code- und Dokumentationscheckpoint `d54d63dc9cfcc5b195d41758432896fe8440cab5`). **HA-Realabnahme noch ausstehend. Kein Update von 0.1.69 während des aktiven G2-Export-Wiederholtests erzwingen.**
 
 ## Ausgangslage und ausdrücklich gewünschte Korrektur
 
@@ -34,7 +34,7 @@ DRA V1, V2 `main`/PUB, WeatherRouter, das private Zentralarchiv `TheDaimos/Proje
 - Isolierte JS-Prüfung bestätigt Positionierung der kurzen Statusmeldung in derselben Kopfzeile wie die Taste, Vorhandensein der zunächst neutralen, der lade-, erfolgs- und fehlerbezogenen Zustände sowie Fehlen beider alten Textzeilen in der sichtbaren Kopfansicht.
 - Die bestehenden Leseendpunkte werden unverändert genutzt. **Keine** neue Quellprüfung und **keine** automatische Schreib-/Installationsfreigabe.
 - Die HTML-Detailhinweise bleiben einklappbar und der Offen-Zustand bleibt wie bisher erhalten.
-- **CI-Lauf/-Checkpoint nach abgeschlossenem Prüfprozess ergänzen.**
+- **Isolierte CI erfolgreich:** Python-Vertragstests, Python-/JavaScript-Syntax, Node-UI- und G2-Retry-Sicherheitsprüfungen; keine Veröffentlichung von Artefakten. Run 38170793870, SUCCESS. Folgende reine Dokumentationsergänzungen ändern den getesteten Anwendungscode nicht.
 - HA-Realabnahme: Bei der späteren separaten Aktualisierung sollte links direkt unter der Überschrift der Status `Aktualisiert` stehen und rechts die goldene Taste; darunter beginnen ohne zwei lange Hinweiszeilen sofort die Auftragskarten.
 
 **C.K. – Eine Idee weiter gedacht.**
