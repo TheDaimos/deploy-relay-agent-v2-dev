@@ -36,6 +36,22 @@ class DeploymentLogUiContract(unittest.TestCase):
         self.assertIn('await navigator.clipboard.writeText(result.content)', js)
         self.assertNotIn("github.com/TheDaimos/Project-Log-And-Export", js)
 
+    def test_failed_export_is_retried_without_replacing_queued_file(self):
+        ws = self.ws
+        js = self.frontend
+        marker = ws.index('async def async_deployment_logs_export')
+        handler = ws[marker:ws.index('@websocket_api.websocket_command', marker)]
+        self.assertIn('if runtime.git_export.pending:', handler)
+        self.assertIn('await runtime.git_export.retry_pending()', handler)
+        self.assertIn('"pending_retried": True', handler)
+        self.assertIn('"pending_retried": False', handler)
+        self.assertLess(handler.index('if runtime.git_export.pending:'),
+                        handler.index('runtime.git_export.export('))
+        self.assertIn('typeof result.pending_retried !== "boolean"', js)
+        self.assertIn('Gespeicherten Git-Export erneut senden', js)
+        self.assertIn('Für das aktuelle Prüfprotokoll Export nach Git erneut wählen.', js)
+        self.assertIn('Ein vorbereiteter Bericht bleibt lokal erhalten.', js)
+
     def test_conditional_clear_has_confirmation_and_ids_for_screenshots(self):
         js = self.frontend
         self.assertIn('this._deploymentLogCount > 0 ? ', js)
