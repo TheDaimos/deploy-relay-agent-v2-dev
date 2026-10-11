@@ -1,6 +1,6 @@
 # DRA V2 – aktueller Projekt-Einstiegspunkt
 
-**Stand:** 11.10.2026 – DRA V2 DEV **0.1.63** (isoliertes Home-Assistant-Testlabor, **keine V2-FINAL-/HACS-Freigabe**).
+**Stand:** 11.10.2026 – DRA V2 DEV **0.1.64** (isoliertes Home-Assistant-Testlabor, **keine V2-FINAL-/HACS-Freigabe**).
 
 ## Für jede Fortsetzung
 
@@ -23,5 +23,7 @@
 17. **Nächster Arbeitsschwerpunkt:** sichere serverseitige Auftrags-/Transaktionsarchitektur, nachweislich vollständige eigene Backups und unabhängiger Rückfall, dann schrittweise explizit freigegebene Installation und konfliktsichere parallele Sammelaktualisierung. **Keine automatische HA-Installation/kein Neustart.**
 
 **Neu festgelegte Sicherheitsanforderung (11.10.2026):** Eine fehlende Installierbarkeit wird vor Schreibbeginn **ohne Mutation** gesperrt. Ein eindeutig gescheiterter begonnener Schreibvorgang soll nur mit geprüfter V2-Originalbytes-Sicherung und nachgewiesener Exklusivsperre automatisch auf den früheren Zustand zurückfallen; bei unklaren Bedingungen nur `recovery_required`. Ein ausgefallener HA-Prozess kann nur mittels später eigenständig genehmigtem externem Recovery-Wächter automatisch wiederhergestellt werden. Verbindliche Spezifikation: `docs/V2_INSTALLABILITY_GUARD_AND_AUTOMATIC_ROLLBACK_2026-10-11.md`. **Nur Design; keine Freigabe oder Implementierung, kein Versionssprung.**
+
+**Neuer Bugfix 0.1.64 (11.10.2026):** User bestätigte durch einen lokalen 0.1.63-Diagnoseexport eine erfolgreiche schreibgeschützte Gewitterradar-Prüfung, aber die private Git-Übertragung unter Deployment → Logs scheiterte. Der private GitHub-Sichtbarkeits-GET las wie früher die Quellvorschau nur **ein einzelnes** Datenfragment; jetzt begrenzt bis EOF. Außerdem war ein nach fehlgeschlagenem Upload **bewusst konservierter Warteschlangenbericht** über die Logs-Schaltfläche nicht erneut sendbar. Jetzt wird dieser **zuerst separat** unter gleicher ID übertragen, ohne den aktuellen Bericht fälschlich als hochgeladen zu melden. [Dokumentation](docs/V2_PRIVATE_GIT_EXPORT_RECOVERY_0_1_64_2026-10-11.md). Keine Berechtigungslockerung, kein Versionszugriff auf V1 oder PROD, HA-Realtest ausstehend.
 
 **Hinweis zur Historie:** Die ursprünglichen Formulierungen in älteren README-/Roadmap-Dateien beziehen sich auf den V2-Vorbereitungsstand; die laufende V2-DEV-Integration hat bereits Version 0.1.53, jedoch weiterhin keine Installationsfreigabe.
