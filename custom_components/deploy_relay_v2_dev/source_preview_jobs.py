@@ -16,8 +16,16 @@ from .remote_source import source_ref, PreflightError
 from .source_job_history import SourceJobHistory, SourceJobHistoryError
 
 MAX_JOBS = 4
+# Explicit DEV-only fixed-duration network interruption test. Does not change
+# the real source inspection timeout, and cannot be configured by the caller.
+CONNECTION_TEST_SECONDS = 30
 ACTIVE = frozenset({"queued", "running"})
 RESULT_SCHEMA = "dra-v2-source-preview-job.v1"
+
+
+async def _connection_test_delay() -> None:
+    """Yield to HA for a fixed 30s test window, without blocking its event loop."""
+    await asyncio.sleep(CONNECTION_TEST_SECONDS)
 
 
 class SourcePreviewJobError(ValueError):
@@ -56,6 +64,7 @@ class SourcePreviewJobs:
     async def start(
         self, repository: str, ref: str, *,
         inspect: Callable[[], Awaitable[dict]],
+        connection_test: bool = False,
     ) -> dict:
         try:
             canonical = normalize_repo(repository)
@@ -64,6 +73,8 @@ class SourcePreviewJobs:
             raise SourcePreviewJobError("invalid source selection") from None
         if not callable(inspect):
             raise SourcePreviewJobError("read-only inspector required")
+        if type(connection_test) is not bool:
+            raise SourcePreviewJobError("invalid connection test mode")
         async with self._lock:
             if self._closed:
                 raise SourcePreviewJobError("source jobs closed")
@@ -71,7 +82,8 @@ class SourcePreviewJobs:
                            if row["status"] in ACTIVE), None)
             if active is not None:
                 if (active["repository"].casefold() == canonical.casefold() and
-                        active["ref"] == checked_ref):
+                        active["ref"] == checked_ref and
+                        active["connection_test"] is connection_test):
                     return self._copy(active)  # double-tap is idempotent
                 raise SourcePreviewJobError("source preview already active")
             job_id = uuid4().hex
@@ -79,6 +91,7 @@ class SourcePreviewJobs:
                 "schema": RESULT_SCHEMA, "operation_id": job_id,
                 "repository": canonical, "ref": checked_ref,
                 "status": "queued", "stage": "admission",
+                "connection_test": connection_test,
                 "result": None, "reason": None,
                 "installation_enabled": False,
             }
@@ -94,6 +107,12 @@ class SourcePreviewJobs:
             async def runner() -> None:
                 try:
                     row["status"] = "running"
+                    if connection_test:
+                        # The operation already belongs to HA; closing the
+                        # browser must not cancel this bounded, read-only wait.
+                        row["stage"] = "connection_test_wait"
+                        await _connection_test_delay()
+                    row["stage"] = "source_inspection"
                     report = await inspect()
                     claim = report.get("target_claims") if type(report) is dict else None
                     import re
