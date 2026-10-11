@@ -23,6 +23,7 @@ from .project_catalog import CatalogError, ProjectCatalog
 from .settings import SettingsError, V2Settings
 from .remote_source import GitReadAuth, GitReadAuthError, ProjectReadAuth
 from .readonly_task_supervisor import ReadOnlyTaskSupervisor
+from .source_diagnostics import SourceDiagnosticLog
 from .readonly_benchmark import ReadOnlyMeasurement, ReadOnlySuite
 from .ha_preview_task_factory import PreviewTaskFactory
 from .panel import async_register_panel, async_remove_panel
@@ -42,6 +43,7 @@ class LabRuntime:
     source_scan_lock: asyncio.Lock
     source_auth: GitReadAuth
     project_auth: ProjectReadAuth
+    source_diagnostics: SourceDiagnosticLog
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -103,7 +105,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                          measurement=measurement, suite=suite, git_export=git_export,
                          projects=projects, settings=settings,
                          source_scan_lock=asyncio.Lock(), source_auth=source_auth,
-                         project_auth=project_auth)
+                         project_auth=project_auth,
+                         source_diagnostics=SourceDiagnosticLog())
     store["runtime"] = runtime
     try:
         async_register_commands(hass)
