@@ -41,11 +41,13 @@ class DeploymentLogUiContract(unittest.TestCase):
         js = self.frontend
         marker = ws.index('async def async_deployment_logs_export')
         handler = ws[marker:ws.index('@websocket_api.websocket_command', marker)]
-        self.assertIn('if runtime.git_export.pending:', handler)
+        self.assertIn('and runtime.git_export.pending:', handler)
         self.assertIn('await runtime.git_export.retry_pending()', handler)
         self.assertIn('"pending_retried": True', handler)
         self.assertIn('"pending_retried": False', handler)
-        self.assertLess(handler.index('if runtime.git_export.pending:'),
+        self.assertLess(handler.index('and runtime.git_export.pending:'),
+                        handler.index('record = runtime.source_diagnostics.latest()'))
+        self.assertLess(handler.index('and runtime.git_export.pending:'),
                         handler.index('runtime.git_export.export('))
         self.assertIn('typeof result.pending_retried !== "boolean"', js)
         self.assertIn('Gespeicherten Git-Export erneut senden', js)
@@ -62,7 +64,11 @@ class DeploymentLogUiContract(unittest.TestCase):
         self.assertIn('if not msg["g2_confirm"] or runtime.git_export.pending:', handler)
         self.assertIn('runtime.git_export.prepare_retry_test(', handler)
         self.assertIn('runtime.git_export.repository != "TheDaimos/Project-Log-And-Export"', handler)
-        self.assertLess(handler.index('if msg["g2_prepare"]:'), handler.index('if runtime.git_export.pending:'))
+        self.assertLess(handler.index('and runtime.git_export.pending:'),
+                        handler.index('if msg["g2_prepare"]:'))
+        self.assertIn('if record is None:', handler)
+        self.assertLess(handler.index('and runtime.git_export.pending:'),
+                        handler.index('if record is None:'))
         self.assertIn('"g2_prepare"', js)
         self.assertIn('id="dra-g2-retry-yes"', js)
         self.assertIn('id="dra-g2-retry-no"', js)
