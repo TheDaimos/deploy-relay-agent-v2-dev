@@ -95,6 +95,36 @@ class DiagnosticsContract(unittest.TestCase):
         self.assertEqual(diagnostics.classify_source_failure("local_inventory", err), "local_inventory_invalid")
         self.assertEqual(diagnostics.classify_source_failure("tree", TimeoutError()), "timeout")
 
+    def test_precise_tree_reason_mapping_is_allowlisted_not_raw_error_text(self):
+        examples = {
+            "github_http_authentication": "tree_remote_authentication",
+            "github_http_forbidden": "tree_remote_forbidden",
+            "github_http_not_found": "tree_remote_not_found",
+            "github_http_rate_limited": "tree_remote_rate_limited",
+            "GitHub request unsuccessful": "tree_remote_http",
+            "GitHub response could not be verified": "tree_transport_invalid",
+            "GitHub response exceeds size limit": "tree_response_too_large",
+            "invalid GitHub JSON": "tree_json_invalid",
+            "GitHub tree is incomplete": "tree_incomplete",
+            "repository tree incomplete or too large": "tree_entry_limit",
+            "unsafe source path": "tree_path_invalid",
+            "unsupported source entry (possibly symlink/submodule)": "tree_entry_invalid",
+            "invalid source size": "tree_file_invalid",
+            "source directory empty": "tree_source_empty",
+            "source exceeds manifest budget": "tree_budget_exceeded",
+        }
+        for message, expected in examples.items():
+            with self.subTest(message=message):
+                classified = diagnostics.classify_source_failure("tree", ValueError(message))
+                self.assertEqual(classified, expected)
+                self.assertIn(classified, diagnostics.ALLOWED_REASONS)
+        # Arbitrary HTTP bodies, local paths or secrets never become an export field.
+        raw = "github_pat_super_secret /config/.storage private_project"
+        classified = diagnostics.classify_source_failure("tree", ValueError(raw))
+        self.assertEqual(classified, "tree_invalid")
+        self.assertNotIn("github_pat_", classified)
+        self.assertEqual(diagnostics.classify_source_failure("tree", TimeoutError()), "timeout")
+
     def test_export_uses_exact_existing_private_archive_envelope(self):
         record = new_record()
         result = export.archive_document(record, version="0.1.56",
