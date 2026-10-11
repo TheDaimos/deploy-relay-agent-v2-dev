@@ -92,7 +92,7 @@ const ctx = {
   customElements: { get: n => elements.get(n), define: (n, x) => elements.set(n, x) },
   Date: class extends Date { static now() { return now; } },
   setTimeout(cb, ms) {
-    assert(ms === 1000 || ms === 1200 || ms === 1500);
+    assert([1000, 1200, 1500, 2400, 4800, 9600, 10000].includes(ms));
     const id = nextId++;
     callbacks.set(id, { cb, ms });
     return id;
@@ -779,6 +779,47 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   assert.doesNotMatch(recovered.shadowRoot.innerHTML,/3\/4 · Update/);
   console.log("DRA V2 HA-owned preview reappears after new browser panel session PASS");
 })().catch(error => {console.error(error);process.exitCode=1;});
+
+(async () => {
+  const historic = new Panel();
+  const id = "c".repeat(32);
+  historic._deploymentLogsOpen = true;
+  historic._hass = {async callWS(message) {
+    assert.equal(message.type,"deploy_relay_v2_dev/projects/source_job/history");
+    return {
+      schema:"dra-v2-source-job-history-result.v1",
+      installation_enabled:false,resume_allowed:false,source_preview_saved:false,
+      records:[{
+        operation_id:id,status:"success",
+        created_at:"2026-10-11T12:12:00+00:00",
+        finished_at:"2026-10-11T12:13:00+00:00",
+        reason:null,installation_enabled:false,
+        resume_allowed:false,source_preview_saved:false,
+      }],
+    };
+  }};
+  await historic._refreshSourceJobHistory();
+  assert.equal(historic._sourceJobHistory[0].operation_id,id);
+  assert.match(historic.shadowRoot.innerHTML,/Serverseitige Auftragshistorie/);
+  assert.match(historic.shadowRoot.innerHTML,/Damals erfolgreich/);
+  assert.match(historic.shadowRoot.innerHTML,/Nach HA-Neustart ist immer eine neue Quellprüfung erforderlich/);
+  assert.doesNotMatch(historic.shadowRoot.innerHTML,/source_preview_saved:true/);
+  console.log("DRA V2 durable metadata is shown without re-authorizing preview PASS");
+})().catch(error=>{console.error(error);process.exitCode=1;});
+
+(async () => {
+  const retry = new Panel();
+  retry._sourceBusy = true;
+  retry._sourceJobId = "d".repeat(32);
+  retry._hass = {async callWS(_request) {throw new Error("temporary mobile connection drop");}};
+  await retry._pollSourceJob();
+  assert.equal(retry._sourceBusy,true);
+  assert.equal(retry._sourceJobRetryMs,2400);
+  assert.equal(callbacks.get(retry._sourceJobTimer).ms,2400);
+  assert.match(retry._sourceMessage,/unabhängig/);
+  clearTimeout(retry._sourceJobTimer);
+  console.log("DRA V2 reconnect polls with backoff without cancelling server work PASS");
+})().catch(error=>{console.error(error);process.exitCode=1;});
 
 (async () => {
   const grouped = new Panel();
