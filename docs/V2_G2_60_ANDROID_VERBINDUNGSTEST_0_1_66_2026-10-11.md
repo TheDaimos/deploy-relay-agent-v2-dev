@@ -34,8 +34,25 @@ Bei der ersten HA-Erprobung von 0.1.65 erschien bereits die neue G2-30-Schaltfl�
 
 **Abnahme:** 0.1.66 aktive Laufzeit, G2-Start, serverseitige Historisierung und geschützte Zielverweigerung bestätigt. Vollständiger G2-60-End-to-End-Erfolg mit Gewitterradar **ausstehend**.
 
+## HA-Realabnahme: Companion App → Chrome mit Gewitterradar erfolgreich
+
+**11.10.2026, nach der ersten geschützten DRA-V1-DEV-Testquelle:**
+
+- Gewitterradar war im V2-DEV-Projektwähler tatsächlich ausgewählt. Die aktive serverseitige Python-Version wurde mit **0.1.66** angezeigt, der fest auf 60 Sekunden begrenzte, rein lesende G2-Auftrag startete erfolgreich.
+- Auf den Screenshots der Companion App erscheint die neue Auftragskennung als laufend in der **60-Sekunden-Wartephase**; anschließend wurde die **getrennte Chrome-Sitzung** derselben HA-Instanz geöffnet. Deren Deployment-Oberfläche zeigte während des Tests denselben laufenden Auftrag, und die serverseitige Auftragshistorie zeigte ihn zunächst mit dem Status **„Begonnen“** und später **„Damals erfolgreich“**, **unter identischer Auftragskennung**. Es wurde **keine zweite G2-Auftragskennung** erzeugt.
+- Der exakt nach Ablauf der Wartephase stattfindende echte Quellvergleich schloss um **17:37:57 UTC** erfolgreich ab. Sein privater Git-Diagnoseexport vom 11.10.2026, **17:38:15 UTC**, weist **Version 0.1.66**, die Quelle **Gewitterradar**, `sources_verified=true`, `status=success`, `stage=target_claims`, `reason=none`, `installation_enabled=false` und **1.520 ms Prüfdauer** aus. Der Bericht enthält alle acht erlaubten Prüfphasen; die feste vorgeschaltete 60-Sekunden-Wartephase gehört **nicht** zu dieser eigentlichen Prüfdauer.
+- Eine kurz zuvor abgeschlossene andere Gewitterradar-Quellprüfung erscheint getrennt in der Loganzeige, wurde jedoch **nicht** mit dem laufenden G2-Auftrag verwechselt.
+- Die Browseranzeige „Quellstand noch nicht geprüft“ ist bei dem **separaten G2-Diagnosemodus** kein Gegenbeleg: Ein bestandener Verbindungstest darf die normale Deployment-Quellfreigabestufe nicht automatisch setzen. Die echte Quellprüfung ist dennoch nachweislich erfolgreich und schreibgeschützt abgeschlossen.
+- Ein erneuter Login in Home Assistant, automatischer Neustart, selbstständige Dateimutationen oder Installationsfreigabe waren dafür **nicht** notwendig.
+
+**Abnahme G2-60-A:** **BESTANDEN** – serverseitige Fortführung und identische Auftragskennung über Clientwechsel Companion App → Chrome, mit anschließend erfolgreichem unverändertem Quellvergleich.
+
+**Noch gesondert offen:** Test G2-60-B (gezielte WLAN-Unterbrechung nach bestätigtem Auftragsstart), Auftragsverhalten beim tatsächlichen HA-Neustart und die Wiederholung eines zuvor fehlgeschlagenen privaten Exportauftrags. Der Clientwechsel beweist **nicht** die Behandlung eines Netzverlusts oder eines gestoppten HA-Prozesses.
+
+**Datenschutz:** Nur diese bereinigte Bewertung und erlaubte, unkritische Kennzahlen werden im Entwicklungsrepository festgehalten. Keine privaten Exportdateien, Rohberichte, Git-Tokens, lokalen Zugriffsadressen oder individuellen Auftrags-/Exportkennungen übernehmen. Originaldiagnosen bleiben ausschließlich im privaten `TheDaimos/Project-Log-And-Export`.
+
 ## CI / Realnachweise
 
-**Isolierte GitHub-CI erfolgreich:** [Run 38158437838](https://github.com/TheDaimos/deploy-relay-agent-v2-dev/actions/runs/38158437838) zum Featurezweig-Checkpoint `efeb9f3c9c729fb46bb85760b0df90a390fb6aea`: Python-Vertragstests, Python-/JavaScript-Syntax, Node-Bedienungstests und keine Artefaktveröffentlichung jeweils erfolgreich. Nachfolgende Änderungen betrafen nur dieses Dokument und den bereinigten AI-Kontext. **HA-Realabnahme noch offen.** Ein in Git vorhandenes 0.1.66-Manifest beweist **nicht**, dass diese Python-Version bereits auf dem HA-Server läuft.
+**Isolierte GitHub-CI erfolgreich:** [Run 38158437838](https://github.com/TheDaimos/deploy-relay-agent-v2-dev/actions/runs/38158437838) zum Featurezweig-Checkpoint `efeb9f3c9c729fb46bb85760b0df90a390fb6aea`: Python-Vertragstests, Python-/JavaScript-Syntax, Node-Bedienungstests und keine Artefaktveröffentlichung jeweils erfolgreich. Nachfolgende Änderungen betrafen nur dieses Dokument und den bereinigten AI-Kontext. **HA-Realabnahme des Clientwechsels inzwischen erfolgreich; WLAN- und Neustartfälle offen.** Ein in Git vorhandenes 0.1.66-Manifest beweist **nicht**, dass diese Python-Version bereits auf dem HA-Server läuft.
 
 **C.K. – Eine Idee weiter gedacht.**
