@@ -42,7 +42,7 @@ Die Ansicht zeigt zudem mehrere ältere **„Damals erfolgreich“**-Datensätze
 
 ### Separat gewünschter Folgeauftrag – Statusbereich weiter verdichten
 
-**Noch NICHT implementieren oder als HA-real abgenommen deklarieren:**
+**In V2 DEV 0.1.70 jetzt im Featurezweig implementiert, aber noch nicht HA-real abgenommen; erst nach G2-Retry-Test von installierter 0.1.69 aktualisieren.** Siehe [separates Korrekturprotokoll](V2_UI_0_1_70_KOMPAKTER_AUFTRAGSSTATUS_2026-10-11.md). Ursprüngliche Anforderungen:
 
 - Die aktuell oberhalb der Karten stehenden Zeilen `Protokolle und Auftragshistorie sind aktuell.` und `Gespeicherte Auftragszustände; alte Ergebnisse sind nicht erneut freigegeben.` aus dem dauernd sichtbaren Layout **entfernen**.
 - Links **direkt unter** der Überschrift `Serverseitige Auftragshistorie` statt dieser Zeilen einen **einzeiligen, zurückhaltenden Kurzstatus** anzeigen, auf gleicher Gesamthöhe wie die goldene Taste **„Aktualisieren“** rechts. Beispielsweise `Aktuell` nach bestätigtem Abruf, `Wird aktualisiert …` nur beim Laden und kurze deutliche Fehlerwarnung bei erfolglosem Abruf. Keinen falschen Aktualitätsstatus vor erfolgter Serverantwort darstellen.
