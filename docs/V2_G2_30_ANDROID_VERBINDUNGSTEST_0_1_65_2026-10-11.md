@@ -2,7 +2,7 @@
 
 **Datum:** 11.10.2026  
 **Alleiniger Entwicklungszweig:** `feature/v2-10-inventory-operation-contract`  
-**Status:** Implementiert und durch isolierte Prüfungen abzusichern; **keine HA-Realabnahme und keine Installationsfreigabe**.
+**Status:** Implementiert und isoliert statisch abgenommen. GitHub Actions **SUCCESS**, Run [38156015141](https://github.com/TheDaimos/deploy-relay-agent-v2-dev/actions/runs/38156015141), Code/Docs-Checkpoint `4da5a208ef1219a3644c9f7975120b09e4ca834d`. **Keine HA-Realabnahme und keine Installationsfreigabe**.
 
 ## Problem und Abgrenzung
 
@@ -17,6 +17,10 @@ Eine normale, real geprüfte Gewitterradar-Quellvorschau dauerte in V2 DEV 0.1.6
 - Die V2-DEV-Hauptseite zeigt eine **getrennte** Schaltfläche `G2 · Verbindungstest (30 s)` und den laufenden Status. Sie verändert weder die normale Vorschau noch die vier eigentlichen Deployment-Schritte. Selbst nach erfolgreichem Test bleibt die normale Vorschau-Freigabestufe **nicht** erreicht. Der Testbericht bleibt nur ein schreibgeschütztes Diagnoseergebnis.
 - Der Auftragsdatensatz im vorhandenen HA-Store bleibt **unverändert minimal**: ID, Zustände, Zeit und erlaubte Fehlerkategorie. Kein Repository, Test-Schalter, Ref, Commit, Token oder Quellbericht wird neu persistiert. Die regulären Grenzen (ein aktiver Auftrag, vier flüchtige Ergebnisse, acht Historieneinträge) bleiben bestehen.
 - Kein automatischer Git-Export; echte Exporte ausschließlich nach `TheDaimos/Project-Log-And-Export` nach ausdrücklicher Nutzerhandlung. Keine Änderungen an DRA V1, V2 PUB/main, WeatherRouter oder privaten Repositories. Kein Start von Installation, Sicherung, Restore oder HA-Neustart.
+
+## Statische Prüfungen
+
+Der erfolgreiche isolierte CI-Lauf umfasst Python-Standardbibliotheks-Vertragstests (inklusive neuem Testmodus, Identitätswiederverwendung, Ablehnung falsch typisierter Parameter), Python-/JavaScript-Syntax, Node-basierte Oberflächen-/Wiederverbindungstests sowie die Prüfung, dass **keine Artefakte veröffentlicht** werden. Das beweist keinen tatsächlichen Android-/WLAN-Wechsel und keine installierte HA-Version 0.1.65.
 
 ## HA-Realabnahme – **ein Bedienungsschritt je Chatantwort**
 
