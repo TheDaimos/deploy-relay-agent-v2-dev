@@ -744,7 +744,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
 (async () => {
   const probe = new Panel();
   probe._view = "main";
-  probe._serverVersion = "0.1.71";
+  probe._serverVersion = "0.1.72";
   probe._projects = [{repository:"TheDaimos/gewitterradar",name:"Gewitterradar",active:true}];
   probe._mainSourceRef = "";
   const calls = [];
@@ -782,7 +782,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   await probe._sourceCheck({dataset:{repo:"TheDaimos/gewitterradar"}},true);
   assert.equal(calls.length,0);
   assert.match(probe._sourceMessage,/Python-Laufzeit 0.1.64/);
-  probe._serverVersion = "0.1.71";
+  probe._serverVersion = "0.1.72";
   probe._render();
   assert.match(probe.shadowRoot.innerHTML,/Laufzeit kompatibel/);
   await probe._sourceCheck({dataset:{repo:"TheDaimos/gewitterradar"}},true);
@@ -794,6 +794,44 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   assert.match(probe.shadowRoot.innerHTML,/Installation weiterhin gesperrt/);
   console.log("DRA V2 G2 fixed reconnect test is read-only and not a deployment preview PASS");
 })().catch(error=>{console.error(error);process.exitCode=1;});
+
+(async () => {
+  const versions = new Panel();
+  versions._sourceJobRestored = true;
+  versions._render();
+  // At initial load no HA version may be claimed before the admin state reply.
+  assert.match(versions.shadowRoot.innerHTML,/id="dra-version" class="dra-version pending"/);
+  assert.match(versions.shadowRoot.innerHTML,/Oberfläche/);
+  assert.match(versions.shadowRoot.innerHTML,/V0\.1\.72 DEV/);
+  assert.match(versions.shadowRoot.innerHTML,/HA-Laufzeit: Noch nicht ermittelt/);
+  assert.doesNotMatch(versions.shadowRoot.innerHTML,/HA-Laufzeit: V0\.1\.72 DEV/);
+
+  const requests = [];
+  versions._hass = {async callWS(request) {
+    requests.push(request.type);
+    return {version:"0.1.72",operations:[],projects:[]};
+  }};
+  await versions._refresh();
+  assert.deepEqual(requests,["deploy_relay_v2_dev/test/state"]);
+  assert.match(versions.shadowRoot.innerHTML,/id="dra-version" class="dra-version matched"/);
+  assert.match(versions.shadowRoot.innerHTML,/HA-Laufzeit: V0\.1\.72 DEV/);
+  assert.doesNotMatch(versions.shadowRoot.innerHTML,/Abweichung ·/);
+
+  versions._hass = {async callWS() {return {version:"0.1.71",operations:[],projects:[]};}};
+  await versions._refresh();
+  assert.match(versions.shadowRoot.innerHTML,/id="dra-version" class="dra-version mismatch"/);
+  assert.match(versions.shadowRoot.innerHTML,/Abweichung · HA-Laufzeit: V0\.1\.71 DEV/);
+  assert.match(versions.shadowRoot.innerHTML,/class="dra-version-number">V0\.1\.72 DEV/);
+  assert.match(versions.shadowRoot.innerHTML,/aria-label="Versionsübersicht:/);
+
+  versions._hass = {async callWS() {throw new Error("backend offline");}};
+  await versions._refresh();
+  assert.equal(versions._serverVersion,null);
+  assert.match(versions.shadowRoot.innerHTML,/id="dra-version" class="dra-version pending"/);
+  assert.match(versions.shadowRoot.innerHTML,/HA-Laufzeit: Noch nicht ermittelt/);
+  assert.doesNotMatch(versions.shadowRoot.innerHTML,/HA-Laufzeit: V0\.1\.71 DEV/);
+  console.log("DRA V2 header versions distinguish loaded frontend, real backend and offline state PASS");
+})().catch(error => {console.error(error);process.exitCode=1;});
 
 (async () => {
   const recovered = new Panel();
