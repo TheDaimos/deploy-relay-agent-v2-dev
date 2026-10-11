@@ -20,6 +20,11 @@ ALLOWED_STAGES = frozenset({
 ALLOWED_REASONS = frozenset({
     "none", "source_unavailable", "repository_access", "commit_unavailable",
     "manifest_invalid", "manifest_resource_limit", "tree_invalid",
+    "tree_remote_authentication", "tree_remote_forbidden", "tree_remote_not_found",
+    "tree_remote_rate_limited", "tree_remote_http", "tree_transport_invalid",
+    "tree_response_too_large", "tree_json_invalid", "tree_incomplete",
+    "tree_entry_limit", "tree_path_invalid", "tree_entry_invalid",
+    "tree_file_invalid", "tree_source_empty", "tree_budget_exceeded",
     "local_inventory_invalid", "compare_invalid", "target_claim_invalid",
     "timeout", "unexpected_error",
 })
@@ -138,7 +143,33 @@ def classify_source_failure(stage: str, error: BaseException) -> str:
             return "manifest_resource_limit"
         return "manifest_invalid"
     if stage == "tree":
-        return "tree_invalid"
+        # Match only exact, internally authored exception messages.
+        # Unknown or dynamically supplied error text is NEVER exported.
+        lookup = {
+            "github_http_authentication": "tree_remote_authentication",
+            "github_http_forbidden": "tree_remote_forbidden",
+            "github_http_not_found": "tree_remote_not_found",
+            "github_http_rate_limited": "tree_remote_rate_limited",
+            "GitHub source unavailable or inaccessible": "tree_remote_http",
+            "GitHub request unsuccessful": "tree_remote_http",
+            "GitHub response could not be verified": "tree_transport_invalid",
+            "GitHub response exceeds size limit": "tree_response_too_large",
+            "invalid GitHub JSON": "tree_json_invalid",
+            "GitHub tree is incomplete": "tree_incomplete",
+            "repository tree incomplete or too large": "tree_entry_limit",
+            "invalid source path": "tree_path_invalid",
+            "unsafe source path": "tree_path_invalid",
+            "duplicate repository path": "tree_entry_invalid",
+            "unsupported source entry (possibly symlink/submodule)": "tree_entry_invalid",
+            "inconsistent source entry type": "tree_entry_invalid",
+            "invalid repository tree entry": "tree_entry_invalid",
+            "invalid source size": "tree_file_invalid",
+            "invalid Git blob identity": "tree_file_invalid",
+            "source directory empty": "tree_source_empty",
+            "duplicate deployment file": "tree_entry_invalid",
+            "source exceeds manifest budget": "tree_budget_exceeded",
+        }
+        return lookup.get(str(error), "tree_invalid")
     if stage == "local_inventory":
         return "local_inventory_invalid"
     if stage == "comparison":
