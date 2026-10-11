@@ -7,13 +7,19 @@ import copy
 import importlib.util
 import json
 import sys
+import types
 import unittest
 from datetime import datetime, timezone
 from pathlib import Path
 
 PATH = (Path(__file__).resolve().parents[1] /
         "custom_components" / "deploy_relay_v2_dev" / "git_measurement_export.py")
-spec = importlib.util.spec_from_file_location("_v2_git_measurement_isolated", PATH)
+# Load as an isolated test package so production relative imports can be verified.
+PACKAGE = "_v2_git_measurement_isolated"
+package = types.ModuleType(PACKAGE)
+package.__path__ = [str(PATH.parent)]
+sys.modules[PACKAGE] = package
+spec = importlib.util.spec_from_file_location(PACKAGE + ".git_measurement_export", PATH)
 module = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = module
 spec.loader.exec_module(module)
