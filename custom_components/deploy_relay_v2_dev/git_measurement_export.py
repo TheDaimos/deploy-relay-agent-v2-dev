@@ -255,8 +255,9 @@ def sanitized_suite(data: object) -> dict[str, object]:
 
 def archive_document(summary: object, *, version: str, now: datetime,
                      export_id: str, display_name: str = APPLICATION_NAME,
-                     source_commit: str | None = None) -> dict:
-    """Wrap an unchanged strictly sanitized diagnostic snapshot in the V1 standard."""
+                     source_commit: str | None = None,
+                     private_source_repository: str | None = None) -> dict:
+    """Allowlisted diagnostic; repo names ONLY for verified private Git sink."""
     if type(export_id) is not str or not re.fullmatch(r"[0-9a-f]{32}", export_id):
         raise GitMeasurementError("invalid export identifier")
     if (type(display_name) is not str or not 1 <= len(display_name) <= 80
@@ -281,8 +282,15 @@ def archive_document(summary: object, *, version: str, now: datetime,
             "source_diagnostic": sanitize_source_diagnostic(summary),
             "note": "Allowlisted source-preview stages and reasons; no raw HA or GitHub data.",
         }
+        if private_source_repository is not None:
+            if snapshot["source_diagnostic"]["project_ref"] is None:
+                raise GitMeasurementError("unbound private project diagnostics")
+            snapshot["private_source_repository"] = validate_archive_repository(
+                private_source_repository)
         test_id = "V2-SOURCE-PREVIEW"
     elif type(summary) is dict and summary.get("schema") == SUITE_SCHEMA:
+        if private_source_repository is not None:
+            raise GitMeasurementError("repository only allowed for source diagnostics")
         mode = summary.get("mode")
         snapshot = {
             "schema": SUITE_EXPORT_SCHEMA,
@@ -295,6 +303,8 @@ def archive_document(summary: object, *, version: str, now: datetime,
         }
         test_id = "V2-READONLY-FULL" if mode == "full" else "V2-MULTICORE"
     else:
+        if private_source_repository is not None:
+            raise GitMeasurementError("repository only allowed for source diagnostics")
         snapshot = public_export_document(summary, version=version, now=normalized)
         test_id = "V2-CPU-RAM"
     return {
@@ -342,10 +352,12 @@ def archive_path(document: dict) -> str:
 
 
 def _archive_payload(summary, version: str, now: datetime,
-                     export_id: str, display_name: str, source_commit: str | None):
+                     export_id: str, display_name: str, source_commit: str | None,
+                     private_source_repository: str | None = None):
     document = archive_document(
         summary, version=version, now=now, export_id=export_id,
         display_name=display_name, source_commit=source_commit,
+        private_source_repository=private_source_repository,
     )
     path = archive_path(document)
     raw = (json.dumps(document, sort_keys=True, separators=(",", ":"), ensure_ascii=True) + "\n")
@@ -388,13 +400,22 @@ def _validated_snapshot(value: object) -> tuple[dict, str]:
     """Rebuild only known diagnostic content, stripping no unknown fields."""
     if type(value) is not dict:
         raise GitMeasurementError("invalid archived snapshot")
-    if set(value) == {
-        "schema", "created_at", "component", "version", "mode", "source_diagnostic", "note",
-    } and value["schema"] == "dra-v2-dev-git-source-diagnostic.v1":
+    if (set(value) in (
+        {"schema", "created_at", "component", "version", "mode", "source_diagnostic", "note"},
+        {"schema", "created_at", "component", "version", "mode", "source_diagnostic", "note",
+         "private_source_repository"},
+    ) and value["schema"] == "dra-v2-dev-git-source-diagnostic.v1"):
         try:
             sanitized = sanitize_source_diagnostic(value["source_diagnostic"])
         except ValueError:
             raise GitMeasurementError("invalid archived source diagnostics") from None
+        if "private_source_repository" in value:
+            if sanitized["project_ref"] is None:
+                raise GitMeasurementError("unbound archived project diagnostics")
+            private_source_repository = validate_archive_repository(
+                value["private_source_repository"])
+        else:
+            private_source_repository = None
         expected_note = "Allowlisted source-preview stages and reasons; no raw HA or GitHub data."
         test_id = "V2-SOURCE-PREVIEW"
         key = "source_diagnostic"
@@ -437,11 +458,14 @@ def _validated_snapshot(value: object) -> tuple[dict, str]:
     if (value["component"] != "deploy_relay_v2_dev" or value["mode"] != "READ_ONLY_TEST"
             or value["note"] != expected_note):
         raise GitMeasurementError("invalid archived measurement provenance")
-    return {
+    rebuilt = {
         "schema": value["schema"], "created_at": value["created_at"],
         "component": "deploy_relay_v2_dev", "version": value["version"],
         "mode": "READ_ONLY_TEST", key: sanitized, "note": expected_note,
-    }, test_id
+    }
+    if value["schema"] == "dra-v2-dev-git-source-diagnostic.v1" and private_source_repository is not None:
+        rebuilt["private_source_repository"] = private_source_repository
+    return rebuilt, test_id
 
 
 def validate_archive_repository(repository: object) -> str:
@@ -491,6 +515,8 @@ def _validate_pending(value: object) -> dict | None:
                     {"schema", "created_at", "component", "version", "mode", "suite", "note"},
                     {"schema", "created_at", "component", "version", "mode", "measurement", "note"},
                     {"schema", "created_at", "component", "version", "mode", "source_diagnostic", "note"},
+                    {"schema", "created_at", "component", "version", "mode", "source_diagnostic", "note",
+                     "private_source_repository"},
                 )
                 or snap["version"] != app["version"]
                 or snap["created_at"] != exp["capturedAt"]
@@ -505,6 +531,9 @@ def _validate_pending(value: object) -> dict | None:
         if commit is not None and (type(commit) is not str or not COMMIT_RE.fullmatch(commit)):
             raise ValueError()
         rebuilt, expected_test = _validated_snapshot(snap)
+        if "private_source_repository" in snap and (
+                value["repository"] != "TheDaimos/Project-Log-And-Export"):
+            raise ValueError()
         if (rebuilt != snap or test["id"] != expected_test or
                 type(test["id"]) is not str or
                 json.dumps(document, sort_keys=True, separators=(",", ":"), ensure_ascii=True) + "\n" != raw):
@@ -771,7 +800,8 @@ class MeasurementGitExport:
 
     async def export(self, summary: object, *, version: str,
                      display_name: str = APPLICATION_NAME,
-                     source_commit: str | None = None) -> dict[str, str]:
+                     source_commit: str | None = None,
+                     private_source_repository: str | None = None) -> dict[str, str]:
         async with self._lock:
             if not self._ready:
                 raise GitMeasurementError("central archive unavailable")
@@ -781,10 +811,14 @@ class MeasurementGitExport:
                 raise GitMeasurementError("central archive server permission not configured")
             if self._pending is not None:
                 raise GitMeasurementError("unsent central export pending; retry it first")
+            if private_source_repository is not None and (
+                    self._repository != "TheDaimos/Project-Log-And-Export"):
+                raise GitMeasurementError("private source metadata has no approved destination")
             now = datetime.now(timezone.utc)
             data = _archive_payload(
                 summary, version, now, secrets.token_hex(16),
                 display_name, source_commit,
+                private_source_repository=private_source_repository,
             )
             data["repository"] = self._repository
             await self._persist(self._repository, data)
