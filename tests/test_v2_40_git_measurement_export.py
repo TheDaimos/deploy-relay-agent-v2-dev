@@ -160,6 +160,65 @@ class GitExportTests(unittest.IsolatedAsyncioTestCase):
         payload = base64.b64decode(request["json"]["content"])
         return url, request, json.loads(payload)
 
+    async def test_g2_prepare_local_queue_no_put_then_real_retry_same_bytes(self):
+        """DEV G2: controlled pre-PUT failure with unchanged export contents."""
+        import importlib
+        diagnostic = importlib.import_module(PACKAGE + ".source_diagnostics")
+        log = diagnostic.SourceDiagnosticLog()
+        trace = log.begin()
+        log.bind_project(trace, "TheDaimos/gewitterradar")
+        log.stage(trace, "target_claims")
+        record = log.finish(trace, success=True, reason="none", resources={
+            "available_cores": 12, "configured_worker_processes": 4,
+            "configured_readonly_jobs": 2, "configured_mode": "sequential",
+            "active_readonly_limit": 1, "active_mutation_limit": 0,
+            "worker_budget_enforced": False,
+        })
+        prepared = await self.writer.prepare_retry_test(
+            record, version="0.1.69",
+            private_source_repository=log.private_repository_for(record["run_id"]))
+        queued = copy.deepcopy(self.store.data["pending"])
+        self.assertEqual(prepared["export_id"], queued["export_id"])
+        self.assertTrue(prepared["pending_prepared"])
+        self.assertTrue(self.writer.pending)
+        self.assertEqual(self.session.requests, [], "G2 preparation must never PUT")
+        self.assertIn('"private_source_repository":"TheDaimos/gewitterradar"',
+                      queued["raw"])
+        self.assertNotIn(self.token, queued["raw"])
+        with self.assertRaises(module.GitMeasurementError):
+            await self.writer.prepare_retry_test(record, version="0.1.69")
+        self.assertEqual(self.store.data["pending"], queued,
+                         "existing queued report must not be replaced")
+        # A simulated HA integration reload must preserve exactly the bytes.
+        recovered = module.MeasurementGitExport(
+            self.store, self.session, token_provider=lambda: self.token)
+        await recovered.load()
+        self.assertTrue(recovered.pending)
+        self.assertEqual(self.store.data["pending"], queued)
+        result = await recovered.retry_pending()
+        self.assertEqual(result["export_id"], queued["export_id"])
+        self.assertEqual(result["path"], queued["path"])
+        self.assertEqual(result["repository"], queued["repository"])
+        self.assertEqual(len(self.session.requests), 1)
+        _, request = self.session.requests[0]
+        self.assertNotIn("sha", request["json"])
+        self.assertEqual(base64.b64decode(request["json"]["content"]),
+                         queued["raw"].encode("utf-8"))
+        self.assertFalse(recovered.pending)
+        self.assertIsNone(self.store.data["pending"])
+        with self.assertRaises(module.GitMeasurementError):
+            await recovered.retry_pending()
+        self.assertEqual(len(self.session.requests), 1,
+                         "no unintended duplicate upload")
+
+    async def test_g2_prepare_fails_closed_without_private_read(self):
+        self.session.repo_response = FakeResponse(403)
+        with self.assertRaises(module.GitMeasurementError):
+            await self.writer.prepare_retry_test(measurement(), version="0.1.69")
+        self.assertFalse(self.writer.pending)
+        self.assertEqual(self.session.requests, [])
+        self.assertIsNone(self.store.data["pending"])
+
     async def test_source_diagnostic_after_failed_upload_is_retried_exactly(self):
         import importlib
         diagnostic = importlib.import_module(PACKAGE + ".source_diagnostics")
