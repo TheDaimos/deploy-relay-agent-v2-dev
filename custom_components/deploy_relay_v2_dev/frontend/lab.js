@@ -51,6 +51,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._deploymentLogsBusy = false;
     this._deploymentLogs = [];
     this._deploymentLogsStatus = "";
+    this._deploymentLogsConfirm = false;
     this._sourceChecks = new Map();
     this._connectionBusy = false;
     this._checkAllBusy = false;
@@ -587,6 +588,7 @@ class DRAV2DevLabPanel extends HTMLElement {
   async _toggleDeploymentLogs() {
     if (this._deploymentLogsBusy) return;
     this._deploymentLogsOpen = !this._deploymentLogsOpen;
+    this._deploymentLogsConfirm = false;
     this._render();
     if (this._deploymentLogsOpen) await this._refreshDeploymentLogs();
   }
@@ -608,6 +610,35 @@ class DRAV2DevLabPanel extends HTMLElement {
     } catch (_error) {
       this._deploymentLogs = [];
       this._deploymentLogsStatus = "Protokolle derzeit nicht abrufbar.";
+    } finally {
+      this._deploymentLogsBusy = false;
+      if (this.isConnected) this._render();
+    }
+  }
+
+  async _clearDeploymentLogs() {
+    if (!this._hass || this._deploymentLogsBusy || !this._deploymentLogsConfirm ||
+        !this._deploymentLogs.length) return;
+    const expected = this._deploymentLogs[0]?.run_id;
+    if (!/^[a-f0-9]{32}$/.test(expected || "")) return;
+    this._deploymentLogsBusy = true;
+    this._deploymentLogsStatus = "Temporäre Protokolle werden geleert …";
+    this._render();
+    try {
+      const report = await this._hass.callWS({
+        type:"deploy_relay_v2_dev/deployment/logs/clear",
+        confirm:true, expected_run_id:expected,
+      });
+      if (report?.remaining !== 0 || report.archive_unchanged !== true ||
+          report.installation_enabled !== false ||
+          !Number.isInteger(report.cleared) || report.cleared < 1 ||
+          report.cleared > 8) throw new Error("invalid clear receipt");
+      this._deploymentLogs = [];
+      this._deploymentLogsConfirm = false;
+      this._deploymentLogsStatus = "Temporäre Logs geleert. Private Git-Exporte bleiben erhalten.";
+    } catch (_error) {
+      this._deploymentLogsStatus = "Protokolle konnten nicht geleert werden. Bitte erneut laden.";
+      this._deploymentLogsConfirm = false;
     } finally {
       this._deploymentLogsBusy = false;
       if (this.isConnected) this._render();
@@ -1545,6 +1576,15 @@ class DRAV2DevLabPanel extends HTMLElement {
         .dra-deployment-heading {display:flex;align-items:center;justify-content:space-between;
           gap:12px;min-width:0;margin:0 0 14px;}
         .dra-deployment-heading h2 {margin:0;}
+        .dra-logs-heading-buttons {display:flex;align-items:center;gap:7px;flex:none;}
+        .dra-logs-clear-pill {font:inherit;font-size:12px;font-weight:700;
+          min-height:34px;border-radius:20px;padding:6px 10px;
+          border:1px solid #6a7380;background:rgba(97,108,119,.11);color:#c6cdd5;}
+        .dra-logs-clear-pill:focus-visible {outline:2px solid #e8c779;outline-offset:3px;}
+        .dra-logs-confirm {margin:0 0 12px;padding:10px;border:1px solid #8d7044;
+          border-radius:10px;line-height:1.4;}
+        .dra-logs-confirm-buttons {display:flex;flex-wrap:wrap;gap:8px;margin-top:9px;}
+        .dra-logs-confirm-buttons button {min-height:42px;flex:1 1 125px;}
         .dra-logs-pill {font:inherit;font-size:12px;font-weight:700;
           padding:6px 13px;min-height:34px;flex:none;border-radius:20px;
           border:1px solid #a37b35;background:rgba(148,105,33,.12);color:#e9cf93;}
@@ -2321,13 +2361,27 @@ class DRAV2DevLabPanel extends HTMLElement {
           <article class="dra-deployment-panel">
             <div class="dra-deployment-heading">
               <h2>Deployment</h2>
-              <button id="dra-deployment-logs-toggle" class="dra-logs-pill"
-                aria-controls="dra-deployment-logs-panel"
-                aria-expanded="${this._deploymentLogsOpen}">Logs</button>
+              <div class="dra-logs-heading-buttons">
+                ${this._deploymentLogs.length > 0 ? `<button id="dra-deployment-logs-clear"
+                  class="dra-logs-clear-pill" ${this._deploymentLogsBusy ? "disabled" : ""}
+                  aria-label="Temporäre Deployment-Protokolle leeren">Leeren</button>` : ""}
+                <button id="dra-deployment-logs-toggle" class="dra-logs-pill"
+                  aria-controls="dra-deployment-logs-panel"
+                  aria-expanded="${this._deploymentLogsOpen}">Logs</button>
+              </div>
             </div>
             ${this._deploymentLogsOpen ? `
               <section class="dra-logs-panel" id="dra-deployment-logs-panel"
                 aria-label="Bereinigte Deployment-Protokolle">
+                ${this._deploymentLogsConfirm ? `
+                  <div class="dra-logs-confirm" role="group" aria-label="Loglöschung bestätigen">
+                    Nur die letzten temporären V2-Protokolle leeren? Bereits
+                    exportierte Dateien im privaten Git-Archiv bleiben unverändert.
+                    <div class="dra-logs-confirm-buttons">
+                      <button id="dra-logs-clear-confirm" ${this._deploymentLogsBusy ? "disabled" : ""}>Ja, leeren</button>
+                      <button id="dra-logs-clear-cancel" ${this._deploymentLogsBusy ? "disabled" : ""}>Abbrechen</button>
+                    </div>
+                  </div>` : ""}
                 <div class="dra-logs-actions">
                   <button id="dra-logs-git" ${!this._deploymentLogs.length || this._deploymentLogsBusy || !this._centralExport.configured || this._centralExport.repository !== "TheDaimos/Project-Log-And-Export" ? "disabled" : ""}>Export nach Git</button>
                   <button id="dra-logs-json" ${!this._deploymentLogs.length || this._deploymentLogsBusy ? "disabled" : ""}>JSON herunterladen</button>
@@ -2338,6 +2392,8 @@ class DRAV2DevLabPanel extends HTMLElement {
                   ${this._deploymentLogs.map(record => `
                     <div class="dra-logs-event">
                       <strong>${record.status === "success" ? "Erfolgreich" : "Fehlgeschlagen"} · ${this._escapeProject(record.captured_at)}</strong>
+                      <div class="note">Projektkennung: ${this._escapeProject(record.project_ref || "nicht zugeordnet")} ·
+                        Prüfkennung: ${this._escapeProject((record.run_id || "").slice(0,12))}</div>
                       <span>Prüfschritt: ${diagnosticStageLabels[record.stage] || "Unbekannt"} ·
                         Ursache: ${diagnosticReasonLabels[record.reason] || "Unbekannt"} ·
                         Dauer: ${Number.isInteger(record.duration_ms) ? record.duration_ms : "—"} ms ·
@@ -2349,7 +2405,9 @@ class DRAV2DevLabPanel extends HTMLElement {
                         ${record.resources?.active_mutation_limit ?? "—"} Schreibaufträge.</div>
                     </div>`).join("")}
                 </div>
-                <p class="note">CPU-Zeit gilt für den gesamten Home-Assistant-Prozess, nicht isoliert für DRA V2.
+                <p class="note">Repositorynamen werden nur dem ausdrücklich freigegebenen privaten Git-Export beigefügt.
+                  Projektkennungen gelten für die aktuelle HA-Laufzeit; Prüfkennungen werden auch im Export gespeichert.
+                  CPU-Zeit gilt für den gesamten Home-Assistant-Prozess, nicht isoliert für DRA V2.
                   Eingestellte Arbeitsprozesse sind keine tatsächlich gestarteten Prozesse.
                   Nur bereinigte Quellprüfungen; kein Schreibzugriff. Git-Export ausschließlich zum eingestellten privaten Archiv.</p>
               </section>` : ""}
@@ -2869,6 +2927,16 @@ class DRAV2DevLabPanel extends HTMLElement {
     s.querySelector("#dra-main-ref")?.addEventListener("change",()=>this._render());
     s.querySelector("#dra-project-manage")?.addEventListener("click",()=>this._openProjectDialog());
     s.querySelector("#dra-deployment-logs-toggle")?.addEventListener("click",()=>this._toggleDeploymentLogs());
+    s.querySelector("#dra-deployment-logs-clear")?.addEventListener("click",()=>{
+      this._deploymentLogsOpen = true;
+      this._deploymentLogsConfirm = true;
+      this._render();
+    });
+    s.querySelector("#dra-logs-clear-cancel")?.addEventListener("click",()=>{
+      this._deploymentLogsConfirm = false;
+      this._render();
+    });
+    s.querySelector("#dra-logs-clear-confirm")?.addEventListener("click",()=>this._clearDeploymentLogs());
     s.querySelector("#dra-logs-json")?.addEventListener("click",()=>this._deploymentLogsAction("json"));
     s.querySelector("#dra-logs-git")?.addEventListener("click",()=>this._deploymentLogsAction("git"));
     s.querySelector("#dra-logs-copy")?.addEventListener("click",()=>this._deploymentLogsAction("copy"));
