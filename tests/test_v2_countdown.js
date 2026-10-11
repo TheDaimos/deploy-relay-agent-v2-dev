@@ -92,7 +92,7 @@ const ctx = {
   customElements: { get: n => elements.get(n), define: (n, x) => elements.set(n, x) },
   Date: class extends Date { static now() { return now; } },
   setTimeout(cb, ms) {
-    assert(ms === 1000 || ms === 1500);
+    assert(ms === 1000 || ms === 1200 || ms === 1500);
     const id = nextId++;
     callbacks.set(id, { cb, ms });
     return id;
@@ -739,6 +739,45 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   assert.match(deployment.shadowRoot.innerHTML,/data-stage="1"/);
   assert.equal(previewCount,2,"A reference change must not write or auto-install");
   console.log("DRA V2 unified 4-step Deployment button and true preview progress PASS");
+})().catch(error => {console.error(error);process.exitCode=1;});
+
+(async () => {
+  const recovered = new Panel();
+  const project = {repository:"TheDaimos/gewitterradar",name:"Gewitterradar",active:true};
+  const id = "b".repeat(32);
+  const requested = [];
+  recovered._view = "main";
+  recovered._hass = {async callWS(query) {
+    requested.push(query.type);
+    if (query.type === "deploy_relay_v2_dev/test/state") {
+      return {projects:[project],operations:[],settings:{mode:"sequential"}};
+    }
+    assert.equal(query.type,"deploy_relay_v2_dev/projects/source_job/status");
+    return {
+      schema:"dra-v2-source-preview-job-status.v1",installation_enabled:false,
+      job: {
+        schema:"dra-v2-source-preview-job.v1",operation_id:id,
+        repository:project.repository,ref:"",status:"success",
+        installation_enabled:false,result:{
+          repository:project.repository,installation_enabled:false,sources_verified:true,
+          source_commit:"f".repeat(40),add:[],change:[],remove:[],
+          unchanged_count:12,
+        },
+      },
+    };
+  }};
+  await recovered._refresh();
+  assert.equal(recovered._selectedMainRepo,project.repository);
+  assert.equal(recovered._sourceJobId,id);
+  assert.equal(recovered._sourcePreview.sources_verified,true);
+  assert.equal(recovered._deploymentPreviewRef,"");
+  assert.match(recovered.shadowRoot.innerHTML,/data-stage="2"/);
+  assert.deepEqual(requested,[
+    "deploy_relay_v2_dev/test/state",
+    "deploy_relay_v2_dev/projects/source_job/status",
+  ]);
+  assert.doesNotMatch(recovered.shadowRoot.innerHTML,/3\/4 · Update/);
+  console.log("DRA V2 HA-owned preview reappears after new browser panel session PASS");
 })().catch(error => {console.error(error);process.exitCode=1;});
 
 (async () => {
