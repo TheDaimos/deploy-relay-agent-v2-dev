@@ -1,5 +1,5 @@
 /* Separate DRA V2 DEV read-only lab. No V1 custom element or URLs. */
-const G2_TEST_PYTHON_VERSION = "0.1.66";
+const G2_TEST_PYTHON_VERSION = "0.1.67";
 class DRAV2DevLabPanel extends HTMLElement {
   constructor() {
     super();
@@ -59,6 +59,8 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._sourceJobHistoryStatus = "";
     this._deploymentLogsOpen = false;
     this._deploymentLogsBusy = false;
+    this._historyRefreshBusy = false;
+    this._historyRefreshStatus = "";
     this._deploymentLogs = [];
     this._deploymentLogCount = 0;
     this._deploymentLogsStatus = "";
@@ -621,8 +623,30 @@ class DRAV2DevLabPanel extends HTMLElement {
     }
   }
 
+  async _refreshHistoryManually() {
+    if (!this._hass || !this._deploymentLogsOpen ||
+        this._historyRefreshBusy || this._deploymentLogsBusy) return;
+    this._historyRefreshBusy = true;
+    this._historyRefreshStatus = "Protokolle und Auftragshistorie werden aktualisiert …";
+    if (this.isConnected) this._render();
+    try {
+      const [logsOk, historyOk] = await Promise.all([
+        this._refreshDeploymentLogs(),
+        this._refreshSourceJobHistory(),
+      ]);
+      this._historyRefreshStatus = logsOk && historyOk
+        ? "Protokolle und Auftragshistorie sind aktuell."
+        : "Aktualisierung unvollständig. Bitte Verbindung prüfen und erneut versuchen.";
+    } catch (_error) {
+      this._historyRefreshStatus = "Aktualisierung fehlgeschlagen. Bitte erneut versuchen.";
+    } finally {
+      this._historyRefreshBusy = false;
+      if (this.isConnected) this._render();
+    }
+  }
+
   async _refreshDeploymentLogs() {
-    if (!this._hass || this._deploymentLogsBusy) return;
+    if (!this._hass || this._deploymentLogsBusy) return false;
     this._deploymentLogsBusy = true;
     this._deploymentLogsStatus = "Diagnose wird geladen …";
     this._render();
@@ -636,9 +660,11 @@ class DRAV2DevLabPanel extends HTMLElement {
       this._deploymentLogsStatus = result.records.length ?
         "Letzte Quellprüfungen (ohne Repositorynamen oder Zugangsdaten)." :
         "Noch keine Quellprüfung protokolliert. Zuerst die Vorschau ausführen.";
+      return true;
     } catch (_error) {
       this._deploymentLogs = [];
       this._deploymentLogsStatus = "Protokolle derzeit nicht abrufbar.";
+      return false;
     } finally {
       this._deploymentLogsBusy = false;
       if (this.isConnected) this._render();
@@ -646,7 +672,7 @@ class DRAV2DevLabPanel extends HTMLElement {
   }
 
   async _refreshSourceJobHistory() {
-    if (!this._hass) return;
+    if (!this._hass) return false;
     try {
       const result = await this._hass.callWS({
         type:"deploy_relay_v2_dev/projects/source_job/history",
@@ -668,11 +694,14 @@ class DRAV2DevLabPanel extends HTMLElement {
       this._sourceJobHistoryStatus = result.records.length ?
         "Gespeicherte Auftragszustände; alte Ergebnisse sind nicht erneut freigegeben." :
         "Noch keine gespeicherte Auftragshistorie.";
+      if (this.isConnected) this._render();
+      return true;
     } catch (_error) {
       this._sourceJobHistory = [];
       this._sourceJobHistoryStatus = "Auftragshistorie derzeit nicht abrufbar.";
+      if (this.isConnected) this._render();
+      return false;
     }
-    if (this.isConnected) this._render();
   }
 
   async _clearDeploymentLogs() {
@@ -1777,6 +1806,38 @@ class DRAV2DevLabPanel extends HTMLElement {
           overflow-wrap:anywhere;}
         .dra-logs-event {padding:9px 0;border-top:1px solid #455864;}
         .dra-logs-event strong {display:block;margin-bottom:4px;}
+        /* G2 history refresh: premium gold-on-slate control, inside logs only. */
+        .dra-history-heading {display:flex;align-items:center;justify-content:space-between;
+          gap:12px;min-width:0;flex-wrap:wrap;margin:0 0 10px;}
+        .dra-history-heading > strong {font-size:13px;letter-spacing:.015em;color:#f2f5f7;}
+        .dra-history-refresh {box-sizing:border-box;display:inline-flex;align-items:center;
+          justify-content:center;gap:9px;margin:0;padding:9px 14px;min-height:44px;
+          min-width:142px;flex:none;border:1px solid #ba9651;border-radius:13px;
+          background:linear-gradient(138deg,#56452b,#342d23 56%,#242c32);
+          color:#ffe3a8;font:inherit;font-size:13px;font-weight:700;line-height:1.2;
+          letter-spacing:.012em;cursor:pointer;
+          box-shadow:inset 0 1px 0 #fff3,0 3px 11px #0006;
+          transition:background .18s ease,box-shadow .18s ease,border-color .18s ease,transform .18s ease;}
+        .dra-history-refresh svg {flex:none;width:18px;height:18px;
+          stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round;}
+        .dra-history-refresh:hover:not(:disabled) {border-color:#efc879;
+          background:linear-gradient(138deg,#6c5430,#403526 56%,#29353c);
+          box-shadow:inset 0 1px 0 #fff4,0 4px 14px #0008;}
+        .dra-history-refresh:active:not(:disabled) {transform:translateY(1px);box-shadow:inset 0 1px 2px #0008;}
+        .dra-history-refresh:focus-visible {outline:3px solid #ffe5a8;outline-offset:3px;}
+        .dra-history-refresh:disabled {opacity:.78;cursor:progress;}
+        .dra-history-refresh.is-loading svg {animation:dra-history-spin 1s linear infinite;}
+        .dra-history-refresh-status {font-size:12px;margin:4px 0 10px;color:#d6c8aa;}
+        .dra-history-refresh-status:empty {display:none;}
+        @keyframes dra-history-spin {to{transform:rotate(360deg);}}
+        @media(max-width:420px) {
+          .dra-history-heading {align-items:flex-start;gap:8px;}
+          .dra-history-refresh {min-width:132px;padding:9px 11px;}
+        }
+        @media(prefers-reduced-motion:reduce) {
+          .dra-history-refresh {transition:none;}
+          .dra-history-refresh.is-loading svg {animation:none;}
+        }
         .dra-logs-panel .note {font-size:12px;line-height:1.45;}
         @media (max-width:420px) {.dra-logs-actions {grid-template-columns:1fr;}
           .dra-deployment-heading h2 {font-size:17px;}}
@@ -2583,7 +2644,21 @@ class DRAV2DevLabPanel extends HTMLElement {
                     </div>`).join("")}
                 </div>
                 <div class="dra-logs-events" aria-label="Gespeicherte HA-Auftragshistorie">
-                  <strong>Serverseitige Auftragshistorie</strong>
+                  <div class="dra-history-heading">
+                    <strong>Serverseitige Auftragshistorie</strong>
+                    <button type="button" id="dra-history-refresh"
+                      class="dra-history-refresh ${this._historyRefreshBusy ? "is-loading" : ""}"
+                      aria-label="Quellprotokolle und Auftragshistorie aktualisieren"
+                      aria-busy="${this._historyRefreshBusy}"
+                      ${this._historyRefreshBusy || this._deploymentLogsBusy ? "disabled" : ""}>
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M20 7v5h-5M4 17v-5h5"></path>
+                        <path d="M5.6 9.3A7.6 7.6 0 0 1 19.1 7L20 12M4 12l.9 5a7.6 7.6 0 0 0 13.5-2.3"></path>
+                      </svg>
+                      <span>${this._historyRefreshBusy ? "Wird aktualisiert …" : "Aktualisieren"}</span>
+                    </button>
+                  </div>
+                  <p class="dra-history-refresh-status" role="status" aria-live="polite">${this._escapeProject(this._historyRefreshStatus)}</p>
                   <p class="note">${this._escapeProject(this._sourceJobHistoryStatus)}</p>
                   ${this._sourceJobHistory.map(item => `
                     <div class="dra-logs-event">
@@ -3131,6 +3206,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     s.querySelector("#dra-main-ref")?.addEventListener("change",()=>this._render());
     s.querySelector("#dra-project-manage")?.addEventListener("click",()=>this._openProjectDialog());
     s.querySelector("#dra-deployment-logs-toggle")?.addEventListener("click",()=>this._toggleDeploymentLogs());
+    s.querySelector("#dra-history-refresh")?.addEventListener("click",()=>this._refreshHistoryManually());
     s.querySelector("#dra-deployment-logs-clear")?.addEventListener("click",()=>{
       this._deploymentLogsOpen = true;
       this._deploymentLogsConfirm = true;
