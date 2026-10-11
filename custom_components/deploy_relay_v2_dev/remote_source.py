@@ -336,11 +336,13 @@ async def inspect_repository_connection(session, repository: str, *, token: str 
     }
 
 
-async def inspect_public_repository(session, config_root: Path, repository: str, ref: str = "", *, token: str | None = None) -> dict:
+async def inspect_public_repository(session, config_root: Path, repository: str, ref: str = "", *, token: str | None = None, stage_hook=None) -> dict:
     """Actual pinned remote tree versus read-only HA inventory; no write capability.
 
     An unavailable source is reported as unavailable, never as up-to-date.
     """
+    if stage_hook is not None:
+        stage_hook("repository")
     try:
         repository = normalize_repo(repository)
     except CatalogError:
@@ -355,6 +357,8 @@ async def inspect_public_repository(session, config_root: Path, repository: str,
     if meta.get("archived") is True or meta.get("disabled") is True:
         raise PreflightError("repository is not an active installation source")
     selected = ref or branch
+    if stage_hook is not None:
+        stage_hook("commit")
     commit = await _get(session, base + "/commits/" + quote(selected, safe=""), token=token)
     sha = commit.get("sha")
     tree = commit.get("commit", {}).get("tree") if type(commit.get("commit")) is dict else None
@@ -364,6 +368,8 @@ async def inspect_public_repository(session, config_root: Path, repository: str,
         raise PreflightError("source commit was not pinned")
     if type(tree_sha) is not str or not SHA.fullmatch(tree_sha):
         raise PreflightError("source tree was not pinned")
+    if stage_hook is not None:
+        stage_hook("manifest")
     manifest_obj = await _get(session, base + "/contents/deploy-relay.json?ref=" + sha, token=token)
     if manifest_obj.get("encoding") != "base64" or type(manifest_obj.get("content")) is not str:
         raise PreflightError("manifest is not an encoded file")
@@ -376,14 +382,20 @@ async def inspect_public_repository(session, config_root: Path, repository: str,
             manifest_obj.get("sha") != git_blob_sha(manifest_bytes)):
         raise PreflightError("manifest content integrity failed")
     manifest = parse_manifest(manifest_bytes, repository=repository)
+    if stage_hook is not None:
+        stage_hook("tree")
     tree_obj = await _get(session, base + "/git/trees/" + tree_sha + "?recursive=1", token=token)
     if tree_obj.get("truncated") is not False or type(tree_obj.get("tree")) is not list:
         raise PreflightError("GitHub tree is incomplete")
     remote = inspect_tree(manifest, tree_obj["tree"])
+    if stage_hook is not None:
+        stage_hook("local_inventory")
     local = await asyncio.to_thread(
         _local_inventory, config_root, manifest["groups"],
         max_files=manifest["max_files"], max_bytes=manifest["max_bytes"],
     )
+    if stage_hook is not None:
+        stage_hook("comparison")
     report = compare_blobs(manifest, remote, local, source_commit=sha)
     report["source_ref"] = selected
     report["source_name"] = "GitHub V2 read-only access" if token else "GitHub public (no V1 credentials)"
