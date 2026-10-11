@@ -50,6 +50,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._deploymentLogsOpen = false;
     this._deploymentLogsBusy = false;
     this._deploymentLogs = [];
+    this._deploymentLogCount = 0;
     this._deploymentLogsStatus = "";
     this._deploymentLogsConfirm = false;
     this._sourceChecks = new Map();
@@ -263,6 +264,8 @@ class DRAV2DevLabPanel extends HTMLElement {
       this._gitConfigured = data.git_configured === true;
       this._centralExport = data.central_export || this._centralExport;
       this._diagnosticsExportReady = data.diagnostics_export_ready === true;
+      if (Number.isInteger(data.deployment_log_count) && data.deployment_log_count >= 0 && data.deployment_log_count <= 8)
+        this._deploymentLogCount = data.deployment_log_count;
       if (this._archiveCheckState === "idle" && this._centralExport.configured) {
         // Stored on HA, but not necessarily reverified this browser session.
         this._archiveCheckState = "stored";
@@ -602,8 +605,9 @@ class DRAV2DevLabPanel extends HTMLElement {
       const result = await this._hass.callWS({type:"deploy_relay_v2_dev/deployment/logs"});
       if (result?.schema !== "dra-v2-dev-deployment-logs.v1" ||
           result.installation_enabled !== false || !Array.isArray(result.records) ||
-          result.records.length > 8) throw new Error("invalid deployment logs");
+          result.records.length > 8 || result.count !== result.records.length) throw new Error("invalid deployment logs");
       this._deploymentLogs = result.records;
+      this._deploymentLogCount = result.count;
       this._deploymentLogsStatus = result.records.length ?
         "Letzte Quellprüfungen (ohne Repositorynamen oder Zugangsdaten)." :
         "Noch keine Quellprüfung protokolliert. Zuerst die Vorschau ausführen.";
@@ -634,6 +638,7 @@ class DRAV2DevLabPanel extends HTMLElement {
           !Number.isInteger(report.cleared) || report.cleared < 1 ||
           report.cleared > 8) throw new Error("invalid clear receipt");
       this._deploymentLogs = [];
+      this._deploymentLogCount = 0;
       this._deploymentLogsConfirm = false;
       this._deploymentLogsStatus = "Temporäre Logs geleert. Private Git-Exporte bleiben erhalten.";
     } catch (_error) {
@@ -2362,7 +2367,7 @@ class DRAV2DevLabPanel extends HTMLElement {
             <div class="dra-deployment-heading">
               <h2>Deployment</h2>
               <div class="dra-logs-heading-buttons">
-                ${this._deploymentLogs.length > 0 ? `<button id="dra-deployment-logs-clear"
+                ${this._deploymentLogCount > 0 ? `<button id="dra-deployment-logs-clear"
                   class="dra-logs-clear-pill" ${this._deploymentLogsBusy ? "disabled" : ""}
                   aria-label="Temporäre Deployment-Protokolle leeren">Leeren</button>` : ""}
                 <button id="dra-deployment-logs-toggle" class="dra-logs-pill"
