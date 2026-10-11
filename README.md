@@ -1,6 +1,6 @@
 # Deploy Relay Agent V2 – öffentliche Entwicklung
 
-**Status: DRA V2 DEV 0.1.54 – isolierte Home-Assistant-Testintegration; weder V2-FINAL noch HACS- oder Installationsfreigabe.**
+**Status: DRA V2 DEV 0.1.55 – isolierte Home-Assistant-Testintegration; weder V2-FINAL noch HACS- oder Installationsfreigabe.**
 
 Dies ist das **öffentliche Entwicklungsrepository** von Deploy Relay Agent V2, einer Home-Assistant-Integration zur sicheren Übernahme ausgewählter Git-Projektstände.
 
@@ -17,13 +17,15 @@ Dies ist das **öffentliche Entwicklungsrepository** von Deploy Relay Agent V2, 
 
 Die Ausgangsdateien stammen aus dem **bereits öffentlichen** V1-Code. Die 52 Dateien des vorbereiteten öffentlichen V2-Repositorys wurden anhand ihrer Git-Blobs in dieses neu angelegte Entwicklungsrepository übernommen. Die vollständige Herkunft ist in [SOURCE_PROVENANCE.md](docs/SOURCE_PROVENANCE.md) dokumentiert. Weder private Git-Historie noch lokale Home-Assistant-Diagnosen wurden übernommen.
 
-Die übernommene **historische Ausgangsbasis** meldete Version 1.0.0. Der aktuelle **V2-DEV-Testlaborstand ist 0.1.54** unter `custom_components/deploy_relay_v2_dev` mit eigener Domain; die ursprüngliche V1-Komponente bleibt als öffentliche Referenz unangetastet. **Keine produktive V2-Installation, keine automatische HA-Installation und kein Neustart aus V2 freigegeben.**
+Die übernommene **historische Ausgangsbasis** meldete Version 1.0.0. Der aktuelle **V2-DEV-Testlaborstand ist 0.1.55** unter `custom_components/deploy_relay_v2_dev` mit eigener Domain; die ursprüngliche V1-Komponente bleibt als öffentliche Referenz unangetastet. **Keine produktive V2-Installation, keine automatische HA-Installation und kein Neustart aus V2 freigegeben.**
 
 ## Aktueller Entwicklungsstand (11.10.2026)
 
 Das getrennte V2-DEV-Testlabor enthält Projektverwaltung, GitHub-Lesezugänge, eine echte **schreibgeschützte** Einzelquellvorschau, gesonderte Lese-Messaufträge mit begrenztem Journal und private Diagnoseexporte ausschließlich in das vom Administrator konfigurierte zentrale Archiv. Die Bedienoberfläche nutzt eine zentrale vierstufige Deployment-Schaltfläche; nur die Vorschau ist betriebsfähig, weitere Stufen bleiben gesperrt.
 
 Seit **0.1.54** überprüft ein rein berechnender Zielbesitzvertrag bekannte Kollisionen zwischen Projektzielwurzeln, einschließlich case-insensitiver Dopplungen. Ein kollisionsfreier Bericht beweist **keinen** exklusiven V2-Besitz und entsperrt **keine** Mutation. Referenz: [Zielbesitz-/Kollisionsvertrag](docs/V2_TARGET_OWNERSHIP_AND_CONFLICT_GATE_2026-10-11.md) und [aktuelle Projektübergabe](docs/HANDOFF_DRA_V2_DEV_0_1_53_2026-10-11.md).
+
+Seit **0.1.55** akzeptiert die schreibgeschützte Vorschau außerdem größere *deklarierte* V1-Manifestbudgets, behält aber die strengeren tatsächlichen V2-Prüfgrenzen unverändert bei. Siehe [Manifestgrenzen und Negativtests](docs/V2_SOURCE_MANIFEST_LIMITS_2026-10-11.md). Die HA-Realabnahme steht noch aus.
 
 Nicht vorhanden/freigegeben: tatsächliche V2-eigene Sicherungsarchive, unabhängige Wiederherstellung, transaktionale Installation, parallele Sammelinstallation oder V2-Neustartsteuerung. Die jüngsten UI-Änderungen sind noch auf HA/Android real abzunehmen.
 
