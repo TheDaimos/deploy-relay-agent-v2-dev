@@ -1004,7 +1004,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   g2._render();
   assert.match(g2.shadowRoot.innerHTML,/G2 – Wiederholversand sicher prüfen/);
   assert.match(g2.shadowRoot.innerHTML,/G2-Test vorbereiten/);
-  assert.match(g2.shadowRoot.innerHTML,/id="dra-g2-retry-test" open/);
+  assert.match(g2.shadowRoot.innerHTML,/id="dra-g2-retry-test"\s+open/);
   await g2._deploymentLogsAction("g2_prepare");
   assert.equal(sent.length,0,"unconfirmed G2 action must not reach HA");
   g2._g2RetryTestConfirm=true;
