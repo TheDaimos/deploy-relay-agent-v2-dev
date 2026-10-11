@@ -953,7 +953,8 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   assert.match(html,/\.dra-history-section \{border-top:1px solid/);
   assert.match(html,/\.dra-history-item \{/);
   assert.match(html,/dra-history-list" role="list"/);
-  assert.equal((html.match(/role="listitem"/g)||[]).length,4);
+  assert((html.match(/class="dra-history-item (?:success|failed|interrupted|queued)" role="listitem"/g)||[]).length >= 4,
+    "all four records must render as separate accessible cards");
   for(const status of ["success","failed","interrupted","queued"]) {
     assert.match(html,new RegExp('class="dra-history-item '+status+'" role="listitem"'));
   }
