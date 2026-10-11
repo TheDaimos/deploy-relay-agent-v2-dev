@@ -247,7 +247,7 @@ class DiagnosticsContract(unittest.TestCase):
         rechecked, test_id = export._validated_snapshot(private["snapshot"])
         self.assertEqual(rechecked, private["snapshot"])
         self.assertEqual(test_id, "V2-SOURCE-PREVIEW")
-        raw = json.dumps(private, sort_keys=True, separators=(",", ":"), ensure_ascii=True) + "\\n"
+        raw = json.dumps(private, sort_keys=True, separators=(",", ":"), ensure_ascii=True) + "\n"
         pending = {
             "path": export.archive_path(private), "export_id": "c"*32,
             "raw": raw, "repository": "TheDaimos/Project-Log-And-Export",
