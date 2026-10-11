@@ -25,6 +25,7 @@ from .remote_source import GitReadAuth, GitReadAuthError, ProjectReadAuth
 from .readonly_task_supervisor import ReadOnlyTaskSupervisor
 from .source_diagnostics import SourceDiagnosticLog
 from .source_preview_jobs import SourcePreviewJobs
+from .source_job_history import SourceJobHistory, SourceJobHistoryError
 from .readonly_benchmark import ReadOnlyMeasurement, ReadOnlySuite
 from .ha_preview_task_factory import PreviewTaskFactory
 from .panel import async_register_panel, async_remove_panel
@@ -46,6 +47,7 @@ class LabRuntime:
     project_auth: ProjectReadAuth
     source_diagnostics: SourceDiagnosticLog
     source_preview_jobs: SourcePreviewJobs
+    source_job_history: SourceJobHistory
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -94,6 +96,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await project_auth.load()
     except GitReadAuthError:
         return False
+    source_job_history = SourceJobHistory(
+        Store(hass, 1, "deploy_relay_v2_dev.source_job_history"))
+    try:
+        await source_job_history.load()
+    except SourceJobHistoryError:
+        # Never silently erase inconsistent persistent history.
+        return False
     measurement = ReadOnlyMeasurement()
     suite = ReadOnlySuite(measurement)
     registry = OperationRegistry(max_completed=12, max_readonly=1)
@@ -109,7 +118,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                          source_scan_lock=asyncio.Lock(), source_auth=source_auth,
                          project_auth=project_auth,
                          source_diagnostics=SourceDiagnosticLog(),
-                         source_preview_jobs=SourcePreviewJobs(PreviewTaskFactory(hass, entry)))
+                         source_preview_jobs=SourcePreviewJobs(
+                             PreviewTaskFactory(hass, entry), history=source_job_history),
+                         source_job_history=source_job_history)
     store["runtime"] = runtime
     try:
         async_register_commands(hass)
