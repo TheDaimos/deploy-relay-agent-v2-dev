@@ -2555,7 +2555,7 @@ class DRAV2DevLabPanel extends HTMLElement {
                     <div class="dra-logs-event">
                       <strong>Auftrag ${this._escapeProject(item.operation_id.slice(0,12))} ·
                         ${item.status === "success" ? "Damals erfolgreich" :
-                          item.status === "failed" ? "Fehlgeschlagen" :
+                          item.status === "failed" ? "Prüfung gescheitert" :
                           item.status === "interrupted" ? "Unterbrochen" : "Begonnen"}</strong>
                       <span class="note">${this._escapeProject(item.finished_at || item.created_at)}</span>
                     </div>`).join("")}
