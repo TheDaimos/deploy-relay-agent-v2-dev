@@ -270,49 +270,62 @@ def _local_inventory(config_root: Path, groups: list[dict], *, max_files: int, m
 
 
 async def _get(session, url: str, *, token: str | None = None) -> dict:
-    """No redirects, no tokens, fixed HTTPS GitHub API, short bounded response."""
+    """Bounded read-only GitHub GET, one retry for transient transport errors.
+
+    Never retry explicit GitHub denials, source-policy errors, excessive bodies
+    or malformed JSON. No redirects, hosts, writes, or returned raw errors.
+    """
     if not url.startswith(API + "/"):
         raise PreflightError("invalid source endpoint")
-    try:
-        headers = {
-            "Accept": "application/vnd.github+json",
-            "X-GitHub-Api-Version": "2022-11-28",
-            "User-Agent": "Deploy-Relay-V2-Read-Only-Preflight",
-        }
-        if token is not None:
-            if not GitReadAuth._valid_token(token):
-                raise PreflightError("GitHub read-auth invalid")
-            headers["Authorization"] = "Bearer " + token
-        async with asyncio.timeout(12):
-            async with session.get(url, allow_redirects=False, headers=headers) as response:
-                if response.status != 200:
-                    # Fixed, sanitized categories only; never expose response
-                    # headers, URLs, repository names or GitHub body content.
-                    if response.status == 401:
-                        raise PreflightError("github_http_authentication")
-                    if response.status == 403:
-                        raise PreflightError("github_http_forbidden")
-                    if response.status == 404:
-                        raise PreflightError("github_http_not_found")
-                    if response.status == 429:
-                        raise PreflightError("github_http_rate_limited")
-                    raise PreflightError("GitHub request unsuccessful")
-                size = response.headers.get("Content-Length", "")
-                if size.isdigit() and int(size) > MAX_RESPONSE:
-                    raise PreflightError("GitHub response exceeds size limit")
-                raw = await response.content.read(MAX_RESPONSE + 1)
-                if len(raw) > MAX_RESPONSE:
-                    raise PreflightError("GitHub response exceeds size limit")
-        obj = json.loads(raw.decode("utf-8"))
-    except PreflightError:
-        raise
-    except Exception:
-        # Includes transport-specific aiohttp exceptions, but excludes task
-        # cancellation (asyncio.CancelledError is a BaseException).
-        raise PreflightError("GitHub response could not be verified") from None
-    if type(obj) is not dict:
-        raise PreflightError("invalid GitHub JSON")
-    return obj
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "User-Agent": "Deploy-Relay-V2-Read-Only-Preflight",
+    }
+    if token is not None:
+        if not GitReadAuth._valid_token(token):
+            raise PreflightError("GitHub read-auth invalid")
+        headers["Authorization"] = "Bearer " + token
+    for attempt in range(2):
+        try:
+            async with asyncio.timeout(12):
+                async with session.get(url, allow_redirects=False, headers=headers) as response:
+                    if response.status != 200:
+                        # Fixed, sanitized categories only; never expose response
+                        # headers, URLs, repository names or GitHub body content.
+                        if response.status == 401:
+                            raise PreflightError("github_http_authentication")
+                        if response.status == 403:
+                            raise PreflightError("github_http_forbidden")
+                        if response.status == 404:
+                            raise PreflightError("github_http_not_found")
+                        if response.status == 429:
+                            raise PreflightError("github_http_rate_limited")
+                        raise PreflightError("GitHub request unsuccessful")
+                    size = response.headers.get("Content-Length", "")
+                    if size.isdigit() and int(size) > MAX_RESPONSE:
+                        raise PreflightError("GitHub response exceeds size limit")
+                    raw = await response.content.read(MAX_RESPONSE + 1)
+                    if len(raw) > MAX_RESPONSE:
+                        raise PreflightError("GitHub response exceeds size limit")
+        except PreflightError:
+            raise  # Denials, oversize, and trust-boundary failures never retry.
+        except Exception:
+            # Only bounded, idempotent HTTPS GET; no raw exception or secrets.
+            # CancelledError is a BaseException and must not be swallowed.
+            if attempt == 0:
+                await asyncio.sleep(0.15)
+                continue
+            raise PreflightError("GitHub response could not be verified") from None
+        try:
+            obj = json.loads(raw.decode("utf-8"))
+        except (ValueError, UnicodeError):
+            # A received but malformed body is not a transient network failure.
+            raise PreflightError("invalid GitHub JSON") from None
+        if type(obj) is not dict:
+            raise PreflightError("invalid GitHub JSON")
+        return obj
+    raise PreflightError("GitHub response could not be verified")
 
 
 async def inspect_repository_connection(session, repository: str, *, token: str | None = None) -> dict:
