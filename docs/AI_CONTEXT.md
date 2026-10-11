@@ -1,6 +1,6 @@
 # DRA V2 – aktueller Projekt-Einstiegspunkt
 
-**Stand:** 11.10.2026 – DRA V2 DEV **0.1.68** (isoliertes Home-Assistant-Testlabor, **keine V2-FINAL-/HACS-Freigabe**).
+**Stand:** 11.10.2026 – DRA V2 DEV **0.1.69** (isoliertes Home-Assistant-Testlabor, **keine V2-FINAL-/HACS-Freigabe**).
 
 ## Für jede Fortsetzung
 
@@ -23,6 +23,8 @@
 17. **Nächster Arbeitsschwerpunkt:** sichere serverseitige Auftrags-/Transaktionsarchitektur, nachweislich vollständige eigene Backups und unabhängiger Rückfall, dann schrittweise explizit freigegebene Installation und konfliktsichere parallele Sammelaktualisierung. **Keine automatische HA-Installation/kein Neustart.**
 
 **Neu festgelegte Sicherheitsanforderung (11.10.2026):** Eine fehlende Installierbarkeit wird vor Schreibbeginn **ohne Mutation** gesperrt. Ein eindeutig gescheiterter begonnener Schreibvorgang soll nur mit geprüfter V2-Originalbytes-Sicherung und nachgewiesener Exklusivsperre automatisch auf den früheren Zustand zurückfallen; bei unklaren Bedingungen nur `recovery_required`. Ein ausgefallener HA-Prozess kann nur mittels später eigenständig genehmigtem externem Recovery-Wächter automatisch wiederhergestellt werden. Verbindliche Spezifikation: `docs/V2_INSTALLABILITY_GUARD_AND_AUTOMATIC_ROLLBACK_2026-10-11.md`. **Nur Design; keine Freigabe oder Implementierung, kein Versionssprung.**
+
+**G2 EXPORT-WIEDERHOLTEST V2 DEV 0.1.69 (11.10.2026):** Für die letzte G2-Abnahme ist ein ausdrücklich zweistufig bestätigter DEV-Test in `Deployment → Logs` implementiert. Er speichert **einen echten bereinigten Quellbericht** nach privatem Repository-Lesecheck zunächst ausschließlich in der lokalen HA-Warteschlange, **ohne GitHub-PUT**. Der folgende ausdrücklich betätigte normale „Gespeicherten Git-Export erneut senden“-Knopf nutzt `retry_pending()` und muss exakt die ursprünglichen Bytes/Export-ID ins ausschließlich private Zentralarchiv übertragen. Eine vorhandene Warteschlange wird nie überschrieben. Der Test bildet eine simulierte Unterbrechung **vor** dem PUT nach, keinen tatsächlich gemessenen HTTP-Fehler. Zusätzlich wurde ein echter Neustart-Randfall korrigiert: Pending-Retry funktioniert auch bei leerer flüchtiger Quellprotokollliste nach HA-Neustart (WebSocket prüft Pending zuerst, UI bietet Retry dann weiterhin an). Keine weiteren Admin-Schnittstellen, kein Tokenwechsel, keine V2-Projektschreibrechte. Version `0.1.69` in Manifest, Konstante und DEV-Laufzeitsperre. **CI und HA-Realabnahme noch ausstehend**; keine Installationsanweisung vor CI-Grün. Optischer kompakter Aktualisierungsstatus bleibt ein **separater späterer UI-Auftrag**. [Testplan](V2_G2_40_PRIVATER_EXPORT_RETRY_REALTEST_0_1_69_2026-10-11.md). PR #2 nicht zusammenführen.
 
 **HA-Realtest G2-Neustart (11.10.2026):** Unter V2 DEV 0.1.68 wurde ein laufender 60-Sekunden-Leseauftrag durch einen vom Betreiber veranlassten HA-Neustart unterbrochen. Nach Neustart steht er in der Historie als „Unterbrochen“, ältere Erfolge weiterhin als „Damals erfolgreich“; keine neue Quellvorschau vorhanden. Test bestanden. G2-Netzwechseltests ebenfalls bestanden. Noch offen: gezielter Nachweis des Export-Warteschlangen-Retry. [Testbericht](V2_G2_20_PERSISTENTE_AUFTRAGSHISTORIE_0_1_63_2026-10-11.md).
 
