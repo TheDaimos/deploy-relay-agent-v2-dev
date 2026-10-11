@@ -24,6 +24,21 @@ Dieses öffentliche Repository ist die **V2-Entwicklungsquelle**, nicht der stab
 14. Änderungen an Lizenz, offiziellen Logos und veröffentlichten Markenrechten nur im Einklang mit LICENSE, COPYRIGHT.md und BRANDING.md.
 15. Eine Änderung am Hauptzweig stellt weder ein V2-Installationspaket noch eine HACS- oder FINAL-Freigabe dar.
 
+## Verbindlicher beschleunigter Entwicklungs- und Abnahmeablauf
+
+**Nutzerentscheidung vom 12.10.2026:** DRA V2 darf nicht durch kleinteilige Einzelabnahmen und wiederholte HA-Neustarts unnötig verzögert werden. Ab sofort gilt **Entwicklung in Funktionsgruppen mit gemeinsamer Testabnahme**, bei gleichbleibender Sicherheit und Präzision:
+
+1. **Zusammengehörige Aufgaben bündeln:** mehrere kompatible UI-, Diagnose-, Backend-, Sicherheits- und Dokumentationsänderungen in einem überprüfbaren DEV-Entwicklungsblock umsetzen. Keine neue Versions-/Installationsrunde nur wegen einer kleinen Darstellungskorrektur. Größere Änderungen intern durch kleine, nachvollziehbare Commits und Tests absichern.
+2. **Selbstständig bis zum prüfbaren Gruppenstand arbeiten:** Quellprüfung, Umsetzung, Negativtests, Automatisierung, CI, Korrekturen, Dokumentation und erneute CI ohne einzelne Benutzerbestätigungen erledigen, solange dies im genehmigten DEV-Featurezweig und ohne HA-/Produktivmutation möglich ist.
+3. **Ein gebündelter HA-Realtest pro sinnvoller Entwicklungsgruppe:** im Prüfplan mehrere zusammenhängende, voneinander unabhängige Szenarien anbieten, nicht eine separate Installations-/Neustartrunde je Einzeländerung. Für mehrere kompatible Tests **eine** reguläre Installation und einen HA-Neustart nur wenn technisch nötig. Rein lesende Oberflächenänderungen benötigen nicht automatisch einen Neustart.
+4. **Abnahme unterscheiden:** statische/isolierte Tests und CI können ohne HA-Nutzeraktion vollständig abgeschlossen werden; HA-Realabnahmen nur für tatsächlich nicht anders beweisbare Laufzeiteigenschaften. Harte Sicherheitsgrenzen bleiben eigene Kriterien, können aber innerhalb desselben Gruppenprüflaufs nachgewiesen werden. Nicht getestete Realfälle nicht als bestanden bezeichnen.
+5. **Nutzeraufwand minimieren:** nicht für jeden Zwischenschritt Screenshots, manuelles Logkopieren, „Fertig“-Rückmeldungen oder Git-Exports verlangen. Vorhandene echte Ergebnisse im freigegebenen privaten Archiv selbst lesen. Dem Betreiber **eine kompakte gruppierte Prüfanweisung** erst geben, wenn alle vorbereitbaren Schritte abgeschlossen sind; klare erwartete Ergebnisse und nur bei Fehlern weitere Nachweise.
+6. **Fehlerbehandlung ohne Update-Schleifen:** erkannte Test-/CI-Fehler selbst korrigieren und die komplette Prüfgruppe erneut automatisch testen. Unnötige UI-/Dokumentationskorrekturen bis zur nächsten gebündelten DEV-Version sammeln.
+7. **Sicherheit unverändert:** kein Vorziehen von Schreibrechten, Überspringen von G3/G4-Gates, vermeintlichen V1-Übergaben, ungeprüften Backups oder Installations-/Neustartfreigaben. Änderungen an DRA V1, V2 main/PUB, WeatherRouter, dem privaten Archiv sowie Merge von PR #2 bleiben ohne gesonderte Nutzerfreigabe ausgeschlossen. Installation und HA-Neustart führt ausschließlich der Betreiber aus.
+8. **Effizienz berichten:** den Fortschritt als **Entwicklungsgruppe mit konkreter erledigter Arbeit, offenen Blockaden und einem nächsten gebündelten HA-Prüftermin** kommunizieren. Keine künstlichen Warte-/Freigabeschritte zwischen technisch zusammengehörigen Teilaufgaben.
+
+Diese Gruppenabnahme erfüllt Regel 12 (nachvollziehbare Tests/Dokumentation/HA-Realabnahme), ersetzt jedoch das frühere unnötige **eine Änderung → eine Version → ein Neustart → ein Einzelscreenshot**-Muster.
+
 ## Vor Arbeitsbeginn lesen
 
 - README.md
