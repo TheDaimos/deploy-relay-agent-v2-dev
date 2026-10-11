@@ -109,6 +109,10 @@ class DRAV2DevLabPanel extends HTMLElement {
     if (this._hass && !this._loaded) {
       this._loaded = true;
       this._refresh();
+    } else if (this._hass && this._loaded) {
+      // Reattached mobile panel: reload server job regardless of old browser timers.
+      this._refresh();
+      this._pollSourceJob();
     }
   }
 
@@ -781,9 +785,13 @@ class DRAV2DevLabPanel extends HTMLElement {
         this._selectedMainRepo = job.repository;
         this._mainSourceRef = job.ref;
       }
-      const currentRepo = this._selectedMainRepo || this._projects.find(p=>p.active !== false)?.repository;
+      const currentRepo = this._view === "main" ?
+        (this._selectedMainRepo || this._projects.find(p=>p.active !== false)?.repository) :
+        this._sourceRepository;
+      const currentRef = this._view === "main" ? this._mainSourceRef.trim() :
+        (this.shadowRoot?.querySelector("#source-ref")?.value?.trim() || "");
       const matches = currentRepo?.toLowerCase() === job.repository.toLowerCase() &&
-        this._mainSourceRef.trim() === job.ref;
+        currentRef === job.ref;
       this._sourceBusy = job.status === "queued" || job.status === "running";
       if (matches) {
         this._sourceRepository = job.repository;
@@ -795,7 +803,7 @@ class DRAV2DevLabPanel extends HTMLElement {
             job.result?.installation_enabled === false &&
             job.result?.repository?.toLowerCase() === job.repository.toLowerCase()) {
           this._sourcePreview = job.result;
-          this._deploymentPreviewRef = job.ref;
+          this._deploymentPreviewRef = this._view === "main" ? job.ref : null;
           this._sourceMessage = "Quellprüfung abgeschlossen · Auftrag " + identity +
             ". Installation weiterhin gesperrt.";
         } else {
