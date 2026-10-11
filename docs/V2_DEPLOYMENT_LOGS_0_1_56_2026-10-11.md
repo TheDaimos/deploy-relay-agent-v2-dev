@@ -9,7 +9,7 @@
 In der Kopfzeile des vorhandenen vierstufigen Deployment-Bereichs sitzt rechts von **Deployment** eine kleine goldumrandete, abgerundete Schaltfläche **Logs** – in Farbe, Größe und Materialanmutung nach dem bestehenden Hinweis **Prüfung ausstehend**. Die Hauptkarte wächst erst bei geöffneten Logs; die zentrale Deployment-Schaltfläche, die V1-inspirierte Ladeleiste und alle vier Stufenkacheln behalten die bisherige Reihenfolge.
 
 Nach dem Tippen erscheinen direkt unter der Kopfzeile drei Schaltflächen:
-1. **Export nach Git** – nur ein ausdrücklich gespeichertes, vor jedem Upload als privat bestätigtes Repository; vorhandener Zentralarchivmechanismus und seine Wiederholwarteschlange, keine Veröffentlichung im Projektquellrepository.
+1. **Export nach Git** – ausschließlich das vom Projektinhaber vorgegebene, ausdrücklich konfigurierte und vor jedem Upload als privat bestätigte `TheDaimos/Project-Log-And-Export`; vorhandener Zentralarchivmechanismus und seine Wiederholwarteschlange, keine Veröffentlichung im Projektquellrepository.
 2. **JSON herunterladen** – unabhängig von Git-Zugang, nur bereinigte Daten.
 3. **Zwischenablage** – dasselbe serverseitig validierte JSON wie beim Download, kein eigenes unbereinigtes Browserprotokoll.
 
