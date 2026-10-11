@@ -47,6 +47,8 @@ class DiagnosticsContract(unittest.TestCase):
         self.assertEqual(record["status"], "failed")
         self.assertFalse(record["sources_verified"])
         self.assertFalse(record["installation_enabled"])
+        self.assertIsInstance(record["process_cpu_ms"], int)
+        self.assertGreaterEqual(record["process_cpu_ms"], 0)
         self.assertEqual(record["resources"]["available_cores"], 8)
         self.assertEqual(record["resources"]["configured_worker_processes"], 12)
         self.assertEqual(record["resources"]["configured_readonly_jobs"], 4)
@@ -72,6 +74,8 @@ class DiagnosticsContract(unittest.TestCase):
         attempts = [
             lambda x: x.update({"token":"github_pat_private"}),
             lambda x: x.update({"installation_enabled":True}),
+            lambda x: x.update({"process_cpu_ms":-1}),
+            lambda x: x.update({"process_cpu_ms":"shared:secret"}),
             lambda x: x.update({"status":"success"}),
             lambda x: x.update({"reason":"path /config/secrets.yaml"}),
             lambda x: x["resources"].update({"access_token":"bad"}),
