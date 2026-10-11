@@ -51,6 +51,9 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._sourceJobTimer = null;
     this._sourceJobPolling = false;
     this._sourceJobRestored = false;
+    this._sourceJobRetryMs = 1200;
+    this._sourceJobHistory = [];
+    this._sourceJobHistoryStatus = "";
     this._deploymentLogsOpen = false;
     this._deploymentLogsBusy = false;
     this._deploymentLogs = [];
@@ -607,7 +610,10 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._deploymentLogsOpen = !this._deploymentLogsOpen;
     this._deploymentLogsConfirm = false;
     this._render();
-    if (this._deploymentLogsOpen) await this._refreshDeploymentLogs();
+    if (this._deploymentLogsOpen) {
+      await this._refreshDeploymentLogs();
+      await this._refreshSourceJobHistory();
+    }
   }
 
   async _refreshDeploymentLogs() {
@@ -632,6 +638,36 @@ class DRAV2DevLabPanel extends HTMLElement {
       this._deploymentLogsBusy = false;
       if (this.isConnected) this._render();
     }
+  }
+
+  async _refreshSourceJobHistory() {
+    if (!this._hass) return;
+    try {
+      const result = await this._hass.callWS({
+        type:"deploy_relay_v2_dev/projects/source_job/history",
+      });
+      if (result?.schema !== "dra-v2-source-job-history-result.v1" ||
+          result.installation_enabled !== false ||
+          result.resume_allowed !== false ||
+          result.source_preview_saved !== false ||
+          !Array.isArray(result.records) || result.records.length > 8 ||
+          result.records.some(record =>
+            !/^[a-f0-9]{32}$/.test(record.operation_id || "") ||
+            !["queued","success","failed","interrupted"].includes(record.status) ||
+            record.installation_enabled !== false ||
+            record.resume_allowed !== false ||
+            record.source_preview_saved !== false)) {
+        throw new Error("invalid source history");
+      }
+      this._sourceJobHistory = result.records;
+      this._sourceJobHistoryStatus = result.records.length ?
+        "Gespeicherte Auftragszustände; alte Ergebnisse sind nicht erneut freigegeben." :
+        "Noch keine gespeicherte Auftragshistorie.";
+    } catch (_error) {
+      this._sourceJobHistory = [];
+      this._sourceJobHistoryStatus = "Auftragshistorie derzeit nicht abrufbar.";
+    }
+    if (this.isConnected) this._render();
   }
 
   async _clearDeploymentLogs() {
@@ -752,7 +788,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     if (this._sourceJobTimer !== null) clearTimeout(this._sourceJobTimer);
     this._sourceJobTimer = null;
     if (this.isConnected && this._sourceBusy) {
-      this._sourceJobTimer = setTimeout(() => this._pollSourceJob(), 1200);
+      this._sourceJobTimer = setTimeout(() => this._pollSourceJob(), this._sourceJobRetryMs);
     }
   }
 
@@ -766,9 +802,18 @@ class DRAV2DevLabPanel extends HTMLElement {
       });
       if (!data || data.schema !== "dra-v2-source-preview-job-status.v1" ||
           data.installation_enabled !== false) throw new Error("invalid source job status");
+      this._sourceJobRetryMs = 1200;
       const job = data.job;
       if (!job) {
+        const missingId = this._sourceJobId;
+        this._sourceJobId = null;
         this._sourceBusy = false;
+        if (missingId) {
+          this._sourcePreview = null;
+          this._deploymentPreviewRef = null;
+          this._sourceMessage = "Alter Auftrag nicht mehr aktiv. Nach HA-Neustart ist eine neue Quellprüfung erforderlich.";
+        }
+        await this._refreshSourceJobHistory();
         return;
       }
       if (job.schema !== "dra-v2-source-preview-job.v1" ||
@@ -818,6 +863,7 @@ class DRAV2DevLabPanel extends HTMLElement {
       // Losing a browser connection never cancels the HA-owned job.
       this._sourceMessage = "Verbindung zur Auftragsanzeige unterbrochen. HA-Auftrag bleibt unabhängig.";
       this._sourceBusy = true;
+      this._sourceJobRetryMs = Math.min(10000, this._sourceJobRetryMs * 2);
     } finally {
       this._sourceJobPolling = false;
       if (this.isConnected) this._render();
@@ -2501,6 +2547,20 @@ class DRAV2DevLabPanel extends HTMLElement {
                         Tatsächlich aktiv möglich: ${record.resources?.active_readonly_limit ?? "—"} Leseauftrag,
                         ${record.resources?.active_mutation_limit ?? "—"} Schreibaufträge.</div>
                     </div>`).join("")}
+                </div>
+                <div class="dra-logs-events" aria-label="Gespeicherte HA-Auftragshistorie">
+                  <strong>Serverseitige Auftragshistorie</strong>
+                  <p class="note">${this._escapeProject(this._sourceJobHistoryStatus)}</p>
+                  ${this._sourceJobHistory.map(item => `
+                    <div class="dra-logs-event">
+                      <strong>Auftrag ${this._escapeProject(item.operation_id.slice(0,12))} ·
+                        ${item.status === "success" ? "Damals erfolgreich" :
+                          item.status === "failed" ? "Fehlgeschlagen" :
+                          item.status === "interrupted" ? "Unterbrochen" : "Begonnen"}</strong>
+                      <span class="note">${this._escapeProject(item.finished_at || item.created_at)}</span>
+                    </div>`).join("")}
+                  <p class="note">Die Historie enthält weder Projektdateien noch Repositorynamen.
+                    Nach HA-Neustart ist immer eine neue Quellprüfung erforderlich.</p>
                 </div>
                 <p class="note">Repositorynamen werden nur dem ausdrücklich freigegebenen privaten Git-Export beigefügt.
                   Projektkennungen gelten für die aktuelle HA-Laufzeit; Prüfkennungen werden auch im Export gespeichert.
