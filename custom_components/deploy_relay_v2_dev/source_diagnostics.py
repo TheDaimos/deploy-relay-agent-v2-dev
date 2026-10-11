@@ -19,7 +19,15 @@ ALLOWED_STAGES = frozenset({
 })
 ALLOWED_REASONS = frozenset({
     "none", "source_unavailable", "repository_access", "commit_unavailable",
-    "manifest_invalid", "manifest_resource_limit", "tree_invalid",
+    "manifest_invalid", "manifest_resource_limit", "manifest_remote_authentication",
+    "manifest_remote_forbidden", "manifest_remote_not_found",
+    "manifest_remote_rate_limited", "manifest_remote_http",
+    "manifest_transport_invalid", "manifest_response_too_large",
+    "manifest_json_invalid", "manifest_size_invalid",
+    "manifest_encoding_invalid", "manifest_content_integrity",
+    "manifest_schema_invalid", "manifest_identity_invalid",
+    "manifest_source_unsupported", "manifest_policy_invalid",
+    "manifest_groups_invalid", "manifest_target_protected", "tree_invalid",
     "tree_remote_authentication", "tree_remote_forbidden", "tree_remote_not_found",
     "tree_remote_rate_limited", "tree_remote_http", "tree_transport_invalid",
     "tree_response_too_large", "tree_json_invalid", "tree_incomplete",
@@ -139,9 +147,38 @@ def classify_source_failure(stage: str, error: BaseException) -> str:
     if stage == "commit":
         return "commit_unavailable"
     if stage == "manifest":
-        if str(error) == "invalid resource limit":
-            return "manifest_resource_limit"
-        return "manifest_invalid"
+        # Exact fixed error text only, never arbitrary exceptions, raw GitHub
+        # responses, secrets, repository identities or local filesystem paths.
+        known = {
+            "github_http_authentication": "manifest_remote_authentication",
+            "github_http_forbidden": "manifest_remote_forbidden",
+            "github_http_not_found": "manifest_remote_not_found",
+            "github_http_rate_limited": "manifest_remote_rate_limited",
+            "GitHub source unavailable or inaccessible": "manifest_remote_http",
+            "GitHub request unsuccessful": "manifest_remote_http",
+            "GitHub response could not be verified": "manifest_transport_invalid",
+            "GitHub response exceeds size limit": "manifest_response_too_large",
+            "invalid GitHub JSON": "manifest_json_invalid",
+            "invalid manifest size": "manifest_size_invalid",
+            "manifest is not an encoded file": "manifest_encoding_invalid",
+            "manifest base64 invalid": "manifest_encoding_invalid",
+            "invalid manifest encoding": "manifest_encoding_invalid",
+            "manifest content integrity failed": "manifest_content_integrity",
+            "unsupported manifest schema": "manifest_schema_invalid",
+            "invalid project identity": "manifest_identity_invalid",
+            "invalid source repository": "manifest_identity_invalid",
+            "repository identity mismatch": "manifest_identity_invalid",
+            "artifact source is not yet supported": "manifest_source_unsupported",
+            "deployment root not approved": "manifest_policy_invalid",
+            "symlinks not permitted": "manifest_policy_invalid",
+            "invalid resource limit": "manifest_resource_limit",
+            "invalid deployment groups": "manifest_groups_invalid",
+            "deployment mode not approved": "manifest_groups_invalid",
+            "overlapping deployment targets": "manifest_groups_invalid",
+            "deployment target not approved for V2": "manifest_target_protected",
+            "protected deployment target": "manifest_target_protected",
+        }
+        return known.get(str(error), "manifest_invalid")
     if stage == "tree":
         # Match only exact, internally authored exception messages.
         # Unknown or dynamically supplied error text is NEVER exported.
