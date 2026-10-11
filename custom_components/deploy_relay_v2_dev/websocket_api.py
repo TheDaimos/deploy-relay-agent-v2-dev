@@ -795,6 +795,7 @@ async def async_projects_source_preview(hass, connection, msg):
     probatio.Required("type"): "deploy_relay_v2_dev/projects/source_job/start",
     probatio.Required("repository"): str,
     probatio.Required("ref"): str,
+    probatio.Optional("connection_test", default=False): bool,
 })
 @websocket_api.require_admin
 @websocket_api.async_response
@@ -815,6 +816,7 @@ async def async_source_job_start(hass, connection, msg):
         ref = source_ref(msg["ref"])
         snapshot = await runtime.source_preview_jobs.start(
             repo, ref, inspect=lambda: _inspect_source_preview(hass, runtime, repo, ref),
+            connection_test=msg["connection_test"] is True,
         )
     except (PreflightError, ValueError):
         connection.send_error(msg["id"], "preview_unavailable", "Leseauftrag nicht möglich")
