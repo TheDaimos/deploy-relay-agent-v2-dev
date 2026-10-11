@@ -24,7 +24,10 @@ TREE = "b" * 40
 
 class Content:
     def __init__(self, data): self.data = data
-    async def read(self, limit): return self.data[:limit]
+    async def read(self, limit):
+        result = self.data[:limit]
+        self.data = self.data[len(result):]
+        return result
 
 
 class Response:
@@ -316,6 +319,61 @@ class SourceRemoteTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaisesRegex(p.PreflightError, "^invalid GitHub JSON$"):
             await m.inspect_public_repository(session, self.root, REPO)
         self.assertEqual(len(session.calls), 4)
+
+    async def test_chunked_tree_response_must_be_read_to_eof(self):
+        """Reproduce the HA symptom: first read returns a partial JSON body."""
+        class FragmentedContent(Content):
+            def __init__(self, data):
+                super().__init__(data)
+                self.calls = 0
+            async def read(self, limit):
+                self.calls += 1
+                return await super().read(min(limit, 97))
+
+        class FragmentedResponse(Response):
+            def __init__(self, data, status=200):
+                super().__init__(data, status)
+                self.content = FragmentedContent(json.dumps(data).encode("utf-8"))
+                self.headers = {"Content-Length": str(len(json.dumps(data).encode("utf-8")))}
+
+        class FragmentedSession(Session):
+            def __init__(self, replies):
+                super().__init__(replies)
+                self.responses = []
+            def get(self, url, **kwargs):
+                self.calls.append((url, kwargs))
+                response = FragmentedResponse(self.replies.pop(0))
+                self.responses.append(response)
+                return response
+
+        lots = [file("custom_components/safe_project/" + str(i) + ".py", b"new")
+                for i in range(60)]
+        session = FragmentedSession(payloads(tree_files=lots))
+        report = await m.inspect_public_repository(session, self.root, REPO)
+        self.assertTrue(report["sources_verified"])
+        self.assertEqual(len(report["add"]), 60)
+        self.assertFalse(report["installation_enabled"])
+        self.assertGreater(session.responses[-1].content.calls, 10)
+        self.assertEqual(session.responses[-1].content.data, b"")
+        self.assertEqual(len(session.calls), 4)  # Never misdiagnose or retry valid chunks.
+
+    async def test_stream_exceeds_budget_without_content_length_warning(self):
+        original = m.MAX_RESPONSE
+        try:
+            m.MAX_RESPONSE = 64
+            class NoSizeResponse:
+                status = 200
+                headers = {}
+                def __init__(self):
+                    self.content = Content(b'{"payload":"' + b'x' * 100 + b'"}')
+                async def __aenter__(self): return self
+                async def __aexit__(self, typ, val, tb): return False
+            class NoSizeSession:
+                def get(self, url, **kwargs): return NoSizeResponse()
+            with self.assertRaisesRegex(p.PreflightError, "^GitHub response exceeds size limit$"):
+                await m._get(NoSizeSession(), "https://api.github.com/repos/x/y")
+        finally:
+            m.MAX_RESPONSE = original
 
     async def test_oversized_file_is_never_scanned(self):
         path = self.root / "custom_components" / "safe_project" / "large.bin"
