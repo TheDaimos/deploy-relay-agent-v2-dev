@@ -9,7 +9,7 @@ from __future__ import annotations
 from collections import deque
 from datetime import datetime, timezone
 import re
-from time import monotonic
+from time import monotonic, process_time
 from uuid import uuid4
 
 SCHEMA = "dra-v2-dev-source-diagnostic.v1"
@@ -26,7 +26,7 @@ ALLOWED_REASONS = frozenset({
 MAX_REPORTS = 8
 _FIELDS = frozenset({
     "schema", "run_id", "captured_at", "status", "stage",
-    "reason", "duration_ms", "sources_verified", "installation_enabled",
+    "reason", "duration_ms", "process_cpu_ms", "sources_verified", "installation_enabled",
     "resources", "steps",
 })
 _DATE_RE = re.compile(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ\Z")
@@ -109,6 +109,7 @@ def sanitize_source_diagnostic(value: object) -> dict:
         value["status"] not in ("success", "failed") or
         type(value["status"]) is not str or
         type(value["duration_ms"]) is not int or not 0 <= value["duration_ms"] <= 60000 or
+        type(value["process_cpu_ms"]) is not int or not 0 <= value["process_cpu_ms"] <= 1000000000 or
         type(value["sources_verified"]) is not bool or
         value["installation_enabled"] is not False or
         (value["status"] == "success") != (value["sources_verified"] is True) or
@@ -153,7 +154,7 @@ class SourceDiagnosticLog:
 
     def begin(self) -> dict:
         start = monotonic()
-        return {"run_id": uuid4().hex, "started": start, "stage": "admission",
+        return {"run_id": uuid4().hex, "started": start, "process_started": process_time(), "stage": "admission",
                 "steps": [{"stage": "admission", "elapsed_ms": 0}]}
 
     @staticmethod
@@ -179,6 +180,9 @@ class SourceDiagnosticLog:
             "stage": context["stage"],
             "reason": reason,
             "duration_ms": duration,
+            # Shared HA process CPU time, NOT the CPU cost of DRA alone.
+            "process_cpu_ms": min(1000000000, max(0, round(
+                (process_time()-context["process_started"])*1000))),
             "resources": resources, "steps": steps,
             "sources_verified": bool(success),
             "installation_enabled": False,
