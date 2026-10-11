@@ -48,6 +48,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._sourcePreview = null;
     this._deploymentPreviewRef = null;
     this._sourceJobId = null;
+    this._sourceConnectionTest = false;
     this._sourceJobTimer = null;
     this._sourceJobPolling = false;
     this._sourceJobRestored = false;
@@ -830,6 +831,9 @@ class DRAV2DevLabPanel extends HTMLElement {
       }
       if (!this._sourceJobId) this._sourceJobId = job.operation_id;
       if (this._sourceJobId !== job.operation_id) throw new Error("different source job");
+      if (typeof job.connection_test !== "undefined" &&
+          typeof job.connection_test !== "boolean") throw new Error("invalid test mode");
+      this._sourceConnectionTest = job.connection_test === true;
       if (!this._selectedMainRepo &&
           this._projects.some(project => project.repository.toLowerCase() === job.repository.toLowerCase())) {
         this._selectedMainRepo = job.repository;
@@ -847,14 +851,18 @@ class DRAV2DevLabPanel extends HTMLElement {
         this._sourceRepository = job.repository;
         const identity = job.operation_id.slice(0, 12);
         if (this._sourceBusy) {
-          this._sourceMessage = "HA prüft die Quelle serverseitig · Auftrag " + identity;
+          this._sourceMessage = this._sourceConnectionTest
+            ? "G2-Verbindungstest · HA hält den Leseauftrag zunächst 30 Sekunden offen · Auftrag " + identity
+            : "HA prüft die Quelle serverseitig · Auftrag " + identity;
         } else if (job.status === "success" &&
             job.result?.sources_verified === true &&
             job.result?.installation_enabled === false &&
             job.result?.repository?.toLowerCase() === job.repository.toLowerCase()) {
           this._sourcePreview = job.result;
           this._deploymentPreviewRef = this._view === "main" ? job.ref : null;
-          this._sourceMessage = "Quellprüfung abgeschlossen · Auftrag " + identity +
+          this._sourceMessage = (this._sourceConnectionTest
+            ? "G2-Verbindungstest abgeschlossen · Auftrag "
+            : "Quellprüfung abgeschlossen · Auftrag ") + identity +
             ". Installation weiterhin gesperrt.";
         } else {
           this._sourcePreview = null;
@@ -876,7 +884,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     }
   }
 
-  async _sourceCheck(button) {
+  async _sourceCheck(button, connectionTest = false) {
     if (!button || !this._hass || this._sourceBusy) return;
     const repository = button.dataset.repo;
     const ref = this._view === "main" ? this._mainSourceRef.trim() :
@@ -886,11 +894,15 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._sourcePreview = null;
     this._deploymentPreviewRef = null;
     this._sourceJobId = null;
-    this._sourceMessage = "HA startet die schreibgeschützte Quellprüfung …";
+    this._sourceConnectionTest = connectionTest === true;
+    this._sourceMessage = this._sourceConnectionTest
+      ? "G2-Verbindungstest wird vorbereitet (30 Sekunden) …"
+      : "HA startet die schreibgeschützte Quellprüfung …";
     this._render();
     try {
       const job = await this._hass.callWS({
         type:"deploy_relay_v2_dev/projects/source_job/start", repository, ref,
+        connection_test: this._sourceConnectionTest,
       });
       if (job?.schema !== "dra-v2-source-preview-job.v1" ||
           job.installation_enabled !== false ||
@@ -1340,7 +1352,8 @@ class DRAV2DevLabPanel extends HTMLElement {
     const activeMainProjects = this._projects.filter(p => p.active !== false);
     const mainProject = activeMainProjects.find(p => p.repository === this._selectedMainRepo) || activeMainProjects[0] || null;
     const mainBatchProjects = this._mainBatchProjects();
-    const mainPreviewVerified = !this._mainBatchMode && !!mainProject &&
+    const mainPreviewVerified = !this._mainBatchMode && !this._sourceConnectionTest &&
+      !!mainProject &&
       this._sourceRepository === mainProject.repository &&
       this._deploymentPreviewRef === this._mainSourceRef.trim() &&
       this._sourcePreview?.sources_verified === true &&
@@ -2598,6 +2611,13 @@ class DRAV2DevLabPanel extends HTMLElement {
                 role="listitem" aria-label="Schritt ${i+1}: ${item[1]}, ${i+1 === deploymentStage ? deploymentStage===2 ? "noch gesperrt" : "aktuell" : i+1 < deploymentStage ? "abgeschlossen" : "ausstehend"}">
                 ${item[2]}<span>${i+1}. ${item[0]}</span></div>`).join("")}
             </div>
+            <p class="note" style="margin-top:14px">G2-Verbindungstest: ausschließlich lesender HA-Auftrag
+              mit festem 30-Sekunden-Testfenster. Der Browser darf währenddessen getrennt werden.
+              Kein Neustart, keine Installationsfreigabe.</p>
+            <button type="button" id="dra-g2-connection-test"
+              ${this._mainBatchMode || deploymentBusy || !mainProject || !this._hass ? "disabled" : ""}>
+              G2 · Verbindungstest (30 s)
+            </button>
             <p class="dra-deployment-status note" role="status" aria-live="polite">
               ${this._escapeProject(deploymentStatus)}
             </p>
@@ -3102,6 +3122,10 @@ class DRAV2DevLabPanel extends HTMLElement {
     s.querySelector("#dra-logs-json")?.addEventListener("click",()=>this._deploymentLogsAction("json"));
     s.querySelector("#dra-logs-git")?.addEventListener("click",()=>this._deploymentLogsAction("git"));
     s.querySelector("#dra-logs-copy")?.addEventListener("click",()=>this._deploymentLogsAction("copy"));
+    s.querySelector("#dra-g2-connection-test")?.addEventListener("click",()=>{
+      if (deploymentBusy || this._mainBatchMode || !mainProject) return;
+      this._sourceCheck({dataset:{repo:mainProject.repository}}, true);
+    });
     s.querySelector("#dra-preview")?.addEventListener("click",()=>{
       if (deploymentBusy || deploymentStage !== 1) return;
       if (this._mainBatchMode) this._previewMainBatch();
