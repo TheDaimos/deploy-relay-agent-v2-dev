@@ -944,6 +944,8 @@ async def async_deployment_logs_download(hass, connection, msg):
 
 @websocket_api.websocket_command({
     probatio.Required("type"): "deploy_relay_v2_dev/deployment/logs/export",
+    probatio.Optional("g2_prepare", default=False): bool,
+    probatio.Optional("g2_confirm", default=False): bool,
 })
 @websocket_api.require_admin
 @websocket_api.async_response
@@ -963,6 +965,23 @@ async def async_deployment_logs_export(hass, connection, msg):
                               "Privates zentrales Diagnosearchiv nicht ausgewählt")
         return
     try:
+        if msg["g2_prepare"]:
+            # DEV-only, explicitly confirmed and exclusively private:
+            # persist the real sanitized diagnostic but do not send to GitHub.
+            # No existing pending report may be replaced.
+            if not msg["g2_confirm"] or runtime.git_export.pending:
+                connection.send_error(msg["id"], "retry_test_not_allowed",
+                                      "G2-Prüfung benötigt Bestätigung und leere Warteschlange")
+                return
+            source_repository = runtime.source_diagnostics.private_repository_for(record["run_id"])
+            result = await runtime.git_export.prepare_retry_test(
+                record, version=VERSION, private_source_repository=source_repository)
+            connection.send_result(msg["id"], result)
+            return
+        if msg["g2_confirm"]:
+            connection.send_error(msg["id"], "invalid_confirmation",
+                                  "G2-Bestätigung nur im Prüfmodus zulässig")
+            return
         if runtime.git_export.pending:
             # One archived report was durably queued by a previous failed
             # upload. Retry THAT exact immutable payload and target first;
