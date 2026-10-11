@@ -21,7 +21,7 @@ Die übernommene **historische Ausgangsbasis** meldete Version 1.0.0. Der aktuel
 
 ## Aktueller Entwicklungsstand (11.10.2026)
 
-Das getrennte V2-DEV-Testlabor enthält Projektverwaltung, GitHub-Lesezugänge, eine **implementierte schreibgeschützte** Einzelquellvorschau (der letzte HA-Test scheiterte bei der Git-Baumprüfung), gesonderte Lese-Messaufträge mit begrenztem Journal und private Diagnoseexporte ausschließlich in das vom Administrator konfigurierte zentrale Archiv. Die Bedienoberfläche nutzt eine zentrale vierstufige Deployment-Schaltfläche; nur die Vorschau ist betriebsfähig, weitere Stufen bleiben gesperrt.
+Das getrennte V2-DEV-Testlabor enthält Projektverwaltung, GitHub-Lesezugänge, eine **schreibgeschützte Einzelquellvorschau, die mit Gewitterradar ab 0.1.61 erfolgreich in HA realgetestet wurde**, gesonderte Lese-Messaufträge mit begrenztem Journal und private Diagnoseexporte ausschließlich in das vom Administrator konfigurierte zentrale Archiv. Die Bedienoberfläche nutzt eine zentrale vierstufige Deployment-Schaltfläche; nur die Vorschau ist betriebsfähig, weitere Stufen bleiben gesperrt.
 
 Seit **0.1.54** überprüft ein rein berechnender Zielbesitzvertrag bekannte Kollisionen zwischen Projektzielwurzeln, einschließlich case-insensitiver Dopplungen. Ein kollisionsfreier Bericht beweist **keinen** exklusiven V2-Besitz und entsperrt **keine** Mutation. Referenz: [Zielbesitz-/Kollisionsvertrag](docs/V2_TARGET_OWNERSHIP_AND_CONFLICT_GATE_2026-10-11.md) und [aktuelle Projektübergabe](docs/HANDOFF_DRA_V2_DEV_0_1_53_2026-10-11.md).
 
@@ -37,9 +37,11 @@ Seit **0.1.59** erscheinen in Deployment-Logs und Screenshots kurze, nur für di
 
 Seit **0.1.60** wird eine vorübergehend fehlgeschlagene **schreibgeschützte GitHub-Übertragung höchstens einmal** mit identischer GET-Anfrage wiederholt; HTTP-Sperren, zu große Antworten und fehlerhaftes JSON bleiben ohne Wiederholung gesperrt. Anlass war die im privaten Archiv 0.1.59 eindeutig Gewitterradar zugeordnete Prüfung mit `tree_transport_invalid`. Die Ursache des konkreten Transportfehlers ist noch nicht bewiesen; die HA-Nachprüfung steht weiterhin aus. [Technik, Grenzen und Tests](docs/V2_GITHUB_READ_RETRY_0_1_60_2026-10-11.md).
 
-Seit **0.1.61** liest die schreibgeschützte GitHub-Quellprüfung eine HTTP-Antwort vollständig bis zum tatsächlichen Datenstrom-Ende, statt bereits den ersten eintreffenden Block als fertiges JSON auszuwerten. Anlass war der reale, private Gewitterradar-Export mit dem Fehlercode `tree_json_invalid`. Die **4-MiB-Grenze** und alle weiteren Sicherheitsprüfungen bleiben unverändert. Die gezielt fragmentierten Testantworten sind erfolgreich automatisiert geprüft; die HA-Ende-zu-Ende-Vorschau muss noch real abgenommen werden. [Fehlerursache und Korrektur](docs/V2_GITHUB_STREAM_COMPLETENESS_0_1_61_2026-10-11.md).
+Seit **0.1.61** liest die schreibgeschützte GitHub-Quellprüfung eine HTTP-Antwort vollständig bis zum tatsächlichen Datenstrom-Ende, statt bereits den ersten eintreffenden Block als fertiges JSON auszuwerten. Anlass war der reale, private Gewitterradar-Export mit dem Fehlercode `tree_json_invalid`. Die **4-MiB-Grenze** und alle weiteren Sicherheitsprüfungen bleiben unverändert. Die gezielt fragmentierten Testantworten sind erfolgreich automatisiert geprüft; die HA-Ende-zu-Ende-Vorschau wurde mit Gewitterradar inzwischen real abgenommen. [Fehlerursache und Korrektur](docs/V2_GITHUB_STREAM_COMPLETENESS_0_1_61_2026-10-11.md).
 
 Nicht vorhanden/freigegeben: tatsächliche V2-eigene Sicherungsarchive, unabhängige Wiederherstellung, transaktionale Installation, parallele Sammelinstallation oder V2-Neustartsteuerung. Die jüngsten UI-Änderungen sind noch auf HA/Android real abzunehmen.
+
+Die echte HA-Abnahme der Gewitterradar-Vorschau ist hier dokumentiert: [HA-Realabnahme 0.1.61](docs/HA_REALABNAHME_SOURCE_PREVIEW_0_1_61_2026-10-11.md). Der nächste verbindliche Abschnitt steht in [G2–G5: Auftragsführung, Zielbesitz, Backup, Einzelinstallation](docs/V2_GATES_NACH_SOURCE_PREVIEW_REALABNAHME_2026-10-11.md). Eine erfolgreiche Vorschau ist **keine** Installations- oder Veröffentlichungsfreigabe.
 
 ## Geplante Schwerpunkte
 
