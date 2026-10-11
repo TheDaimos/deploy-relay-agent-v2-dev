@@ -852,10 +852,23 @@ class MeasurementGitExport:
                         raise GitMeasurementError(
                             "central archive cannot verify private repository access"
                         )
-                    payload = await response.content.read(8193)
-                    if len(payload) > 8192:
-                        raise GitMeasurementError("central archive repository response too large")
-                    metadata = json.loads(payload)
+                    # aiohttp StreamReader.read(n) may return just the first
+                    # network fragment. A truncated JSON body must never be
+                    # mistaken for an inaccessible private repository.
+                    # Read to EOF, retaining at most 8193 bytes.
+                    body = bytearray()
+                    while True:
+                        remaining = 8193 - len(body)
+                        fragment = await response.content.read(min(2048, remaining))
+                        if not fragment:
+                            break
+                        body.extend(fragment)
+                        if len(body) > 8192:
+                            raise GitMeasurementError("central archive repository response too large")
+                    try:
+                        metadata = json.loads(body.decode("utf-8"))
+                    except (ValueError, UnicodeError):
+                        raise GitMeasurementError("central archive response is not valid JSON") from None
         except GitMeasurementError:
             raise
         except Exception:
