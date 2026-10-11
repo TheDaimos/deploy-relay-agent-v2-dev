@@ -617,8 +617,9 @@ class DRAV2DevLabPanel extends HTMLElement {
   async _deploymentLogsAction(kind) {
     if (!this._hass || this._deploymentLogsBusy || !this._deploymentLogs.length ||
         !["git","json","copy"].includes(kind)) return;
-    if (kind === "git" && this._centralExport.configured !== true) {
-      this._deploymentLogsStatus = "Zuerst das private Git-Archiv unter Diagnose & Einstellungen einrichten.";
+    if (kind === "git" && (this._centralExport.configured !== true ||
+        this._centralExport.repository !== "TheDaimos/Project-Log-And-Export")) {
+      this._deploymentLogsStatus = "Privates Project-Log-And-Export unter Diagnose & Einstellungen einrichten.";
       this._render();
       return;
     }
@@ -2295,7 +2296,7 @@ class DRAV2DevLabPanel extends HTMLElement {
               <section class="dra-logs-panel" id="dra-deployment-logs-panel"
                 aria-label="Bereinigte Deployment-Protokolle">
                 <div class="dra-logs-actions">
-                  <button id="dra-logs-git" ${!this._deploymentLogs.length || this._deploymentLogsBusy || !this._centralExport.configured ? "disabled" : ""}>Export nach Git</button>
+                  <button id="dra-logs-git" ${!this._deploymentLogs.length || this._deploymentLogsBusy || !this._centralExport.configured || this._centralExport.repository !== "TheDaimos/Project-Log-And-Export" ? "disabled" : ""}>Export nach Git</button>
                   <button id="dra-logs-json" ${!this._deploymentLogs.length || this._deploymentLogsBusy ? "disabled" : ""}>JSON herunterladen</button>
                   <button id="dra-logs-copy" ${!this._deploymentLogs.length || this._deploymentLogsBusy ? "disabled" : ""}>Zwischenablage</button>
                 </div>
