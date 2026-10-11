@@ -852,7 +852,9 @@ class DRAV2DevLabPanel extends HTMLElement {
         const identity = job.operation_id.slice(0, 12);
         if (this._sourceBusy) {
           this._sourceMessage = this._sourceConnectionTest
-            ? "G2-Verbindungstest · HA hält den Leseauftrag zunächst 30 Sekunden offen · Auftrag " + identity
+            ? (job.stage === "connection_test_wait"
+              ? "G2-Verbindungstest · HA hält den Leseauftrag 30 Sekunden offen · Auftrag " + identity
+              : "G2-Verbindungstest · HA führt die echte Quellprüfung aus · Auftrag " + identity)
             : "HA prüft die Quelle serverseitig · Auftrag " + identity;
         } else if (job.status === "success" &&
             job.result?.sources_verified === true &&
