@@ -1,4 +1,5 @@
 /* Separate DRA V2 DEV read-only lab. No V1 custom element or URLs. */
+const G2_TEST_PYTHON_VERSION = "0.1.66";
 class DRAV2DevLabPanel extends HTMLElement {
   constructor() {
     super();
@@ -49,6 +50,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._deploymentPreviewRef = null;
     this._sourceJobId = null;
     this._sourceConnectionTest = false;
+    this._serverVersion = null;
     this._sourceJobTimer = null;
     this._sourceJobPolling = false;
     this._sourceJobRestored = false;
@@ -266,6 +268,8 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._busy = true;
     try {
       const data = await this._hass.callWS({ type: "deploy_relay_v2_dev/test/state" });
+      this._serverVersion = typeof data.version === "string" &&
+        /^\d+\.\d+\.\d+$/.test(data.version) ? data.version : null;
       this._operation = (data.operations || [])[0] || null;
       this._observeCountdown(this._operation);
       this._measurement = data.measurement || null;
@@ -853,7 +857,7 @@ class DRAV2DevLabPanel extends HTMLElement {
         if (this._sourceBusy) {
           this._sourceMessage = this._sourceConnectionTest
             ? (job.stage === "connection_test_wait"
-              ? "G2-Verbindungstest · HA hält den Leseauftrag 30 Sekunden offen · Auftrag " + identity
+              ? "G2-Verbindungstest · HA hält den Leseauftrag 60 Sekunden offen · Auftrag " + identity
               : "G2-Verbindungstest · HA führt die echte Quellprüfung aus · Auftrag " + identity)
             : "HA prüft die Quelle serverseitig · Auftrag " + identity;
         } else if (job.status === "success" &&
@@ -888,6 +892,13 @@ class DRAV2DevLabPanel extends HTMLElement {
 
   async _sourceCheck(button, connectionTest = false) {
     if (!button || !this._hass || this._sourceBusy) return;
+    if (connectionTest && this._serverVersion !== G2_TEST_PYTHON_VERSION) {
+      this._sourceMessage = "G2-Test nicht startbar: Python-Laufzeit " +
+        (this._serverVersion || "nicht ermittelt") + ", benötigt " +
+        G2_TEST_PYTHON_VERSION + ". Keine Quellprüfung gestartet.";
+      this._render();
+      return;
+    }
     const repository = button.dataset.repo;
     const ref = this._view === "main" ? this._mainSourceRef.trim() :
       (this.shadowRoot?.querySelector("#source-ref")?.value?.trim() || "");
@@ -898,7 +909,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._sourceJobId = null;
     this._sourceConnectionTest = connectionTest === true;
     this._sourceMessage = this._sourceConnectionTest
-      ? "G2-Verbindungstest wird vorbereitet (30 Sekunden) …"
+      ? "G2-Verbindungstest wird vorbereitet (60 Sekunden) …"
       : "HA startet die schreibgeschützte Quellprüfung …";
     this._render();
     try {
@@ -914,7 +925,10 @@ class DRAV2DevLabPanel extends HTMLElement {
       this._sourceJobId = job.operation_id;
       await this._pollSourceJob();
     } catch (_error) {
-      this._sourceMessage = "Quellprüfung nicht startbar. Die Installation bleibt gesperrt.";
+      this._sourceMessage = this._sourceConnectionTest
+        ? "G2-Teststart vom HA-Server nicht bestätigt (Python-Laufzeit " +
+          (this._serverVersion || "unbekannt") + "). Keine Freigabe."
+        : "Quellprüfung nicht startbar. Die Installation bleibt gesperrt.";
       this._sourceBusy = false;
     } finally {
       if (this.isConnected) this._render();
@@ -2614,11 +2628,17 @@ class DRAV2DevLabPanel extends HTMLElement {
                 ${item[2]}<span>${i+1}. ${item[0]}</span></div>`).join("")}
             </div>
             <p class="note" style="margin-top:14px">G2-Verbindungstest: ausschließlich lesender HA-Auftrag
-              mit festem 30-Sekunden-Testfenster. Der Browser darf währenddessen getrennt werden.
+              mit festem 60-Sekunden-Testfenster. Der Browser darf währenddessen getrennt werden.
               Kein Neustart, keine Installationsfreigabe.</p>
+            <p class="note">Aktive Python-Version: ${this._escapeProject(this._serverVersion || "nicht ermittelt")}
+              · G2-Test benötigt ${G2_TEST_PYTHON_VERSION}.
+              ${this._serverVersion === G2_TEST_PYTHON_VERSION
+                ? "Laufzeit kompatibel."
+                : "Test gesperrt: Oberfläche und Python-Laufzeit noch nicht auf demselben Stand."}</p>
             <button type="button" id="dra-g2-connection-test"
-              ${this._mainBatchMode || deploymentBusy || !mainProject || !this._hass ? "disabled" : ""}>
-              G2 · Verbindungstest (30 s)
+              ${this._mainBatchMode || deploymentBusy || !mainProject || !this._hass ||
+                this._serverVersion !== G2_TEST_PYTHON_VERSION ? "disabled" : ""}>
+              G2 · Verbindungstest (60 s)
             </button>
             <p class="dra-deployment-status note" role="status" aria-live="polite">
               ${this._escapeProject(deploymentStatus)}
