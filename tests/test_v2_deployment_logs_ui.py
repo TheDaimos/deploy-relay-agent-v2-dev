@@ -32,6 +32,7 @@ class DeploymentLogUiContract(unittest.TestCase):
         self.assertIn("deploy_relay_v2_dev/deployment/logs/export", js)
         self.assertIn('parsed?.snapshot?.schema !== "dra-v2-dev-git-source-diagnostic.v1"', js)
         self.assertIn('this._centralExport.configured', js)
+        self.assertIn('this._centralExport.repository !== "TheDaimos/Project-Log-And-Export"', js)
         self.assertIn('await navigator.clipboard.writeText(result.content)', js)
         self.assertNotIn("github.com/TheDaimos/Project-Log-And-Export", js)
 
@@ -43,6 +44,7 @@ class DeploymentLogUiContract(unittest.TestCase):
                      "async_deployment_logs_export"):
             definition = ws.index("async def " + name + "(")
             self.assertIn("@websocket_api.require_admin", ws[max(0, definition-210):definition])
+        self.assertIn('runtime.git_export.repository != "TheDaimos/Project-Log-And-Export"', ws)
         self.assertNotIn('deploy_relay_v2_dev/deployment/install', ws)
         self.assertNotIn('deploy_relay_v2_dev/deployment/restart', ws)
 
