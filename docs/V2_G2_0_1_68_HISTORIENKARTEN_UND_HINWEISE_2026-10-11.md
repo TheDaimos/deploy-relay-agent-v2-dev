@@ -32,7 +32,7 @@ Der Native-Aufklappmechanismus nutzt etablierte HTML-Funktionen, keine neue Bibl
 - Python-Standardbibliotheksvertragstests sowie Python-/JavaScript-Syntax.
 - Node-Oberflächentests für voneinander getrennte Statuskarten, Roll-Hinweis, standardmäßig geschlossenen Aufklappbereich, beharrenden Öffnungszustand bei Oberflächen-Neuzeichnung und weiterhin gesperrte Deployment-Schritte.
 - Der bestehende 60-Sekunden-Verbindungstest bleibt unverändert; sein Laufzeit-Versionstor erwartet beim nächsten DEV-Stand 0.1.68.
-- **CI-Lauf ergänzen nach endgültigem Erfolg; nicht vorzeitig Erfolg behaupten.**
+- **CI-Lauf erfolgreich:** [GitHub Actions 38164735204](https://github.com/TheDaimos/deploy-relay-agent-v2-dev/actions/runs/38164735204) auf Entwicklungscheckpoint `928e3dfb651f56ef8aff3012e3ef0ca40f438152`. Python-Vertragstests, Syntaxprüfungen, JavaScript-Oberflächenprüfungen einschließlich der neuen Karten- und Aufklappbereichstests sowie Ausschluss von Artefaktveröffentlichungen sämtlich **SUCCESS**. Folgende Änderungen betreffen nur die bereinigte Dokumentation und den Projektkontext. Die HA-Realabnahme steht weiterhin aus.
 
 ## Ein einziger HA-Realtest nach grünem CI
 
