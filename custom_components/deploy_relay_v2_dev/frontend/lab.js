@@ -1,5 +1,5 @@
 /* Separate DRA V2 DEV read-only lab. No V1 custom element or URLs. */
-const G2_TEST_PYTHON_VERSION = "0.1.67";
+const G2_TEST_PYTHON_VERSION = "0.1.68";
 class DRAV2DevLabPanel extends HTMLElement {
   constructor() {
     super();
@@ -61,6 +61,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._deploymentLogsBusy = false;
     this._historyRefreshBusy = false;
     this._historyRefreshStatus = "";
+    this._logsNotesOpen = false;
     this._deploymentLogs = [];
     this._deploymentLogCount = 0;
     this._deploymentLogsStatus = "";
@@ -1838,6 +1839,52 @@ class DRAV2DevLabPanel extends HTMLElement {
           .dra-history-refresh {transition:none;}
           .dra-history-refresh.is-loading svg {animation:none;}
         }
+        /* Clear section boundaries, distinct job cards and compact technical notes. */
+        .dra-history-section {border-top:1px solid rgba(203,165,100,.55);
+          margin-top:18px;padding-top:16px;}
+        .dra-history-list {box-sizing:border-box;max-height:310px;min-height:0;
+          overflow-y:auto;overscroll-behavior:contain;margin-top:10px;
+          padding:4px 4px 5px 2px;scrollbar-color:#788591 #1a2530;}
+        .dra-history-item {box-sizing:border-box;display:flex;flex-direction:column;
+          gap:6px;position:relative;margin:0 2px 9px;padding:12px 13px;
+          border:1px solid #516474;border-left:3px solid #8aa6b7;border-radius:12px;
+          background:linear-gradient(125deg,rgba(43,58,69,.92),rgba(27,39,49,.9));
+          box-shadow:inset 0 1px 0 rgba(255,255,255,.045),0 2px 6px #0003;}
+        .dra-history-item:last-child {margin-bottom:0;}
+        .dra-history-item.success {border-left-color:#65b98b;}
+        .dra-history-item.failed {border-left-color:#d38281;}
+        .dra-history-item.interrupted {border-left-color:#d8a767;}
+        .dra-history-item.queued {border-left-color:#80b6d7;}
+        .dra-history-item-head {display:flex;align-items:center;justify-content:space-between;
+          gap:9px;min-width:0;flex-wrap:wrap;}
+        .dra-history-item-head strong {font-size:13px;font-weight:750;color:#edf5fa;
+          overflow-wrap:anywhere;line-height:1.4;}
+        .dra-history-state {padding:4px 8px;flex:none;border-radius:999px;
+          border:1px solid #678b77;background:rgba(39,104,66,.23);
+          color:#bdebcf;font-size:11px;font-weight:700;}
+        .dra-history-item.failed .dra-history-state {border-color:#9e6265;
+          background:rgba(117,47,57,.18);color:#f2bdc2;}
+        .dra-history-item.interrupted .dra-history-state {border-color:#b18a5c;
+          background:rgba(125,84,34,.16);color:#f6d19c;}
+        .dra-history-item.queued .dra-history-state {border-color:#648daa;
+          background:rgba(40,88,119,.15);color:#bbddf4;}
+        .dra-history-item-time {font-size:12px;color:#becbd4;
+          overflow-wrap:anywhere;line-height:1.45;}
+        .dra-history-scroll-hint {margin:7px 0 0;font-size:11px;color:#a9bac6;}
+        .dra-logs-notes {box-sizing:border-box;margin-top:17px;border:1px solid #536475;
+          border-radius:12px;background:linear-gradient(120deg,rgba(37,50,59,.8),rgba(25,37,47,.82));}
+        .dra-logs-notes summary {padding:13px 14px;min-height:44px;box-sizing:border-box;
+          color:#d6e2e9;font-size:13px;font-weight:700;line-height:1.45;cursor:pointer;}
+        .dra-logs-notes summary::marker {color:#dfbc79;}
+        .dra-logs-notes summary:focus-visible {outline:2px solid #f0cd86;outline-offset:3px;}
+        .dra-logs-notes[open] {border-color:#ad925f;}
+        .dra-logs-notes[open] summary {border-bottom:1px solid #52606e;color:#f0d6a2;}
+        .dra-logs-notes-content {padding:3px 14px 12px;}
+        .dra-logs-notes-content p {margin:10px 0 0;}
+        @media(max-width:420px) {
+          .dra-history-item {padding:11px 10px;}
+          .dra-history-list {max-height:300px;}
+        }
         .dra-logs-panel .note {font-size:12px;line-height:1.45;}
         @media (max-width:420px) {.dra-logs-actions {grid-template-columns:1fr;}
           .dra-deployment-heading h2 {font-size:17px;}}
@@ -2643,7 +2690,7 @@ class DRAV2DevLabPanel extends HTMLElement {
                         ${record.resources?.active_mutation_limit ?? "—"} Schreibaufträge.</div>
                     </div>`).join("")}
                 </div>
-                <div class="dra-logs-events" aria-label="Gespeicherte HA-Auftragshistorie">
+                <div class="dra-history-section" aria-label="Serverseitige Auftragshistorie">
                   <div class="dra-history-heading">
                     <strong>Serverseitige Auftragshistorie</strong>
                     <button type="button" id="dra-history-refresh"
@@ -2660,22 +2707,34 @@ class DRAV2DevLabPanel extends HTMLElement {
                   </div>
                   <p class="dra-history-refresh-status" role="status" aria-live="polite">${this._escapeProject(this._historyRefreshStatus)}</p>
                   <p class="note">${this._escapeProject(this._sourceJobHistoryStatus)}</p>
-                  ${this._sourceJobHistory.map(item => `
-                    <div class="dra-logs-event">
-                      <strong>Auftrag ${this._escapeProject(item.operation_id.slice(0,12))} ·
-                        ${item.status === "success" ? "Damals erfolgreich" :
-                          item.status === "failed" ? "Prüfung gescheitert" :
-                          item.status === "interrupted" ? "Unterbrochen" : "Begonnen"}</strong>
-                      <span class="note">${this._escapeProject(item.finished_at || item.created_at)}</span>
-                    </div>`).join("")}
-                  <p class="note">Die Historie enthält weder Projektdateien noch Repositorynamen.
-                    Nach HA-Neustart ist immer eine neue Quellprüfung erforderlich.</p>
+                  <div class="dra-history-list" role="list" aria-label="Gespeicherte Aufträge; innerhalb der Liste scrollen">
+                    ${this._sourceJobHistory.map(item => `
+                      <div class="dra-history-item ${item.status}" role="listitem">
+                        <div class="dra-history-item-head">
+                          <strong>Auftrag ${this._escapeProject(item.operation_id.slice(0,12))}</strong>
+                          <span class="dra-history-state">${item.status === "success" ? "Damals erfolgreich" :
+                            item.status === "failed" ? "Prüfung gescheitert" :
+                            item.status === "interrupted" ? "Unterbrochen" : "Begonnen"}</span>
+                        </div>
+                        <span class="dra-history-item-time">${this._escapeProject(item.finished_at || item.created_at)}</span>
+                      </div>`).join("")}
+                  </div>
+                  ${this._sourceJobHistory.length > 3
+                    ? `<p class="dra-history-scroll-hint">Weitere Aufträge durch Wischen innerhalb der Liste anzeigen · ${this._sourceJobHistory.length} gespeichert.</p>`
+                    : ""}
                 </div>
-                <p class="note">Repositorynamen werden nur dem ausdrücklich freigegebenen privaten Git-Export beigefügt.
-                  Projektkennungen gelten für die aktuelle HA-Laufzeit; Prüfkennungen werden auch im Export gespeichert.
-                  CPU-Zeit gilt für den gesamten Home-Assistant-Prozess, nicht isoliert für DRA V2.
-                  Eingestellte Arbeitsprozesse sind keine tatsächlich gestarteten Prozesse.
-                  Nur bereinigte Quellprüfungen; kein Schreibzugriff. Git-Export ausschließlich zum eingestellten privaten Archiv.</p>
+                <details class="dra-logs-notes" id="dra-logs-notes" ${this._logsNotesOpen ? "open" : ""}>
+                  <summary>Hinweise zu Protokollen und Datenschutz</summary>
+                  <div class="dra-logs-notes-content">
+                    <p class="note">Die Historie enthält weder Projektdateien noch Repositorynamen.
+                      Nach HA-Neustart ist immer eine neue Quellprüfung erforderlich.</p>
+                    <p class="note">Repositorynamen werden nur dem ausdrücklich freigegebenen privaten Git-Export beigefügt.
+                      Projektkennungen gelten für die aktuelle HA-Laufzeit; Prüfkennungen werden auch im Export gespeichert.
+                      CPU-Zeit gilt für den gesamten Home-Assistant-Prozess, nicht isoliert für DRA V2.
+                      Eingestellte Arbeitsprozesse sind keine tatsächlich gestarteten Prozesse.
+                      Nur bereinigte Quellprüfungen; kein Schreibzugriff. Git-Export ausschließlich zum eingestellten privaten Archiv.</p>
+                  </div>
+                </details>
               </section>` : ""}
             <button id="dra-preview" class="dra-deploy-action stage-${deploymentStage}
               ${deploymentBusy ? "is-busy" : ""}"
@@ -3207,6 +3266,9 @@ class DRAV2DevLabPanel extends HTMLElement {
     s.querySelector("#dra-project-manage")?.addEventListener("click",()=>this._openProjectDialog());
     s.querySelector("#dra-deployment-logs-toggle")?.addEventListener("click",()=>this._toggleDeploymentLogs());
     s.querySelector("#dra-history-refresh")?.addEventListener("click",()=>this._refreshHistoryManually());
+    s.querySelector("#dra-logs-notes")?.addEventListener("toggle",e=>{
+      this._logsNotesOpen = e.currentTarget.open;
+    });
     s.querySelector("#dra-deployment-logs-clear")?.addEventListener("click",()=>{
       this._deploymentLogsOpen = true;
       this._deploymentLogsConfirm = true;
