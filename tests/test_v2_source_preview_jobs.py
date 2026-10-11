@@ -1,0 +1,130 @@
+"""G2: server-owned and reconnectable read-only preview job contracts."""
+from __future__ import annotations
+
+import asyncio
+import importlib
+import sys
+import types
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1] / "custom_components" / "deploy_relay_v2_dev"
+PKG = "_v2_source_jobs_test"
+pkg = types.ModuleType(PKG)
+pkg.__path__ = [str(ROOT)]
+sys.modules[PKG] = pkg
+module = importlib.import_module(PKG + ".source_preview_jobs")
+SourcePreviewJobs = module.SourcePreviewJobs
+SourcePreviewJobError = module.SourcePreviewJobError
+REPO = "TheDaimos/gewitterradar"
+
+
+def successful(repo=REPO):
+    return {
+        "repository": repo, "sources_verified": True,
+        "installation_enabled": False, "source_commit": "a" * 40,
+        "add": ["custom_components/gewitterradar/a.py"],
+        "target_claims": {"exclusive_ownership_verified": False,
+                          "installation_enabled": False},
+    }
+
+
+class SourcePreviewJobContract(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        self.tasks = []
+        def factory(coro):
+            task = asyncio.create_task(coro)
+            self.tasks.append(task)
+            return task
+        self.owner = SourcePreviewJobs(factory)
+        self.addAsyncCleanup(self.owner.close)
+
+    async def test_browser_detach_same_id_and_backend_owned_completion(self):
+        started = asyncio.Event()
+        release = asyncio.Event()
+        count = 0
+        async def inspect():
+            nonlocal count
+            count += 1
+            started.set()
+            await release.wait()
+            return successful()
+        first = await self.owner.start(REPO, "", inspect=inspect)
+        self.assertEqual(first["status"], "queued")
+        await asyncio.wait_for(started.wait(), 2)
+        again = await self.owner.start("thedaimos/GEWITTERRADAR", "", inspect=inspect)
+        self.assertEqual(first["operation_id"], again["operation_id"])
+        self.assertEqual(count, 1)
+        with self.assertRaises(SourcePreviewJobError):
+            await self.owner.start("TheDaimos/weather-router-dev", "", inspect=inspect)
+        # The websocket caller is gone, but this detached backend task finishes.
+        release.set()
+        await asyncio.gather(*self.tasks)
+        restored = await self.owner.get(first["operation_id"])
+        self.assertEqual(restored["status"], "success")
+        self.assertEqual(restored["stage"], "complete")
+        self.assertFalse(restored["installation_enabled"])
+        self.assertEqual((await self.owner.latest())["operation_id"], first["operation_id"])
+        restored["result"]["add"].append("fake.py")
+        self.assertEqual(len((await self.owner.latest())["result"]["add"]), 1)
+
+    async def test_error_does_not_produce_verified_source(self):
+        async def fail():
+            raise RuntimeError("token ghp_very_private /config/secrets.yaml")
+        original = await self.owner.start(REPO, "main", inspect=fail)
+        await asyncio.gather(*self.tasks)
+        end = await self.owner.get(original["operation_id"])
+        self.assertEqual(end["status"], "failed")
+        self.assertEqual(end["reason"], "source_unavailable")
+        self.assertIsNone(end["result"])
+        self.assertNotIn("ghp_", str(end))
+
+    async def test_unverified_or_writable_report_cannot_be_accepted(self):
+        async def bad():
+            return {"repository": REPO, "sources_verified": True,
+                    "installation_enabled": True}
+        await self.owner.start(REPO, "", inspect=bad)
+        await asyncio.gather(*self.tasks)
+        end = await self.owner.latest()
+        self.assertEqual(end["status"], "failed")
+        self.assertIsNone(end["result"])
+        self.assertFalse(end["installation_enabled"])
+
+    async def test_close_marks_running_job_interrupted(self):
+        gate = asyncio.Event()
+        async def suspended():
+            await gate.wait()
+            return successful()
+        await self.owner.start(REPO, "", inspect=suspended)
+        await asyncio.sleep(0)
+        await self.owner.close()
+        end = await self.owner.latest()
+        self.assertEqual(end["status"], "interrupted")
+        self.assertIsNone(end["result"])
+        with self.assertRaises(SourcePreviewJobError):
+            await self.owner.start(REPO, "", inspect=suspended)
+
+    async def test_invalid_identity_and_reference_denied(self):
+        for repo, ref in [
+            ("https://evil.invalid", ""),
+            (REPO, "../main"),
+            (REPO, "main?token=secret"),
+        ]:
+            with self.subTest(repo=repo, ref=ref):
+                with self.assertRaises(SourcePreviewJobError):
+                    await self.owner.start(repo, ref, inspect=lambda: None)
+        with self.assertRaises(SourcePreviewJobError):
+            await self.owner.get("not-a-valid-id")
+
+    async def test_bounded_terminal_history_does_not_hide_active_job(self):
+        for index in range(8):
+            async def inspect():
+                return successful()
+            await self.owner.start(REPO, f"test{index}", inspect=inspect)
+            await asyncio.gather(*self.tasks)
+        self.assertEqual(len(self.owner._jobs), module.MAX_JOBS)
+        self.assertEqual((await self.owner.latest())["ref"], "test7")
+
+
+if __name__ == "__main__":
+    unittest.main()
