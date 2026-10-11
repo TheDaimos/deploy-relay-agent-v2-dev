@@ -51,8 +51,22 @@ Bei der ersten HA-Erprobung von 0.1.65 erschien bereits die neue G2-30-Schaltfl�
 
 **Datenschutz:** Nur diese bereinigte Bewertung und erlaubte, unkritische Kennzahlen werden im Entwicklungsrepository festgehalten. Keine privaten Exportdateien, Rohberichte, Git-Tokens, lokalen Zugriffsadressen oder individuellen Auftrags-/Exportkennungen übernehmen. Originaldiagnosen bleiben ausschließlich im privaten `TheDaimos/Project-Log-And-Export`.
 
+## G2-60-B – WLAN → 5G mit VPN in realer HA-Umgebung (11.10.2026)
+
+**Stand: Netzwechsel und erfolgreiche Quellprüfung bestätigt; terminale Historienzuordnung noch nicht direkt gezeigt.**
+
+- Der Betreiber startete mit **Gewitterradar** einen neuen, serverseitig verantworteten, ausschließlich lesenden G2-Auftrag über die Companion App im WLAN. Der Startbildschirm zeigte die laufende 60-Sekunden-Wartephase und eine eindeutige Auftragskennung.
+- Bei **abgeschaltetem WLAN** war im weiteren Screenshot das Android-Gerät mit **5G und aktivem VPN** verbunden. Die DRA-V2-Ansicht zeigte weiterhin **dieselbe laufende Auftragskennung**. Dies belegt die Wiederabfrage des serverseitigen Auftrags über einen anderen Netzwerkpfad, nicht die Ununterbrochenheit einer konkreten WebSocket-Verbindung.
+- Anschließend meldete die HA-Diagnose für Gewitterradar eine erfolgreiche echte Quellprüfung. Der gezielt ausgelöste private Git-Diagnoseexport (11.10.2026, **17:48:38 UTC**) bestätigt für die aktive **0.1.66**: `status=success`, `stage=target_claims`, `reason=none`, `sources_verified=true`, `installation_enabled=false`; alle acht zulässigen Prüfschritte erfolgreich; reine Quellprüfdauer **1.364 ms**. Die vorherige 60-Sekunden-Wartephase ist nicht in dieser Prüfdauer enthalten.
+- **Präzise Beweisgrenze:** Die bisherigen Screenshots zeigen die identische Auftragskennung vor und nach dem Wechsel, die Quell-Diagnose jedoch **nicht die G2-Auftragskennung**. Ein historischer Endstatus „Damals erfolgreich“ für genau diesen Auftrag ist auf den vorliegenden Aufnahmen noch **nicht direkt lesbar**. Diesen letzten Abgleich deshalb nicht ohne zusätzlichen Nachweis als durchgeführt ausweisen.
+- Weder automatische Wiederinstallation, Wiederholung des Auftrags noch Schreibfreigabe sind nachgewiesen. Ein HA-Prozessneustart war nicht Teil des Tests. Der erfolgreiche Clientwechsel G2-60-A bleibt davon unabhängig abgenommen.
+
+**G2-60-B Teilabnahme:** Wiederverbindung über **WLAN → 5G/VPN** mit gleichbleibender laufender Auftragskennung und erfolgreich durchlaufener Quellprüfung **bestanden**. **Formal vollständiger End-to-End-Nachweis unter exakt derselben Auftragskennung** bis zum terminalen Historieneintrag steht noch aus; dazu reicht die Anzeige „Damals erfolgreich“ der genannten Kennung, ohne erneuten Test oder Export.
+
+**Datenschutz:** Diese Notiz enthält nur bereinigte Testmerkmale, keine privaten JSON-Diagnosen, Tokens, Quellpfade, Adressen oder Auftragskennungen. Alle Rohdaten verbleiben ausschließlich im privaten Zentralarchiv.
+
 ## CI / Realnachweise
 
-**Isolierte GitHub-CI erfolgreich:** [Run 38158437838](https://github.com/TheDaimos/deploy-relay-agent-v2-dev/actions/runs/38158437838) zum Featurezweig-Checkpoint `efeb9f3c9c729fb46bb85760b0df90a390fb6aea`: Python-Vertragstests, Python-/JavaScript-Syntax, Node-Bedienungstests und keine Artefaktveröffentlichung jeweils erfolgreich. Nachfolgende Änderungen betrafen nur dieses Dokument und den bereinigten AI-Kontext. **HA-Realabnahme des Clientwechsels inzwischen erfolgreich; WLAN- und Neustartfälle offen.** Ein in Git vorhandenes 0.1.66-Manifest beweist **nicht**, dass diese Python-Version bereits auf dem HA-Server läuft.
+**Isolierte GitHub-CI erfolgreich:** [Run 38158437838](https://github.com/TheDaimos/deploy-relay-agent-v2-dev/actions/runs/38158437838) zum Featurezweig-Checkpoint `efeb9f3c9c729fb46bb85760b0df90a390fb6aea`: Python-Vertragstests, Python-/JavaScript-Syntax, Node-Bedienungstests und keine Artefaktveröffentlichung jeweils erfolgreich. Nachfolgende Änderungen betrafen nur dieses Dokument und den bereinigten AI-Kontext. **HA-Realabnahme des Clientwechsels erfolgreich; WLAN→5G/VPN-Verbindung und Quellprüfung bestätigt, terminaler Historienabgleich der genauen G2-Auftragskennung noch offen; HA-Neustartfall offen.** Ein in Git vorhandenes 0.1.66-Manifest beweist **nicht**, dass diese Python-Version bereits auf dem HA-Server läuft.
 
 **C.K. – Eine Idee weiter gedacht.**
