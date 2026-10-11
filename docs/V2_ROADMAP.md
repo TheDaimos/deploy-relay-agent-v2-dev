@@ -11,6 +11,8 @@ Bewährte DRA-V1-Mechanik für Git-Quelle, Vorschau, Installation, Sicherung, R�
 2. **Echte Mehrkernverarbeitung:** Geeignete, CPU-intensive Schritte außerhalb der HA-Hauptschleife auf mehreren Prozessen; sinnvoll begrenzte parallele unabhängige Verarbeitung. Keine Behauptung, dass die bisherigen synthetischen CPU-Messungen bereits reale Installationen parallelisieren.
 3. **Beibehaltene und fertiggestellte V2-Oberfläche:** eine zentrale Deployment-Schaltfläche, vier Schritte, Logs, klare Version, mobil bedienbar. Keine weiteren grundlegenden Umbauten ohne konkrete Anforderung.
 
+**Umsetzungstand 12.10.2026:** Übernahme der V1-Engine und V2-interner Quell-/Auftragsadapter bereits im DEV-Featurezweig codiert und anhand echter synthetischer Installation und automatischem Rückfall CI-grün geprüft. **Noch nicht in live HA/UI angeschlossen; daher keine V2-Schreibfreigabe.** [Prüfbericht](V2_V1_ENGINE_REUSE_IMPLEMENTATION_2026-10-12.md). Nächster Schwerpunkt ist das produktive Zusammenschalten der vorhandenen Bausteine und die reale, begrenzte Mehrkernverarbeitung – **keine weitere Neuplanung**.
+
 ## Bereits vorhanden – nicht erneut entwickeln
 
 - DRA V1: produktiv erprobte Git-, Planungs-, Vorschau-, Staging-, Sicherungs-, Installations-, Integritäts-, Restore- und Rückfallengine.
