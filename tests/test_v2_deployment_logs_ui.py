@@ -52,6 +52,24 @@ class DeploymentLogUiContract(unittest.TestCase):
         self.assertIn('Für das aktuelle Prüfprotokoll Export nach Git erneut wählen.', js)
         self.assertIn('Ein vorbereiteter Bericht bleibt lokal erhalten.', js)
 
+    def test_g2_retry_prepare_requires_explicit_admin_confirmation_and_private_target(self):
+        js, ws = self.frontend, self.ws
+        start = ws.index("async def async_deployment_logs_export")
+        end = ws.index("@websocket_api.websocket_command", start)
+        handler = ws[start:end]
+        self.assertIn('probatio.Optional("g2_prepare", default=False): bool', ws)
+        self.assertIn('probatio.Optional("g2_confirm", default=False): bool', ws)
+        self.assertIn('if not msg["g2_confirm"] or runtime.git_export.pending:', handler)
+        self.assertIn('runtime.git_export.prepare_retry_test(', handler)
+        self.assertIn('runtime.git_export.repository != "TheDaimos/Project-Log-And-Export"', handler)
+        self.assertLess(handler.index('if msg["g2_prepare"]:'), handler.index('if runtime.git_export.pending:'))
+        self.assertIn('"g2_prepare"', js)
+        self.assertIn('id="dra-g2-retry-yes"', js)
+        self.assertIn('id="dra-g2-retry-no"', js)
+        self.assertIn('g2_prepare:true,g2_confirm:true', js)
+        self.assertIn('G2-Test vorbereiten', js)
+        self.assertIn('nur lokal gesichert', js)
+
     def test_conditional_clear_has_confirmation_and_ids_for_screenshots(self):
         js = self.frontend
         self.assertIn('this._deploymentLogCount > 0 ? ', js)
