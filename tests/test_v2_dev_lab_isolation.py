@@ -56,6 +56,9 @@ class LabIsolationContracts(unittest.TestCase):
         manifest = json.loads((ROOT / "deploy-relay.json").read_text(encoding="utf-8"))
         approved_files = list(LAB_ROOT.rglob("*"))
         self.assertTrue(approved_files)
+        self.assertEqual(manifest["policy"]["max_files"], 28,
+                         "G3 adds exactly one read-only module, not a general budget increase")
+        self.assertTrue((LAB_ROOT / "target_presence.py").is_file())
         self.assertLessEqual(len([f for f in approved_files if f.is_file() and "__pycache__" not in f.parts and f.suffix != ".pyc"]), manifest["policy"]["max_files"])
         self.assertLessEqual(sum(f.stat().st_size for f in approved_files if f.is_file()),
                              manifest["policy"]["max_uncompressed_bytes"])
