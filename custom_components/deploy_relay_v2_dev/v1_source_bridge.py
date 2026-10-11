@@ -49,7 +49,7 @@ async def prepare_frozen_v1_source(
         type(source_ref) is not str or not 1 <= len(source_ref) <= 255 or
         type(source_commit) is not str or not COMMIT.fullmatch(source_commit) or
         type(expected_project_id) is not str or not PROJECT.fullmatch(expected_project_id) or
-        type(config_root) is not Path or config_root.is_symlink() or
+        not isinstance(config_root, Path) or config_root.is_symlink() or
         type(manifest_path) is not str or manifest_path != "deploy-relay.json" or
         token is not None and type(token) is not str):
         raise SourceBridgeError("invalid source identity")
