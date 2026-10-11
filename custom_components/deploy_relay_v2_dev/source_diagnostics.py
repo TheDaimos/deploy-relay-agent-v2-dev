@@ -104,8 +104,8 @@ def sanitize_source_diagnostic(value: object) -> dict:
         type(value["run_id"]) is not str or not _HEX.fullmatch(value["run_id"]) or
         type(value["captured_at"]) is not str or
         not _DATE_RE.fullmatch(value["captured_at"]) or
-        value["stage"] not in ALLOWED_STAGES or type(value["stage"]) is not str or
-        value["reason"] not in ALLOWED_REASONS or type(value["reason"]) is not str or
+        type(value["stage"]) is not str or value["stage"] not in ALLOWED_STAGES or
+        type(value["reason"]) is not str or value["reason"] not in ALLOWED_REASONS or
         value["status"] not in ("success", "failed") or
         type(value["status"]) is not str or
         type(value["duration_ms"]) is not int or not 0 <= value["duration_ms"] <= 60000 or
@@ -187,7 +187,7 @@ class SourceDiagnosticLog:
         return dict(record)
 
     def latest(self) -> dict | None:
-        return dict(self._entries[-1]) if self._entries else None
+        return sanitize_source_diagnostic(self._entries[-1]) if self._entries else None
 
     def entries(self) -> list[dict]:
-        return [dict(row) for row in reversed(self._entries)]
+        return [sanitize_source_diagnostic(row) for row in reversed(self._entries)]
