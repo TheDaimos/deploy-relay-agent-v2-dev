@@ -286,8 +286,16 @@ async def _get(session, url: str, *, token: str | None = None) -> dict:
         async with asyncio.timeout(12):
             async with session.get(url, allow_redirects=False, headers=headers) as response:
                 if response.status != 200:
-                    if response.status in (401, 403, 404, 429):
-                        raise PreflightError("GitHub source unavailable or inaccessible")
+                    # Fixed, sanitized categories only; never expose response
+                    # headers, URLs, repository names or GitHub body content.
+                    if response.status == 401:
+                        raise PreflightError("github_http_authentication")
+                    if response.status == 403:
+                        raise PreflightError("github_http_forbidden")
+                    if response.status == 404:
+                        raise PreflightError("github_http_not_found")
+                    if response.status == 429:
+                        raise PreflightError("github_http_rate_limited")
                     raise PreflightError("GitHub request unsuccessful")
                 size = response.headers.get("Content-Length", "")
                 if size.isdigit() and int(size) > MAX_RESPONSE:
