@@ -1178,7 +1178,7 @@ class DRAV2DevLabPanel extends HTMLElement {
       tree_invalid:"Git-Dateibaum ungültig", local_inventory_invalid:"HA-Dateibestand nicht prüfbar",
       compare_invalid:"Dateivergleich nicht prüfbar", target_claim_invalid:"Zielbesitz nicht prüfbar",
       tree_remote_authentication:"GitHub-Anmeldung zurückgewiesen",
-      tree_remote_forbidden:"GitHub-Zugriff verweigert",
+      tree_remote_forbidden:"GitHub HTTP 403 (Zugriff oder Anfragegrenze)",
       tree_remote_not_found:"Git-Dateibaum nicht gefunden",
       tree_remote_rate_limited:"GitHub-Anfragegrenze erreicht",
       tree_remote_http:"GitHub-Anfrage fehlgeschlagen",
