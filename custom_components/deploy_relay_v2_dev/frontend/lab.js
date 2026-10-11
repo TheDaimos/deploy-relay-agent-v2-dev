@@ -1,5 +1,7 @@
 /* Separate DRA V2 DEV read-only lab. No V1 custom element or URLs. */
-const G2_TEST_PYTHON_VERSION = "0.1.71";
+// Build identity of this actually loaded JavaScript, independent of the HA Python version.
+const DRA_V2_UI_VERSION = "0.1.72";
+const G2_TEST_PYTHON_VERSION = DRA_V2_UI_VERSION;
 class DRAV2DevLabPanel extends HTMLElement {
   constructor() {
     super();
@@ -50,6 +52,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._deploymentPreviewRef = null;
     this._sourceJobId = null;
     this._sourceConnectionTest = false;
+    // Only the admin-only HA test/state endpoint can confirm the running Python version.
     this._serverVersion = null;
     this._sourceJobTimer = null;
     this._sourceJobPolling = false;
@@ -303,6 +306,9 @@ class DRAV2DevLabPanel extends HTMLElement {
         await this._pollSourceJob();
       }
     } catch (_error) {
+      // Never continue presenting a previously verified HA version as current
+      // when the actual server cannot be reached.
+      this._serverVersion = null;
       this._error = "Status konnte nicht geladen werden. Verbindung prüfen.";
     } finally {
       this._busy = false;
@@ -1488,6 +1494,14 @@ class DRAV2DevLabPanel extends HTMLElement {
       tree_budget_exceeded:"Prüfgrenze der Quelldateien überschritten",
       timeout:"Zeitüberschreitung", unexpected_error:"Unerwarteter Fehler",
     };
+    const runtimeVersionKnown = typeof this._serverVersion === "string";
+    const versionMismatch = runtimeVersionKnown &&
+      this._serverVersion !== DRA_V2_UI_VERSION;
+    const uiVersionLabel = "V" + DRA_V2_UI_VERSION + " DEV";
+    const runtimeVersionLabel = runtimeVersionKnown
+      ? "V" + this._serverVersion + " DEV" : "Noch nicht ermittelt";
+    const runtimeVersionState = versionMismatch ? "mismatch" :
+      runtimeVersionKnown ? "matched" : "pending";
     const deploymentBusy = this._mainBatchMode ? this._mainBatchBusy : this._sourceBusy;
     const deploymentStage = mainPreviewVerified ? 2 : 1;
     const deploymentCanPreview = this._mainBatchMode
@@ -1686,6 +1700,20 @@ class DRAV2DevLabPanel extends HTMLElement {
         .dra-head strong {font-size:20px}.dra-head button {margin:2px}
         .dra-actions {display:flex;gap:8px;align-items:center;flex-wrap:wrap}
         .dra-lock {border:1px solid #b08022;color:#f0ba40;border-radius:15px;padding:6px 10px}
+        .dra-version {display:flex;flex-direction:column;min-width:0;gap:2px;
+          padding:7px 12px;border:1px solid #547184;border-radius:14px;
+          background:linear-gradient(135deg,rgba(38,70,87,.4),rgba(16,33,44,.32));}
+        .dra-version-heading {font-size:11px;color:#b0c6d3;line-height:1.2;}
+        .dra-version-number {font-size:15px !important;font-weight:700;color:#f0f5f8;
+          line-height:1.3;letter-spacing:.012em;white-space:nowrap;}
+        .dra-runtime-version {font-size:11px;line-height:1.35;color:#c0d1db;}
+        .dra-version.mismatch {border-color:#be8a3b;background:rgba(140,89,27,.18);}
+        .dra-version.mismatch .dra-runtime-version {color:#f6d19a;font-weight:700;}
+        .dra-version.pending .dra-runtime-version {color:#9eabb5;}
+        @media(max-width:600px) {
+          .dra-version {padding:6px 10px;}
+          .dra-version-number {font-size:14px !important;}
+        }
         .dra-projectbar {display:flex;gap:12px;align-items:end;flex-wrap:wrap}
         .dra-projectbar label {flex:1;min-width:210px}
         .dra-projectbar select {display:block;width:100%;min-height:44px;padding:8px;border-radius:8px;background:var(--primary-background-color,#111);color:inherit;border:1px solid var(--divider-color,#555)}
@@ -2633,7 +2661,16 @@ class DRAV2DevLabPanel extends HTMLElement {
       <main>
         <header class="dra-head">
           <div><strong>DEPLOY RELAY AGENT V2</strong><div class="note">Sicheres Deployment für Git-Projekte</div></div>
-          <div class="dra-actions"><span class="dra-lock">GESPERRT</span><span class="note">V2 DEV</span>
+          <div class="dra-actions">
+          <span class="dra-lock">GESPERRT</span>
+          <div id="dra-version" class="dra-version ${runtimeVersionState}"
+            aria-label="Versionsübersicht: Oberfläche ${uiVersionLabel}; HA-Laufzeit ${runtimeVersionLabel}">
+            <span class="dra-version-heading">Oberfläche</span>
+            <strong class="dra-version-number">${uiVersionLabel}</strong>
+            <span class="dra-runtime-version" role="status" aria-live="polite">
+              ${versionMismatch ? "Abweichung · " : ""}HA-Laufzeit: ${runtimeVersionLabel}
+            </span>
+          </div>
           <button id="dra-refresh">Aktualisieren</button>
           <button id="dra-toggle">${this._view === "main" ? "Diagnose & Einstellungen" : "Hauptmenü"}</button></div>
         </header>
