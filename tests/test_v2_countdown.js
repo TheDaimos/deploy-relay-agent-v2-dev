@@ -1016,6 +1016,13 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   assert.match(g2._deploymentLogsStatus,/nur lokal gesichert/);
   assert.match(g2.shadowRoot.innerHTML,/Gespeicherten Git-Export erneut senden/);
   assert.doesNotMatch(g2.shadowRoot.innerHTML,/id="dra-g2-retry-yes"/);
+  // HA restart: transient source log cache gone, persisted queue still present.
+  g2._deploymentLogs=[];
+  g2._render();
+  assert.match(g2.shadowRoot.innerHTML,
+    /id="dra-logs-git"[^>]*>Gespeicherten Git-Export erneut senden/);
+  assert.doesNotMatch(g2.shadowRoot.innerHTML,
+    /id="dra-logs-git"[^>]*disabled/);
   await g2._deploymentLogsAction("git");
   assert.equal(sent.length,2);
   assert.equal(g2._centralExport.pending,false);
