@@ -305,9 +305,20 @@ async def _get(session, url: str, *, token: str | None = None) -> dict:
                     size = response.headers.get("Content-Length", "")
                     if size.isdigit() and int(size) > MAX_RESPONSE:
                         raise PreflightError("GitHub response exceeds size limit")
-                    raw = await response.content.read(MAX_RESPONSE + 1)
-                    if len(raw) > MAX_RESPONSE:
-                        raise PreflightError("GitHub response exceeds size limit")
+                    # aiohttp StreamReader.read(n) may return *fewer* than n
+                    # bytes before EOF. A single read produced partial Git
+                    # tree JSON and a false "invalid GitHub JSON" diagnosis.
+                    # Keep collecting until EOF, with a hard 4-MiB budget.
+                    chunks = bytearray()
+                    while True:
+                        remaining = MAX_RESPONSE + 1 - len(chunks)
+                        part = await response.content.read(min(64 * 1024, remaining))
+                        if not part:
+                            break
+                        chunks.extend(part)
+                        if len(chunks) > MAX_RESPONSE:
+                            raise PreflightError("GitHub response exceeds size limit")
+                    raw = bytes(chunks)
         except PreflightError:
             raise  # Denials, oversize, and trust-boundary failures never retry.
         except Exception:
