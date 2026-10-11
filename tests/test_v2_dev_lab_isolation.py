@@ -56,9 +56,15 @@ class LabIsolationContracts(unittest.TestCase):
         manifest = json.loads((ROOT / "deploy-relay.json").read_text(encoding="utf-8"))
         approved_files = list(LAB_ROOT.rglob("*"))
         self.assertTrue(approved_files)
-        self.assertEqual(manifest["policy"]["max_files"], 28,
-                         "G3 adds exactly one read-only module, not a general budget increase")
+        self.assertEqual(manifest["policy"]["max_files"], 43,
+                         "Reviewed V2 engine reuse adds 15 private namespace modules, not arbitrary files")
         self.assertTrue((LAB_ROOT / "target_presence.py").is_file())
+        engine = LAB_ROOT / "v1_engine"
+        self.assertTrue((engine / "deployment.py").is_file())
+        self.assertTrue((engine / "const.py").is_file())
+        self.assertEqual(len([p for p in engine.glob("*.py") if p.is_file()]), 15)
+        self.assertNotIn("from custom_components.deploy_relay", (engine / "deployment.py").read_text(encoding="utf-8"))
+        self.assertIn("DEPLOY_DATA_DIR", (engine / "deployment.py").read_text(encoding="utf-8"))
         self.assertLessEqual(len([f for f in approved_files if f.is_file() and "__pycache__" not in f.parts and f.suffix != ".pyc"]), manifest["policy"]["max_files"])
         self.assertLessEqual(sum(f.stat().st_size for f in approved_files if f.is_file()),
                              manifest["policy"]["max_uncompressed_bytes"])
