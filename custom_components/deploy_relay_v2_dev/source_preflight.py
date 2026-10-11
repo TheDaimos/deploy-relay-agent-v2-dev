@@ -16,8 +16,14 @@ SHA = re.compile(r"[0-9a-f]{40}\Z")
 SAFE_SEGMENT = re.compile(r"[A-Za-z0-9_.@+-]{1,120}\Z")
 MAX_TREE = 3000
 MAX_GROUPS = 12
+# Actual V2 read-only processing budgets remain deliberately small.
 MAX_FILES = 1000
 MAX_BYTES = 32 * 1024 * 1024
+# External DRA V1 manifests can DECLARE a larger installation budget.
+# Accept only the established V1 envelope, then clamp to our lower V2
+# read-only budgets. Never allow the manifest to raise the scan limits.
+MAX_DECLARED_FILES = 5000
+MAX_DECLARED_BYTES = 150 * 1024 * 1024
 MAX_MANIFEST_BYTES = 65536
 DENIED_COMPONENTS = frozenset({".storage", ".git", ".cloud", "__pycache__"})
 DENIED_TARGETS = frozenset({"deploy_relay", "deploy_relay_v2_dev"})
@@ -93,8 +99,10 @@ def parse_manifest(raw: bytes, *, repository: str) -> dict:
     policy = _required_dict(data.get("policy"))
     if policy.get("allow_symlinks") is not False:
         raise PreflightError("symlinks not permitted")
-    max_files = _positive_int(policy.get("max_files"), MAX_FILES)
-    max_bytes = _positive_int(policy.get("max_uncompressed_bytes"), MAX_BYTES)
+    declared_files = _positive_int(policy.get("max_files"), MAX_DECLARED_FILES)
+    declared_bytes = _positive_int(policy.get("max_uncompressed_bytes"), MAX_DECLARED_BYTES)
+    max_files = min(declared_files, MAX_FILES)
+    max_bytes = min(declared_bytes, MAX_BYTES)
     values = deployment.get("groups")
     if type(values) is not list or not 1 <= len(values) <= MAX_GROUPS:
         raise PreflightError("invalid deployment groups")
