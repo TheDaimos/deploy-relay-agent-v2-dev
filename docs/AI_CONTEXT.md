@@ -2,6 +2,8 @@
 
 **Stand:** 11.10.2026 – DRA V2 DEV **0.1.72** (isoliertes Home-Assistant-Testlabor, **keine V2-FINAL-/HACS-Freigabe**).
 
+**VERBINDLICHER NEUER ARBEITSSTIL (12.10.2026, Nutzerfreigabe):** **WESENTLICH SCHNELLER** entwickeln, ohne Qualitäts-/Sicherheitsverlust. Nicht mehr jede kleine Änderung als eigene DEV-Version installieren, HA neu starten, Screenshot anfordern und einzeln abnehmen. Stattdessen mehrere sachlich zusammenhängende Schritte **vollständig und eigenständig im einzigen erlaubten Featurezweig** implementieren, isolierte Tests/Negativtests/CI und Dokumentation selbst durchführen, Fehler selbst korrigieren, und anschließend einen **gebündelten HA-Realtest für die gesamte abgeschlossene Entwicklungsgruppe** mit möglichst **nur einer Installation und einem erforderlichen Neustart** anbieten. Aus privaten Git-Exporten selbst vorhandene Informationen lesen; keine unnötigen Nachweise anfordern. Sicherheitsgates G3/G4/G5 und echte HA-Ausnahmeprüfungen bleiben bindend, können aber in einer Gruppenabnahme verprobt werden. Keine automatische HA-Installation oder Neustart. V1, V2 main/PUB, WeatherRouter, privates Archiv und PR #2 weiterhin unangetastet. **Regelwerk wurde in AGENTS.md unter „Verbindlicher beschleunigter Entwicklungs- und Abnahmeablauf“ festgehalten.** Ziel: DRA V2 zügig fertigstellen, ohne künstliche Iterationsschleifen.
+
 ## Für jede Fortsetzung
 
 1. Globalen Einstieg `TheDaimos/project-defaults/START_HERE.md` lesen (Daimos-Bootstrap, Erinnerungsschutz).
