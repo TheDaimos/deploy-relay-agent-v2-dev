@@ -95,6 +95,42 @@ class DiagnosticsContract(unittest.TestCase):
         self.assertEqual(diagnostics.classify_source_failure("local_inventory", err), "local_inventory_invalid")
         self.assertEqual(diagnostics.classify_source_failure("tree", TimeoutError()), "timeout")
 
+    def test_manifest_error_categories_are_precise_and_never_disclose_raw_values(self):
+        cases = {
+            "github_http_authentication": "manifest_remote_authentication",
+            "github_http_forbidden": "manifest_remote_forbidden",
+            "github_http_not_found": "manifest_remote_not_found",
+            "github_http_rate_limited": "manifest_remote_rate_limited",
+            "GitHub request unsuccessful": "manifest_remote_http",
+            "GitHub response could not be verified": "manifest_transport_invalid",
+            "GitHub response exceeds size limit": "manifest_response_too_large",
+            "invalid GitHub JSON": "manifest_json_invalid",
+            "invalid manifest size": "manifest_size_invalid",
+            "manifest is not an encoded file": "manifest_encoding_invalid",
+            "manifest base64 invalid": "manifest_encoding_invalid",
+            "invalid manifest encoding": "manifest_encoding_invalid",
+            "manifest content integrity failed": "manifest_content_integrity",
+            "unsupported manifest schema": "manifest_schema_invalid",
+            "invalid project identity": "manifest_identity_invalid",
+            "repository identity mismatch": "manifest_identity_invalid",
+            "artifact source is not yet supported": "manifest_source_unsupported",
+            "deployment root not approved": "manifest_policy_invalid",
+            "symlinks not permitted": "manifest_policy_invalid",
+            "invalid resource limit": "manifest_resource_limit",
+            "invalid deployment groups": "manifest_groups_invalid",
+            "overlapping deployment targets": "manifest_groups_invalid",
+            "protected deployment target": "manifest_target_protected",
+        }
+        for source, expected in cases.items():
+            with self.subTest(source=source):
+                code = diagnostics.classify_source_failure("manifest", ValueError(source))
+                self.assertEqual(code, expected)
+                self.assertIn(code, diagnostics.ALLOWED_REASONS)
+        self.assertEqual(diagnostics.classify_source_failure(
+            "manifest", ValueError("unknown private error detail")), "manifest_invalid")
+        self.assertEqual(diagnostics.classify_source_failure(
+            "manifest", TimeoutError()), "timeout")
+
     def test_precise_tree_reason_mapping_is_allowlisted_not_raw_error_text(self):
         examples = {
             "github_http_authentication": "tree_remote_authentication",
