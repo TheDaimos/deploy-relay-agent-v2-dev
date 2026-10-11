@@ -26,6 +26,6 @@ Bei der ersten HA-Erprobung von 0.1.65 erschien bereits die neue G2-30-Schaltfl�
 
 ## CI / Realnachweise
 
-CI-Lauf und Checkpoint werden nach Abschluss der automatischen Abnahme separat dokumentiert. Ein in Git vorhandenes 0.1.66-Manifest beweist **nicht**, dass diese Python-Version bereits auf dem HA-Server läuft.
+**Isolierte GitHub-CI erfolgreich:** [Run 38158437838](https://github.com/TheDaimos/deploy-relay-agent-v2-dev/actions/runs/38158437838) zum Featurezweig-Checkpoint `efeb9f3c9c729fb46bb85760b0df90a390fb6aea`: Python-Vertragstests, Python-/JavaScript-Syntax, Node-Bedienungstests und keine Artefaktveröffentlichung jeweils erfolgreich. Nachfolgende Änderungen betrafen nur dieses Dokument und den bereinigten AI-Kontext. **HA-Realabnahme noch offen.** Ein in Git vorhandenes 0.1.66-Manifest beweist **nicht**, dass diese Python-Version bereits auf dem HA-Server läuft.
 
 **C.K. – Eine Idee weiter gedacht.**
