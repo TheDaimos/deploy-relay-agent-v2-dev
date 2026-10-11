@@ -3,7 +3,7 @@
 **Datum:** 11.10.2026  
 **Entwicklungszweig:** `feature/v2-10-inventory-operation-contract`  
 **Gate:** G3 – Fremd-/V1-Besitz und prozessübergreifende Sperre  
-**Status:** Erstes klar begrenztes, rein lesendes Modul mit synthetischen Tests. **Kein Nachweis von Dateibesitz oder prozessübergreifender Exklusivität; keine Installationsfreigabe.** HA-Realabnahme steht aus.
+**Status:** Rein lesendes Modul **CI-geprüft**: [GitHub Actions 38172938303](https://github.com/TheDaimos/deploy-relay-agent-v2-dev/actions/runs/38172938303), **SUCCESS** auf Code-Checkpoint `1e97126b5f3c2d5525a459949696e1b732a6b292`. **Kein Nachweis von Dateibesitz oder prozessübergreifender Exklusivität; keine Installationsfreigabe.** Noch keine HA-Anbindung oder HA-Realabnahme.
 
 ## Ausgangslage
 
@@ -26,6 +26,12 @@ Der alte `target_ownership.py`-Vertrag erkennt nur **berechnete** Kollisionen vo
 Die neuen isolierten Tests benutzen ausschließlich künstliche temporäre Verzeichnisse: vorhanden/nicht vorhanden, reine Dateien, symbolische Verknüpfungen, gesperrte V1-/V2-Ziele, uneindeutige Groß-/Kleinschreibung, ungültige Ziele, fehlende oder ersetzte Elternverzeichnisse, überlange Listen und während der Beobachtung verschwundene Einträge. Es gibt eine explizite Prüfung, dass keine Projektdateiinhalte gelesen werden und jede Beobachtung gesperrt bleibt.
 
 **Dateiobergrenze:** Das isolierte V2-DEV-Installationsmanifest wurde für die **exakt eine** hinzugefügte Python-Datei von 27 auf **28** erlaubt. Der Isolationstest fixiert diese Zahl ausdrücklich, die Byteobergrenze 3 MiB und die einzige isolierte Deployment-Zielwurzel bleiben unverändert. Keine Änderung des V1-Zielpfads oder produktiven HACS-Kanals.
+
+## G3-20 Folgebefund: aktuelle V1-Sperren reichen nicht als V2-Nachweis
+
+Der vorhandene aktuelle DRA-V1-DEV- und V1-PUB-Quellcode wurde separat **ausschließlich lesend** geprüft. `deployment_lock` und `resource_lock` sind V1-eigene `asyncio.Lock`-Instanzen. In den geprüften V1-Installationspfaden gibt es keine V2-gemeinsam verifizierte prozessübergreifende Zielübergabe. Deshalb kann das G3-10-Verzeichnisinventar selbst bei `present` oder `absent` **niemals** einen gültigen exklusiven V2-Besitz nachweisen.
+
+[Verbindlicher G3-20-Sperrenbefund und Übergabeblockade](V2_G3_20_V1_SPERREN_AUDIT_2026-10-11.md). Kein Ändern von DRA V1 im aktuellen Auftrag; solange keine gesondert genehmigte Kooperation vorhanden ist, bleibt V2-Installation blockiert.
 
 ## Nächste bindende G3-Gates
 
