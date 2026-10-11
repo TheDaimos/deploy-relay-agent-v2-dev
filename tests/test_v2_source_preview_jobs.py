@@ -75,6 +75,63 @@ class SourcePreviewJobContract(unittest.IsolatedAsyncioTestCase):
         restored["result"]["add"].append("fake.py")
         self.assertEqual(len((await self.owner.latest())["result"]["add"]), 1)
 
+    async def test_fixed_connection_test_wait_survives_browser_detach(self):
+        self.assertEqual(module.CONNECTION_TEST_SECONDS, 30)
+        waiting = asyncio.Event()
+        release = asyncio.Event()
+        calls = 0
+        original = module._connection_test_delay
+
+        async def controlled_wait():
+            waiting.set()
+            await release.wait()
+
+        async def inspect():
+            nonlocal calls
+            calls += 1
+            return successful()
+
+        module._connection_test_delay = controlled_wait
+        try:
+            first = await self.owner.start(REPO, "", inspect=inspect,
+                                           connection_test=True)
+            self.assertTrue(first["connection_test"])
+            self.assertFalse(first["installation_enabled"])
+            await asyncio.wait_for(waiting.wait(), 2)
+            pending = await self.owner.get(first["operation_id"])
+            self.assertEqual(pending["stage"], "connection_test_wait")
+            self.assertEqual(pending["status"], "running")
+            self.assertEqual(calls, 0, "no source read before test window ends")
+            # Simulate second browser, same test mode, not a new task.
+            repeat = await self.owner.start(REPO, "", inspect=inspect,
+                                            connection_test=True)
+            self.assertEqual(repeat["operation_id"], first["operation_id"])
+            with self.assertRaises(SourcePreviewJobError):
+                await self.owner.start(REPO, "", inspect=inspect,
+                                       connection_test=False)
+            release.set()
+            await asyncio.gather(*self.tasks)
+            after = await self.owner.get(first["operation_id"])
+            self.assertEqual(calls, 1)
+            self.assertEqual(after["status"], "success")
+            self.assertTrue(after["connection_test"])
+            self.assertFalse(after["result"]["installation_enabled"])
+            self.assertFalse(after["installation_enabled"])
+        finally:
+            release.set()
+            module._connection_test_delay = original
+
+    async def test_connection_mode_not_user_duration(self):
+        async def inspect():
+            return successful()
+        for mode in (30, "30", None, [], {}):
+            with self.subTest(mode=mode):
+                with self.assertRaises(SourcePreviewJobError):
+                    await self.owner.start(REPO, "", inspect=inspect,
+                                           connection_test=mode)
+        self.assertEqual(len(self.tasks), 0)
+
+
     async def test_error_does_not_produce_verified_source(self):
         async def fail():
             raise RuntimeError("token ghp_very_private /config/secrets.yaml")
