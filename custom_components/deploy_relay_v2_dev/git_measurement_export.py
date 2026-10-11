@@ -824,6 +824,39 @@ class MeasurementGitExport:
             await self._persist(self._repository, data)
             return await self._upload_pending()
 
+    async def prepare_retry_test(self, summary: object, *, version: str,
+                                 private_source_repository: str | None = None) -> dict:
+        """DEV G2: retain the current real sanitized report without uploading.
+
+        Explicit administrator action only. Simulates loss of connectivity
+        before PUT, not a claim that a real HTTP failure occurred. The next
+        ordinary export call must use retry_pending() on these exact bytes.
+        """
+        async with self._lock:
+            if not self._ready or not self.configured:
+                raise GitMeasurementError("private archive is not configured")
+            if self._repository != "TheDaimos/Project-Log-And-Export":
+                raise GitMeasurementError("retry test requires approved private archive")
+            if self._pending is not None:
+                raise GitMeasurementError("existing pending export must be completed first")
+            token = self._current_token()
+            if token is None:
+                raise GitMeasurementError("private archive permission not configured")
+            # A network read verifies the private destination, but the test
+            # does NOT issue any PUT. It cannot replace a file in GitHub.
+            await self._ensure_private_repository(token, self._repository)
+            data = _archive_payload(
+                summary, version, datetime.now(timezone.utc), secrets.token_hex(16),
+                APPLICATION_NAME, None,
+                private_source_repository=private_source_repository,
+            )
+            data["repository"] = self._repository
+            await self._persist(self._repository, data)
+            return {
+                "pending": True, "pending_prepared": True,
+                "export_id": data["export_id"],
+            }
+
     async def retry_pending(self) -> dict[str, str]:
         async with self._lock:
             if not self._ready or self._pending is None:
