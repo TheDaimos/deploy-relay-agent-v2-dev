@@ -838,6 +838,12 @@ async def async_deployment_logs_export(hass, connection, msg):
     if record is None:
         connection.send_error(msg["id"], "no_logs", "Noch keine Deployment-Prüfung vorhanden")
         return
+    # User-mandated exclusive private diagnostic destination.
+    # No implicit configuration, fallback repository, or public upload.
+    if runtime.git_export.repository != "TheDaimos/Project-Log-And-Export":
+        connection.send_error(msg["id"], "archive_not_approved",
+                              "Privates zentrales Diagnosearchiv nicht ausgewählt")
+        return
     try:
         result = await runtime.git_export.export(record, version=VERSION)
     except GitMeasurementError:
