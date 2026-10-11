@@ -744,7 +744,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
 (async () => {
   const probe = new Panel();
   probe._view = "main";
-  probe._serverVersion = "0.1.68";
+  probe._serverVersion = "0.1.69";
   probe._projects = [{repository:"TheDaimos/gewitterradar",name:"Gewitterradar",active:true}];
   probe._mainSourceRef = "";
   const calls = [];
@@ -782,7 +782,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   await probe._sourceCheck({dataset:{repo:"TheDaimos/gewitterradar"}},true);
   assert.equal(calls.length,0);
   assert.match(probe._sourceMessage,/Python-Laufzeit 0.1.64/);
-  probe._serverVersion = "0.1.68";
+  probe._serverVersion = "0.1.69";
   probe._render();
   assert.match(probe.shadowRoot.innerHTML,/Laufzeit kompatibel/);
   await probe._sourceCheck({dataset:{repo:"TheDaimos/gewitterradar"}},true);
@@ -973,6 +973,56 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   assert.doesNotMatch(html,/data-stage="2"/,
     "display-only changes may not unlock deployment");
   console.log("DRA V2 separated accessible job cards and compact disclosure PASS");
+})().catch(error=>{console.error(error);process.exitCode=1;});
+
+(async () => {
+  const g2 = new Panel();
+  g2._deploymentLogsOpen = true;
+  g2._g2RetryTestOpen = true;
+  g2._deploymentLogs=[{run_id:"e".repeat(32),status:"success"}];
+  g2._centralExport={configured:true,repository:"TheDaimos/Project-Log-And-Export",
+    pending:false,server_token_available:true};
+  const sent = [];
+  g2._hass={async callWS(req) {
+    sent.push(req);
+    assert.equal(req.type,"deploy_relay_v2_dev/deployment/logs/export");
+    if(req.g2_prepare === true) {
+      assert.equal(req.g2_confirm,true);
+      return {pending_prepared:true,pending:true,export_id:"a".repeat(32)};
+    }
+    assert.equal(req.g2_prepare,undefined);
+    return {
+      repository:"TheDaimos/Project-Log-And-Export",
+      export_id:"a".repeat(32),
+      commit_sha:"b".repeat(40),
+      branch:"main",
+      path:"exports/deploy-relay-agent-v2/2026-10/diagnostics/safe__diagnostics__"+"a".repeat(32)+".json",
+      file_url:"https://github.com/TheDaimos/Project-Log-And-Export/blob/main/exports/deploy-relay-agent-v2/2026-10/diagnostics/safe__diagnostics__"+"a".repeat(32)+".json",
+      pending_retried:true,
+    };
+  }};
+  g2._render();
+  assert.match(g2.shadowRoot.innerHTML,/G2 – Wiederholversand sicher prüfen/);
+  assert.match(g2.shadowRoot.innerHTML,/G2-Test vorbereiten/);
+  assert.match(g2.shadowRoot.innerHTML,/id="dra-g2-retry-test" open/);
+  await g2._deploymentLogsAction("g2_prepare");
+  assert.equal(sent.length,0,"unconfirmed G2 action must not reach HA");
+  g2._g2RetryTestConfirm=true;
+  g2._render();
+  assert.match(g2.shadowRoot.innerHTML,/Ja, lokal zurückstellen/);
+  await g2._deploymentLogsAction("g2_prepare");
+  assert.equal(sent.length,1);
+  assert.equal(g2._centralExport.pending,true);
+  assert.match(g2._deploymentLogsStatus,/nur lokal gesichert/);
+  assert.match(g2.shadowRoot.innerHTML,/Gespeicherten Git-Export erneut senden/);
+  assert.doesNotMatch(g2.shadowRoot.innerHTML,/id="dra-g2-retry-yes"/);
+  await g2._deploymentLogsAction("git");
+  assert.equal(sent.length,2);
+  assert.equal(g2._centralExport.pending,false);
+  assert.match(g2._deploymentLogsStatus,/Zuvor gesicherten Export erneut/);
+  assert.match(g2._deploymentLogsStatus,/aktuelles Prüfprotokoll Export nach Git erneut wählen/);
+  assert.doesNotMatch(g2.shadowRoot.innerHTML,/data-stage="2"/);
+  console.log("DRA V2 G2 admin two-step local-only queue and explicit retry UI PASS");
 })().catch(error=>{console.error(error);process.exitCode=1;});
 
 (async () => {
