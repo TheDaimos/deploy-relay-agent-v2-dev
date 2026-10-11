@@ -961,6 +961,14 @@ async def async_deployment_logs_export(hass, connection, msg):
                               "Privates zentrales Diagnosearchiv nicht ausgewählt")
         return
     try:
+        if runtime.git_export.pending:
+            # One archived report was durably queued by a previous failed
+            # upload. Retry THAT exact immutable payload and target first;
+            # never replace it, silently discard it or claim it was today's
+            # latest source diagnostic.
+            result = await runtime.git_export.retry_pending()
+            connection.send_result(msg["id"], {**result, "pending_retried": True})
+            return
         source_repository = runtime.source_diagnostics.private_repository_for(record["run_id"])
         result = await runtime.git_export.export(
             record, version=VERSION, private_source_repository=source_repository)
@@ -968,7 +976,7 @@ async def async_deployment_logs_export(hass, connection, msg):
         connection.send_error(msg["id"], "archive_export_failed",
                               "Privater Diagnoseexport fehlgeschlagen")
         return
-    connection.send_result(msg["id"], result)
+    connection.send_result(msg["id"], {**result, "pending_retried": False})
 
 
 @websocket_api.websocket_command({
