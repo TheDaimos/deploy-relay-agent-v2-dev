@@ -8,7 +8,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from pathlib import Path
 
-from .remote_source import inspect_public_repository, inspect_repository_connection, GitReadAuthError
+from .remote_source import inspect_public_repository, inspect_repository_connection, source_ref, GitReadAuthError
 from .source_preflight import PreflightError
 from .source_diagnostics import (SourceDiagnosticsError, classify_source_failure, resource_snapshot)
 from .target_ownership import TargetClaimError, assess_target_claims
@@ -720,6 +720,54 @@ async def async_projects_connection_check(hass, connection, msg):
     connection.send_result(msg["id"], result)
 
 
+async def _inspect_source_preview(hass, runtime, repo: str, ref: str) -> dict:
+    """Shared internal read-only source inspection; no connection ownership."""
+    trace = runtime.source_diagnostics.begin()
+    resources = resource_snapshot(runtime.settings)
+    if (type(repo) is not str or not any(
+        project["repository"].casefold() == repo.casefold()
+        for project in _project_list(runtime)
+    )):
+        runtime.source_diagnostics.finish(
+            trace, success=False, reason="source_unavailable", resources=resources)
+        raise PreflightError("not_registered")
+    runtime.source_diagnostics.bind_project(trace, repo)
+    if runtime.source_scan_lock.locked():
+        runtime.source_diagnostics.finish(
+            trace, success=False, reason="source_unavailable", resources=resources)
+        raise PreflightError("busy")
+    try:
+        async with runtime.source_scan_lock:
+            report = await asyncio.wait_for(
+                inspect_public_repository(
+                    async_get_clientsession(hass),
+                    Path(hass.config.path()),
+                    repo,
+                    ref, token=runtime.project_auth.token(repo) or runtime.source_auth.token,
+                    stage_hook=lambda stage: runtime.source_diagnostics.stage(trace, stage),
+                ),
+                timeout=45,
+            )
+            runtime.source_diagnostics.stage(trace, "target_claims")
+            report["target_claims"] = assess_target_claims([report])
+    except asyncio.CancelledError:
+        # ConfigEntry unloading cancels the task; no success and no mutation.
+        runtime.source_diagnostics.finish(
+            trace, success=False, reason="source_unavailable", resources=resources)
+        raise
+    except (PreflightError, TargetClaimError, TimeoutError, OSError, ValueError) as exc:
+        runtime.source_diagnostics.finish(
+            trace, success=False,
+            reason=classify_source_failure(trace["stage"], exc), resources=resources)
+        raise PreflightError("source_unavailable") from None
+    except Exception:
+        runtime.source_diagnostics.finish(
+            trace, success=False, reason="unexpected_error", resources=resources)
+        raise PreflightError("source_unavailable") from None
+    runtime.source_diagnostics.finish(trace, success=True, resources=resources)
+    return report
+
+
 @websocket_api.websocket_command({
     probatio.Required("type"): "deploy_relay_v2_dev/projects/source_preview",
     probatio.Required("repository"): str,
@@ -728,62 +776,75 @@ async def async_projects_connection_check(hass, connection, msg):
 @websocket_api.require_admin
 @websocket_api.async_response
 async def async_projects_source_preview(hass, connection, msg):
-    """Admin-only exact-commit public GitHub check; V1 and HA target unchanged."""
+    """Legacy read-only endpoint retained during controlled G2 transition."""
     runtime = _runtime(hass)
     if runtime is None:
         connection.send_error(msg["id"], "not_ready", "Projektverwaltung nicht bereit")
         return
-    # Source diagnostics are server-owned, bounded and deliberately omit both
-    # repo identity and raw exception details.
-    trace = runtime.source_diagnostics.begin()
-    resources = resource_snapshot(runtime.settings)
+    try:
+        report = await _inspect_source_preview(
+            hass, runtime, msg["repository"], msg["ref"])
+    except PreflightError:
+        connection.send_error(
+            msg["id"], "source_unavailable", "Quellprüfung nicht möglich")
+        return
+    connection.send_result(msg["id"], report)
+
+
+@websocket_api.websocket_command({
+    probatio.Required("type"): "deploy_relay_v2_dev/projects/source_job/start",
+    probatio.Required("repository"): str,
+    probatio.Required("ref"): str,
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def async_source_job_start(hass, connection, msg):
+    """Accept a registered source and return a HA-owned read-only job ID."""
+    runtime = _runtime(hass)
+    if runtime is None:
+        connection.send_error(msg["id"], "not_ready", "Auftragsverwaltung nicht bereit")
+        return
     repo = msg["repository"]
     if type(repo) is not str or not any(
         project["repository"].casefold() == repo.casefold()
         for project in _project_list(runtime)
     ):
-        runtime.source_diagnostics.finish(
-            trace, success=False, reason="source_unavailable", resources=resources)
         connection.send_error(msg["id"], "not_registered", "Projekt nicht registriert")
         return
-    runtime.source_diagnostics.bind_project(trace, repo)
-    if runtime.source_scan_lock.locked():
-        runtime.source_diagnostics.finish(
-            trace, success=False, reason="source_unavailable", resources=resources)
-        connection.send_error(msg["id"], "busy", "Quellprüfung läuft bereits")
+    try:
+        ref = source_ref(msg["ref"])
+        snapshot = await runtime.source_preview_jobs.start(
+            repo, ref, inspect=lambda: _inspect_source_preview(hass, runtime, repo, ref),
+        )
+    except (PreflightError, ValueError):
+        connection.send_error(msg["id"], "preview_unavailable", "Leseauftrag nicht möglich")
+        return
+    connection.send_result(msg["id"], snapshot)
+
+
+@websocket_api.websocket_command({
+    probatio.Required("type"): "deploy_relay_v2_dev/projects/source_job/status",
+    probatio.Optional("operation_id", default=""): str,
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def async_source_job_status(hass, connection, msg):
+    """Return latest or exact bounded snapshot, independent of browser session."""
+    runtime = _runtime(hass)
+    if runtime is None:
+        connection.send_error(msg["id"], "not_ready", "Auftragsverwaltung nicht bereit")
         return
     try:
-        async with runtime.source_scan_lock:
-            report = await asyncio.wait_for(
-                inspect_public_repository(
-                    async_get_clientsession(hass),
-                    Path(hass.config.path()),
-                    repo,
-                    msg["ref"], token=runtime.project_auth.token(repo) or runtime.source_auth.token,
-                    stage_hook=lambda stage: runtime.source_diagnostics.stage(trace, stage),
-                ),
-                timeout=45,
-            )
-            runtime.source_diagnostics.stage(trace, "target_claims")
-            # Unknown V1 ownership is NEVER a successful handover.
-            report["target_claims"] = assess_target_claims([report])
-    except (PreflightError, TargetClaimError, TimeoutError, OSError, ValueError) as exc:
-        runtime.source_diagnostics.finish(
-            trace, success=False,
-            reason=classify_source_failure(trace["stage"], exc), resources=resources)
-        connection.send_error(
-            msg["id"], "source_unavailable",
-            "Quellprüfung nicht möglich oder Quelle nicht vertrauenswürdig",
-        )
+        identifier = msg["operation_id"]
+        snapshot = (await runtime.source_preview_jobs.get(identifier)
+                    if identifier else await runtime.source_preview_jobs.latest())
+    except ValueError:
+        connection.send_error(msg["id"], "invalid_operation", "Auftragskennung ungültig")
         return
-    except Exception:
-        runtime.source_diagnostics.finish(
-            trace, success=False, reason="unexpected_error", resources=resources)
-        connection.send_error(msg["id"], "source_unavailable", "Quellprüfung fehlgeschlagen")
-        return
-    runtime.source_diagnostics.finish(trace, success=True, resources=resources)
-    connection.send_result(msg["id"], report)
-
+    connection.send_result(msg["id"], {
+        "schema": "dra-v2-source-preview-job-status.v1",
+        "job": snapshot, "installation_enabled": False,
+    })
 
 
 @websocket_api.websocket_command({
@@ -937,6 +998,7 @@ def async_register_commands(hass: HomeAssistant) -> None:
                     async_settings_get, async_settings_save, async_settings_ack_cpu_warning,
                     async_batch_preview, async_projects_connection_check,
                     async_projects_source_preview,
+                    async_source_job_start, async_source_job_status,
                     async_deployment_logs, async_deployment_logs_download,
                     async_deployment_logs_export, async_deployment_logs_clear,
                     async_git_read_configure, async_git_read_clear,
