@@ -160,6 +160,39 @@ class GitExportTests(unittest.IsolatedAsyncioTestCase):
         payload = base64.b64decode(request["json"]["content"])
         return url, request, json.loads(payload)
 
+    async def test_source_diagnostic_after_failed_upload_is_retried_exactly(self):
+        import importlib
+        diagnostic = importlib.import_module(PACKAGE + ".source_diagnostics")
+        log = diagnostic.SourceDiagnosticLog()
+        trace = log.begin()
+        log.bind_project(trace, "TheDaimos/gewitterradar")
+        log.stage(trace, "tree")
+        record = log.finish(trace, success=False, reason="tree_json_invalid", resources={
+            "available_cores": 12, "configured_worker_processes": 4,
+            "configured_readonly_jobs": 2, "configured_mode": "sequential",
+            "active_readonly_limit": 1, "active_mutation_limit": 0,
+            "worker_budget_enforced": False,
+        })
+        self.session.response = FakeResponse(503)
+        with self.assertRaises(module.GitMeasurementError):
+            await self.writer.export(
+                record, version="0.1.64",
+                private_source_repository=log.private_repository_for(record["run_id"]))
+        queued = copy.deepcopy(self.store.data["pending"])
+        self.assertIn('"private_source_repository":"TheDaimos/gewitterradar"', queued["raw"])
+        self.assertNotIn("github_pat_", queued["raw"])
+        self.session.repo_response = FakeResponse(200, {
+            "full_name": "TheDaimos/Project-Log-And-Export",
+            "private": True, "default_branch": "main",
+        }, fragment_size=13)
+        self.session.response = FakeResponse(201)
+        confirmed = await self.writer.retry_pending()
+        self.assertEqual(confirmed["export_id"], queued["export_id"])
+        self.assertEqual(confirmed["path"], queued["path"])
+        self.assertEqual(confirmed["repository"], "TheDaimos/Project-Log-And-Export")
+        self.assertFalse(self.writer.pending)
+        self.assertIsNone(self.store.data["pending"])
+
     async def test_private_repository_metadata_fragmented_http_response(self):
         # Reproduce aiohttp read(n) returning only part of GitHub's JSON body.
         # The old single-read implementation wrongly rejected valid private repo.
