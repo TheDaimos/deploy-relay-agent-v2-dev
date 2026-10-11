@@ -30,7 +30,7 @@ class DeploymentLogUiContract(unittest.TestCase):
         self.assertIn('id="dra-logs-copy"', js)
         self.assertIn("deploy_relay_v2_dev/deployment/logs/download", js)
         self.assertIn("deploy_relay_v2_dev/deployment/logs/export", js)
-        self.assertIn('result?.snapshot?.schema !== "dra-v2-dev-git-source-diagnostic.v1"', js)
+        self.assertIn('parsed?.snapshot?.schema !== "dra-v2-dev-git-source-diagnostic.v1"', js)
         self.assertIn('this._centralExport.configured', js)
         self.assertIn('await navigator.clipboard.writeText(result.content)', js)
         self.assertNotIn("github.com/TheDaimos/Project-Log-And-Export", js)
