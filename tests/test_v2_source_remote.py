@@ -266,6 +266,57 @@ class SourceRemoteTests(unittest.IsolatedAsyncioTestCase):
                 self.assertNotIn("simulated private response body", str(raised.exception))
         self.assertEqual(list((self.root / "custom_components" / "safe_project").iterdir()), [])
 
+    async def test_transient_tree_transport_error_is_retried_once_read_only(self):
+        replies = payloads()
+        replies.insert(3, ConnectionError("temporary interrupted transfer; token=private"))
+        session = Session(replies)
+        report = await m.inspect_public_repository(session, self.root, REPO)
+        self.assertTrue(report["sources_verified"])
+        self.assertFalse(report["installation_enabled"])
+        self.assertEqual(len(session.calls), 5)
+        self.assertEqual(session.calls[3][0], session.calls[4][0])
+        self.assertTrue(all(kwargs["allow_redirects"] is False
+                            for _, kwargs in session.calls))
+
+    async def test_second_transport_failure_aborts_without_mutation(self):
+        replies = payloads()[:3] + [
+            ConnectionError("temporary failure"), ConnectionError("another failure"),
+        ]
+        session = Session(replies)
+        with self.assertRaisesRegex(p.PreflightError, "^GitHub response could not be verified$"):
+            await m.inspect_public_repository(session, self.root, REPO)
+        self.assertEqual(len(session.calls), 5)
+        self.assertFalse(any((self.root / "custom_components" / "safe_project").iterdir()))
+
+    async def test_http_denial_is_never_retried_even_with_more_responses(self):
+        replies = payloads()[:3] + [({"message":"denied"}, 403), payloads()[3]]
+        session = Session(replies)
+        with self.assertRaisesRegex(p.PreflightError, "^github_http_forbidden$"):
+            await m.inspect_public_repository(session, self.root, REPO)
+        self.assertEqual(len(session.calls), 4)
+
+    async def test_malformed_body_has_dedicated_error_and_no_retry(self):
+        class RawResponse:
+            status = 200
+            def __init__(self, body):
+                self.content = Content(body)
+                self.headers = {"Content-Length": str(len(body))}
+            async def __aenter__(self): return self
+            async def __aexit__(self, typ, val, tb): return False
+
+        class RawSession(Session):
+            def get(self, url, **kwargs):
+                self.calls.append((url, kwargs))
+                value = self.replies.pop(0)
+                if isinstance(value, bytes):
+                    return RawResponse(value)
+                return Response(value)
+        replies = payloads()[:3] + [b"{ malformed JSON", payloads()[3]]
+        session = RawSession(replies)
+        with self.assertRaisesRegex(p.PreflightError, "^invalid GitHub JSON$"):
+            await m.inspect_public_repository(session, self.root, REPO)
+        self.assertEqual(len(session.calls), 4)
+
     async def test_oversized_file_is_never_scanned(self):
         path = self.root / "custom_components" / "safe_project" / "large.bin"
         path.write_bytes(b"a" * 5000)
