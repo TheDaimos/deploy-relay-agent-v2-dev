@@ -2,7 +2,7 @@
 
 **Datum:** 11.10.2026  
 **Verbindlicher Zweig:** `feature/v2-10-inventory-operation-contract`  
-**Status:** DEV-Code für kontrollierten HA-Test vorbereitet; CI und HA-Realabnahme getrennt prüfen. Keine V2-Installations- oder Schreibfreigabe.
+**Status:** DEV-Code für kontrollierten HA-Test vorbereitet und vollständig CI-geprüft: [GitHub Actions Run 38167638211](https://github.com/TheDaimos/deploy-relay-agent-v2-dev/actions/runs/38167638211) – **SUCCESS** auf Code-/Kontext-Checkpoint `b44971d124d87473e638b96fd08e82ca16f68335`. **HA-Realabnahme weiterhin offen.** Keine V2-Schreib- oder Installationsfreigabe.
 
 ## Hintergrund
 
