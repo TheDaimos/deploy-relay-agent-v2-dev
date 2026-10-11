@@ -1,5 +1,7 @@
 # DRA V2 DEV – Freigabefahrplan nach erfolgreicher Quellvorschau
 
+> **Historischer Stufenplan vom 11.10.2026 – durch die ausdrückliche Produkt-Kurskorrektur am 12.10.2026 als Ausführungsreihenfolge abgelöst.** G3/G4/G5 bleiben Sicherheitsnachweise der übernommenen V1-Engine, nicht eigenständige zwingend nacheinander neu zu entwickelnde Produktbereiche. Aktueller verbindlicher Fertigstellungsplan: [V2_ROADMAP.md](V2_ROADMAP.md). Keine parallele V1/V2-Verwaltungsarchitektur als Produktziel.\n\n
+
 **Datum:** 11.10.2026  
 **Technischer Ausgangsstand:** DRA V2 DEV 0.1.61 auf `feature/v2-10-inventory-operation-contract`.  
 **Abnahme:** Gewitterradar: echte HA-Quellprüfung erfolgreich. Keine Installation, Sicherung oder Wiederherstellung freigegeben.
