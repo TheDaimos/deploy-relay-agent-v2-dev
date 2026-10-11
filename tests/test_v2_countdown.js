@@ -744,7 +744,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
 (async () => {
   const probe = new Panel();
   probe._view = "main";
-  probe._serverVersion = "0.1.67";
+  probe._serverVersion = "0.1.68";
   probe._projects = [{repository:"TheDaimos/gewitterradar",name:"Gewitterradar",active:true}];
   probe._mainSourceRef = "";
   const calls = [];
@@ -782,7 +782,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   await probe._sourceCheck({dataset:{repo:"TheDaimos/gewitterradar"}},true);
   assert.equal(calls.length,0);
   assert.match(probe._sourceMessage,/Python-Laufzeit 0.1.64/);
-  probe._serverVersion = "0.1.67";
+  probe._serverVersion = "0.1.68";
   probe._render();
   assert.match(probe.shadowRoot.innerHTML,/Laufzeit kompatibel/);
   await probe._sourceCheck({dataset:{repo:"TheDaimos/gewitterradar"}},true);
@@ -932,6 +932,46 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   assert.match(panel.shadowRoot.innerHTML,/erneut versuchen/);
   assert.doesNotMatch(panel.shadowRoot.innerHTML,/data-stage="2"/);
   console.log("DRA V2 manual history refresh failure remains fail-closed PASS");
+})().catch(error=>{console.error(error);process.exitCode=1;});
+
+(async () => {
+  const readable = new Panel();
+  readable._view = "main";
+  readable._deploymentLogsOpen = true;
+  readable._sourceJobHistory = [
+    {operation_id:"a".repeat(32),status:"success",
+      created_at:"2026-10-11T10:00:00Z",finished_at:"2026-10-11T10:01:00Z"},
+    {operation_id:"b".repeat(32),status:"failed",
+      created_at:"2026-10-11T11:00:00Z",finished_at:"2026-10-11T11:01:00Z"},
+    {operation_id:"c".repeat(32),status:"interrupted",
+      created_at:"2026-10-11T12:00:00Z",finished_at:"2026-10-11T12:01:00Z"},
+    {operation_id:"d".repeat(32),status:"queued",
+      created_at:"2026-10-11T13:00:00Z",finished_at:null},
+  ];
+  readable._render();
+  let html = readable.shadowRoot.innerHTML;
+  assert.match(html,/\.dra-history-section \{border-top:1px solid/);
+  assert.match(html,/\.dra-history-item \{/);
+  assert.match(html,/dra-history-list" role="list"/);
+  assert.equal((html.match(/role="listitem"/g)||[]).length,4);
+  for(const status of ["success","failed","interrupted","queued"]) {
+    assert.match(html,new RegExp('class="dra-history-item '+status+'" role="listitem"'));
+  }
+  assert.match(html,/Weitere Aufträge durch Wischen innerhalb der Liste anzeigen/);
+  assert.match(html,/id="dra-history-refresh"/);
+  assert.match(html,/id="dra-logs-notes">/,"technical notes should be closed by default");
+  assert.match(html,/<summary>Hinweise zu Protokollen und Datenschutz<\/summary>/);
+  assert.match(html,/Nach HA-Neustart ist immer eine neue Quellprüfung erforderlich/);
+  assert.match(html,/CPU-Zeit gilt für den gesamten Home-Assistant-Prozess/);
+  assert.match(html,/Git-Export ausschließlich zum eingestellten privaten Archiv/);
+  readable._logsNotesOpen=true;
+  readable._render();
+  html=readable.shadowRoot.innerHTML;
+  assert.match(html,/id="dra-logs-notes" open>/,
+    "disclosure state must survive normal rerenders");
+  assert.doesNotMatch(html,/data-stage="2"/,
+    "display-only changes may not unlock deployment");
+  console.log("DRA V2 separated accessible job cards and compact disclosure PASS");
 })().catch(error=>{console.error(error);process.exitCode=1;});
 
 (async () => {
