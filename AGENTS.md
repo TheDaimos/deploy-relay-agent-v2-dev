@@ -24,6 +24,14 @@ Dieses öffentliche Repository ist die **V2-Entwicklungsquelle**, nicht der stab
 14. Änderungen an Lizenz, offiziellen Logos und veröffentlichten Markenrechten nur im Einklang mit LICENSE, COPYRIGHT.md und BRANDING.md.
 15. Eine Änderung am Hauptzweig stellt weder ein V2-Installationspaket noch eine HACS- oder FINAL-Freigabe dar.
 
+## Vorrangiger Produktauftrag – Kurskorrektur 12.10.2026
+
+**Ausdrückliche Anweisung des Projektinhabers:** DRA V2 ist die **direkte Weiterentwicklung und der spätere Ersatz von DRA V1**, **keine** vollständige Neuerfindung der funktionierenden V1-Installationsengine und **keine** Infrastruktur zur dauerhaften parallelen Verwaltung von V1 und V2. **Oberste Umsetzungspriorität:** V1-Quellprüfung/Staging/Backups/Installation/Restore/Rollback in V2 weitgehend übernehmen, dazu echte **Mehrkern-/Parallelverarbeitung** und **serverseitige eigenständig weiterlaufende Installationsaufträge**; bereits entwickelte V2-Oberfläche erhalten.
+
+Die umfangreichen historischen G3-/G4-/G5-Konzepte sind **nicht länger sequentiell abzuarbeitende Neuentwicklungsblöcke**, sondern nur Sicherheits-Checkpunkte der bewährten übernommenen Engine. Keine weitere separate Besitz-/Sperrarchitektur für einen vom Betreiber nicht vorgesehenen dauerhaften V1/V2-Doppelbetrieb. **Ein** V2-Auftrag darf weiterhin nicht mit anderen Schreibern dasselbe Ziel verändern; während der DEV-Migration V1 nur vorübergehend als Installationsweg für V2 verwenden und beim Umstieg deaktivieren. Sicherungs-/Integritäts-/Rückfallgarantien von V1 müssen erhalten bleiben.
+
+**Arbeitsweise:** funktionierender Anwendungscode vor weiterer Planung; verwandte Funktionen gebündelt entwickeln und CI-prüfen, wenige kombinierte HA-Abnahmen statt ständig neuer Versionsstände/Neustarts. Kein eigenmächtiger HA-Neustart, keine produktive Mutation, kein Merge von PR #2; V1-Code nur lesen/als öffentliche Basis im freigegebenen V2-Featurezweig adaptieren, **V1-Repositories selbst niemals ändern**. Die **Neufassung von `docs/V2_ROADMAP.md` vom 12.10.2026** gilt vor älteren Konzeptplänen.
+
 ## Verbindlicher beschleunigter Entwicklungs- und Abnahmeablauf
 
 **Nutzerentscheidung vom 12.10.2026:** DRA V2 darf nicht durch kleinteilige Einzelabnahmen und wiederholte HA-Neustarts unnötig verzögert werden. Ab sofort gilt **Entwicklung in Funktionsgruppen mit gemeinsamer Testabnahme**, bei gleichbleibender Sicherheit und Präzision:
