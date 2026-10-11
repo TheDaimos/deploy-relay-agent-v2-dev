@@ -724,10 +724,14 @@ class DRAV2DevLabPanel extends HTMLElement {
             !/^[0-9a-f]{32}$/.test(eid || "") ||
             !/^[0-9a-f]{40}$/.test(result.commit_sha || "") ||
             !/^exports\/deploy-relay-agent-v2\/[0-9]{4}-[0-9]{2}\/diagnostics\/.+__diagnostics__[0-9a-f]{32}\.json$/.test(result.path || "") ||
-            !String(result.file_url || "").startsWith("https://github.com/" + result.repository + "/blob/")) {
+            !String(result.file_url || "").startsWith("https://github.com/" + result.repository + "/blob/") ||
+            typeof result.pending_retried !== "boolean") {
           throw new Error("unconfirmed private export");
         }
-        this._deploymentLogsStatus = "Privat exportiert · Export-ID " + eid;
+        this._deploymentLogsStatus = result.pending_retried ?
+          "Zuvor gesicherten Export erneut nach Git übertragen · ID " + eid +
+          ". Für das aktuelle Prüfprotokoll Export nach Git erneut wählen." :
+          "Aktuelles Prüfprotokoll privat exportiert · Export-ID " + eid;
         this._centralExport = {...this._centralExport, pending:false};
       } else {
         if (!result || result.application_id !== "deploy-relay-agent-v2" ||
@@ -776,7 +780,8 @@ class DRAV2DevLabPanel extends HTMLElement {
       }
     } catch (_error) {
       this._deploymentLogsStatus = kind === "git" ?
-        "Privater Export fehlgeschlagen. JSON-Download bleibt verfügbar." :
+        "Git-Übertragung fehlgeschlagen. Ein vorbereiteter Bericht bleibt lokal erhalten. " +
+        "Erneut tippen, um ihn zuerst zu senden. JSON-Download bleibt verfügbar." :
         "JSON oder Zwischenablage nicht verfügbar. Bitte erneut versuchen.";
     } finally {
       this._deploymentLogsBusy = false;
@@ -2526,7 +2531,7 @@ class DRAV2DevLabPanel extends HTMLElement {
                     </div>
                   </div>` : ""}
                 <div class="dra-logs-actions">
-                  <button id="dra-logs-git" ${!this._deploymentLogs.length || this._deploymentLogsBusy || !this._centralExport.configured || this._centralExport.repository !== "TheDaimos/Project-Log-And-Export" ? "disabled" : ""}>Export nach Git</button>
+                  <button id="dra-logs-git" ${!this._deploymentLogs.length || this._deploymentLogsBusy || !this._centralExport.configured || this._centralExport.repository !== "TheDaimos/Project-Log-And-Export" ? "disabled" : ""}>${this._centralExport.pending ? "Gespeicherten Git-Export erneut senden" : "Export nach Git"}</button>
                   <button id="dra-logs-json" ${!this._deploymentLogs.length || this._deploymentLogsBusy ? "disabled" : ""}>JSON herunterladen</button>
                   <button id="dra-logs-copy" ${!this._deploymentLogs.length || this._deploymentLogsBusy ? "disabled" : ""}>Zwischenablage</button>
                 </div>
