@@ -99,12 +99,16 @@ class FakeStore:
 
 
 class FakeResponse:
-    def __init__(self, status=201, payload=None):
+    def __init__(self, status=201, payload=None, *, fragment_size=None):
         self.status = status
         self.payload = payload if payload is not None else {"commit": {"sha": "b" * 40}}
+        self.fragment_size = fragment_size
         self.content = self
+        self._remaining = b""
+        self.read_calls = 0
 
     async def __aenter__(self):
+        self._remaining = json.dumps(self.payload).encode("utf-8")
         return self
 
     async def __aexit__(self, *args):
@@ -114,7 +118,11 @@ class FakeResponse:
         return self.payload
 
     async def read(self, maximum):
-        return json.dumps(self.payload).encode("utf-8")[:maximum]
+        self.read_calls += 1
+        n = min(maximum, self.fragment_size) if self.fragment_size else maximum
+        result = self._remaining[:n]
+        self._remaining = self._remaining[len(result):]
+        return result
 
 
 class FakeSession:
@@ -151,6 +159,54 @@ class GitExportTests(unittest.IsolatedAsyncioTestCase):
         url, request = self.session.requests[n]
         payload = base64.b64decode(request["json"]["content"])
         return url, request, json.loads(payload)
+
+    async def test_private_repository_metadata_fragmented_http_response(self):
+        # Reproduce aiohttp read(n) returning only part of GitHub's JSON body.
+        # The old single-read implementation wrongly rejected valid private repo.
+        metadata = {
+            "full_name": "TheDaimos/Project-Log-And-Export",
+            "private": True, "default_branch": "main",
+            "padding": "x" * 5800,
+        }
+        self.session.repo_response = FakeResponse(
+            200, metadata, fragment_size=41)
+        report = await self.writer.check_archive()
+        self.assertTrue(report["verified_private_read"])
+        self.assertFalse(report["write_verified"])
+        self.assertGreater(self.session.repo_response.read_calls, 50)
+        self.assertFalse(self.session.repo_response._remaining)
+
+    async def test_private_repository_response_over_limit_remains_blocked(self):
+        oversized = {
+            "full_name": "TheDaimos/Project-Log-And-Export",
+            "private": True, "default_branch": "main",
+            "padding": "x" * 9000,
+        }
+        self.session.repo_response = FakeResponse(200, oversized, fragment_size=43)
+        with self.assertRaisesRegex(
+                module.GitMeasurementError,
+                "central archive repository response too large"):
+            await self.writer.export(measurement(), version="0.1.64")
+        self.assertTrue(self.writer.pending)  # Never discard prepared report.
+        self.assertEqual(self.session.requests, [])  # Never upload unverified.
+
+    async def test_persistent_pending_retry_after_fragmented_private_check(self):
+        self.session.repo_response = FakeResponse(200, {
+            "full_name": "TheDaimos/Project-Log-And-Export",
+            "private": True, "default_branch": "main",
+        }, fragment_size=2)
+        self.session.response = FakeResponse(503)
+        with self.assertRaises(module.GitMeasurementError):
+            await self.writer.export(measurement(), version="0.1.64")
+        previous = copy.deepcopy(self.store.data["pending"])
+        self.assertIsNotNone(previous)
+        self.session.response = FakeResponse(201)
+        success = await self.writer.retry_pending()
+        self.assertEqual(success["export_id"], previous["export_id"])
+        self.assertEqual(success["path"], previous["path"])
+        self.assertEqual(self.session.requests[-1][1]["json"]["branch"], "main")
+        self.assertFalse(self.writer.pending)
+        self.assertIsNone(self.store.data["pending"])
 
     async def test_status_uses_only_five_character_token_suffix(self):
         archive = FakeStore()
