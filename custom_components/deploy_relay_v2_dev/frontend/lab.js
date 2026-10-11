@@ -47,6 +47,10 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._sourceMessage = "";
     this._sourcePreview = null;
     this._deploymentPreviewRef = null;
+    this._sourceJobId = null;
+    this._sourceJobTimer = null;
+    this._sourceJobPolling = false;
+    this._sourceJobRestored = false;
     this._deploymentLogsOpen = false;
     this._deploymentLogsBusy = false;
     this._deploymentLogs = [];
@@ -109,6 +113,8 @@ class DRAV2DevLabPanel extends HTMLElement {
   }
 
   disconnectedCallback() {
+    if (this._sourceJobTimer !== null) clearTimeout(this._sourceJobTimer);
+    this._sourceJobTimer = null;
     if (typeof window !== "undefined") {
       window.removeEventListener("popstate", this._boundHistoryPop);
     }
@@ -273,6 +279,10 @@ class DRAV2DevLabPanel extends HTMLElement {
       this._gitReadConfigured = data.git_read_configured === true;
       this._gitAvailable = data.git_available === true;
       this._error = "";
+      if (!this._sourceJobRestored) {
+        this._sourceJobRestored = true;
+        await this._pollSourceJob();
+      }
     } catch (_error) {
       this._error = "Status konnte nicht geladen werden. Verbindung prüfen.";
     } finally {
@@ -734,32 +744,106 @@ class DRAV2DevLabPanel extends HTMLElement {
     }
   }
 
+  _scheduleSourceJobPoll() {
+    if (this._sourceJobTimer !== null) clearTimeout(this._sourceJobTimer);
+    this._sourceJobTimer = null;
+    if (this.isConnected && this._sourceBusy) {
+      this._sourceJobTimer = setTimeout(() => this._pollSourceJob(), 1200);
+    }
+  }
+
+  async _pollSourceJob() {
+    if (!this._hass || this._sourceJobPolling) return;
+    this._sourceJobPolling = true;
+    try {
+      const data = await this._hass.callWS({
+        type:"deploy_relay_v2_dev/projects/source_job/status",
+        ...(this._sourceJobId ? {operation_id:this._sourceJobId} : {}),
+      });
+      if (!data || data.schema !== "dra-v2-source-preview-job-status.v1" ||
+          data.installation_enabled !== false) throw new Error("invalid source job status");
+      const job = data.job;
+      if (!job) {
+        this._sourceBusy = false;
+        return;
+      }
+      if (job.schema !== "dra-v2-source-preview-job.v1" ||
+          job.installation_enabled !== false ||
+          !/^[a-f0-9]{32}$/.test(job.operation_id || "") ||
+          !["queued","running","success","failed","interrupted"].includes(job.status) ||
+          typeof job.repository !== "string" || typeof job.ref !== "string") {
+        throw new Error("invalid source job");
+      }
+      if (!this._sourceJobId) this._sourceJobId = job.operation_id;
+      if (this._sourceJobId !== job.operation_id) throw new Error("different source job");
+      if (!this._selectedMainRepo &&
+          this._projects.some(project => project.repository.toLowerCase() === job.repository.toLowerCase())) {
+        this._selectedMainRepo = job.repository;
+        this._mainSourceRef = job.ref;
+      }
+      const currentRepo = this._selectedMainRepo || this._projects.find(p=>p.active !== false)?.repository;
+      const matches = currentRepo?.toLowerCase() === job.repository.toLowerCase() &&
+        this._mainSourceRef.trim() === job.ref;
+      this._sourceBusy = job.status === "queued" || job.status === "running";
+      if (matches) {
+        this._sourceRepository = job.repository;
+        const identity = job.operation_id.slice(0, 12);
+        if (this._sourceBusy) {
+          this._sourceMessage = "HA prüft die Quelle serverseitig · Auftrag " + identity;
+        } else if (job.status === "success" &&
+            job.result?.sources_verified === true &&
+            job.result?.installation_enabled === false &&
+            job.result?.repository?.toLowerCase() === job.repository.toLowerCase()) {
+          this._sourcePreview = job.result;
+          this._deploymentPreviewRef = job.ref;
+          this._sourceMessage = "Quellprüfung abgeschlossen · Auftrag " + identity +
+            ". Installation weiterhin gesperrt.";
+        } else {
+          this._sourcePreview = null;
+          this._deploymentPreviewRef = null;
+          this._sourceMessage = "Quellprüfung konnte nicht abgeschlossen werden · Auftrag " +
+            identity + ". Details unter Logs.";
+        }
+      }
+      if (!this._sourceBusy && this._deploymentLogsOpen) await this._refreshDeploymentLogs();
+    } catch (_error) {
+      // Losing a browser connection never cancels the HA-owned job.
+      this._sourceMessage = "Verbindung zur Auftragsanzeige unterbrochen. HA-Auftrag bleibt unabhängig.";
+      this._sourceBusy = true;
+    } finally {
+      this._sourceJobPolling = false;
+      if (this.isConnected) this._render();
+      this._scheduleSourceJobPoll();
+    }
+  }
+
   async _sourceCheck(button) {
     if (!button || !this._hass || this._sourceBusy) return;
     const repository = button.dataset.repo;
-    const ref = this._view === "main" ? this._mainSourceRef.trim() : (this.shadowRoot?.querySelector("#source-ref")?.value?.trim() || "");
+    const ref = this._view === "main" ? this._mainSourceRef.trim() :
+      (this.shadowRoot?.querySelector("#source-ref")?.value?.trim() || "");
     this._sourceRepository = repository;
     this._sourceBusy = true;
     this._sourcePreview = null;
     this._deploymentPreviewRef = null;
-    this._sourceMessage = "GitHub-Quelle und vorhandene Dateien werden schreibgeschützt geprüft …";
+    this._sourceJobId = null;
+    this._sourceMessage = "HA startet die schreibgeschützte Quellprüfung …";
     this._render();
     try {
-      const report = await this._hass.callWS({
-        type:"deploy_relay_v2_dev/projects/source_preview", repository, ref,
+      const job = await this._hass.callWS({
+        type:"deploy_relay_v2_dev/projects/source_job/start", repository, ref,
       });
-      if (!report || report.repository?.toLowerCase() !== repository.toLowerCase() ||
-          report.installation_enabled !== false || report.sources_verified !== true) {
-        throw new Error("ungueltiges Quellpruefungsergebnis");
+      if (job?.schema !== "dra-v2-source-preview-job.v1" ||
+          job.installation_enabled !== false ||
+          !/^[a-f0-9]{32}$/.test(job.operation_id || "")) {
+        throw new Error("invalid source job admission");
       }
-      this._sourcePreview = report;
-      this._deploymentPreviewRef = this._view === "main" ? ref : null;
-      this._sourceMessage = "Quellprüfung abgeschlossen. Keine Installation freigegeben.";
+      this._sourceJobId = job.operation_id;
+      await this._pollSourceJob();
     } catch (_error) {
-      this._sourceMessage = "Quelle nicht erreichbar oder sicherheitstechnisch nicht prüfbar. Kein Update als aktuell bestätigt.";
-    } finally {
+      this._sourceMessage = "Quellprüfung nicht startbar. Die Installation bleibt gesperrt.";
       this._sourceBusy = false;
-      if (this._deploymentLogsOpen) await this._refreshDeploymentLogs();
+    } finally {
       if (this.isConnected) this._render();
     }
   }
