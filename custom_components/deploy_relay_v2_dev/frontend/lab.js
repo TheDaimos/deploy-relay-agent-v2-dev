@@ -1,5 +1,5 @@
 /* Separate DRA V2 DEV read-only lab. No V1 custom element or URLs. */
-const G2_TEST_PYTHON_VERSION = "0.1.68";
+const G2_TEST_PYTHON_VERSION = "0.1.69";
 class DRAV2DevLabPanel extends HTMLElement {
   constructor() {
     super();
@@ -66,6 +66,8 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._deploymentLogCount = 0;
     this._deploymentLogsStatus = "";
     this._deploymentLogsConfirm = false;
+    this._g2RetryTestOpen = false;
+    this._g2RetryTestConfirm = false;
     this._sourceChecks = new Map();
     this._connectionBusy = false;
     this._checkAllBusy = false;
@@ -737,23 +739,40 @@ class DRAV2DevLabPanel extends HTMLElement {
 
   async _deploymentLogsAction(kind) {
     if (!this._hass || this._deploymentLogsBusy || !this._deploymentLogs.length ||
-        !["git","json","copy"].includes(kind)) return;
-    if (kind === "git" && (this._centralExport.configured !== true ||
+        !["git","json","copy","g2_prepare"].includes(kind)) return;
+    if (kind === "g2_prepare" && (!this._g2RetryTestConfirm ||
+        this._centralExport.pending)) return;
+    if ((kind === "git" || kind === "g2_prepare") &&
+        (this._centralExport.configured !== true ||
         this._centralExport.repository !== "TheDaimos/Project-Log-And-Export")) {
       this._deploymentLogsStatus = "Privates Project-Log-And-Export unter Diagnose & Einstellungen einrichten.";
       this._render();
       return;
     }
     this._deploymentLogsBusy = true;
-    this._deploymentLogsStatus = kind === "git" ? "Privater Git-Export läuft …" :
-      "Bereinigtes JSON wird erstellt …";
+    this._deploymentLogsStatus = kind === "g2_prepare"
+      ? "G2 prüft das private Archiv und bereitet den Bericht nur lokal vor …"
+      : kind === "git" ? "Privater Git-Export läuft …"
+      : "Bereinigtes JSON wird erstellt …";
     this._render();
     try {
       const result = await this._hass.callWS({
-        type: kind === "git" ? "deploy_relay_v2_dev/deployment/logs/export" :
-          "deploy_relay_v2_dev/deployment/logs/download",
+        type: kind === "git" || kind === "g2_prepare"
+          ? "deploy_relay_v2_dev/deployment/logs/export"
+          : "deploy_relay_v2_dev/deployment/logs/download",
+        ...(kind === "g2_prepare" ? {g2_prepare:true,g2_confirm:true} : {}),
       });
-      if (kind === "git") {
+      if (kind === "g2_prepare") {
+        if (result?.pending_prepared !== true || result.pending !== true ||
+            !/^[0-9a-f]{32}$/.test(result.export_id || "")) {
+          throw new Error("G2 export queue not confirmed");
+        }
+        this._centralExport = {...this._centralExport,pending:true};
+        this._g2RetryTestConfirm = false;
+        this._deploymentLogsStatus =
+          "G2-Test: Bereinigter Diagnosebericht mit Export-ID " + result.export_id +
+          " nur lokal gesichert. Jetzt „Gespeicherten Git-Export erneut senden“ auswählen.";
+      } else if (kind === "git") {
         const eid = result?.export_id;
         if (result.repository !== this._centralExport.repository ||
             !/^[0-9a-f]{32}$/.test(eid || "") ||
@@ -814,7 +833,9 @@ class DRAV2DevLabPanel extends HTMLElement {
         }
       }
     } catch (_error) {
-      this._deploymentLogsStatus = kind === "git" ?
+      this._deploymentLogsStatus = kind === "g2_prepare"
+        ? "G2-Testvorbereitung nicht bestätigt. Vorhandene Daten bitte unverändert lassen."
+        : kind === "git" ?
         "Git-Übertragung fehlgeschlagen. Ein vorbereiteter Bericht bleibt lokal erhalten. " +
         "Erneut tippen, um ihn zuerst zu senden. JSON-Download bleibt verfügbar." :
         "JSON oder Zwischenablage nicht verfügbar. Bitte erneut versuchen.";
@@ -1840,6 +1861,16 @@ class DRAV2DevLabPanel extends HTMLElement {
           .dra-history-refresh.is-loading svg {animation:none;}
         }
         /* Clear section boundaries, distinct job cards and compact technical notes. */
+        .dra-g2-retry-test {margin-top:12px;padding:0 12px 11px;
+          border:1px solid #5e7180;border-radius:12px;background:#1e2a35;}
+        .dra-g2-retry-test summary {min-height:44px;display:list-item;
+          padding:12px 2px;cursor:pointer;color:#e3c994;font-size:13px;font-weight:650;}
+        .dra-g2-retry-test summary:focus-visible {outline:2px solid #ecd098;outline-offset:2px;}
+        .dra-g2-retry-test button {min-height:44px;margin:6px 9px 3px 0;
+          padding:8px 12px;border:1px solid #b29159;border-radius:11px;
+          background:#302f2a;color:#f0d7a7;font:inherit;font-size:13px;font-weight:700;}
+        .dra-g2-retry-test button:disabled {opacity:.55;}
+        .dra-g2-retry-test .note {font-size:12px;line-height:1.55;}
         .dra-history-section {border-top:1px solid rgba(203,165,100,.55);
           margin-top:18px;padding-top:16px;}
         .dra-history-list {box-sizing:border-box;max-height:310px;min-height:0;
@@ -2672,6 +2703,29 @@ class DRAV2DevLabPanel extends HTMLElement {
                   <button id="dra-logs-json" ${!this._deploymentLogs.length || this._deploymentLogsBusy ? "disabled" : ""}>JSON herunterladen</button>
                   <button id="dra-logs-copy" ${!this._deploymentLogs.length || this._deploymentLogsBusy ? "disabled" : ""}>Zwischenablage</button>
                 </div>
+                <details class="dra-g2-retry-test" id="dra-g2-retry-test"
+                  ${this._g2RetryTestOpen ? "open" : ""}>
+                  <summary>G2 – Wiederholversand sicher prüfen</summary>
+                  <p class="note">Nur im DEV-Testlabor: Ein echter, bereinigter Prüfbericht wird
+                    zuerst lokal zurückgestellt, ohne an Git übertragen zu werden.
+                    Erst ein späterer ausdrücklicher Klick auf „Gespeicherten Git-Export erneut senden“
+                    sendet exakt diesen Bericht an das eingestellte private Archiv.</p>
+                  ${this._centralExport.pending ?
+                    `<p class="note">Ein Bericht wartet bereits. Keinen weiteren vorbereiten.
+                       Für die Übertragung oben „Gespeicherten Git-Export erneut senden“ verwenden.</p>`
+                    : this._g2RetryTestConfirm ? `
+                      <p class="note">Sicherheitsbestätigung: Nur aktuelle bereinigte Diagnose
+                        in der lokalen HA-Warteschlange speichern? Es erfolgt jetzt kein Git-Upload.</p>
+                      <button type="button" id="dra-g2-retry-yes"
+                        ${this._deploymentLogsBusy ? "disabled" : ""}>Ja, lokal zurückstellen</button>
+                      <button type="button" id="dra-g2-retry-no"
+                        ${this._deploymentLogsBusy ? "disabled" : ""}>Abbrechen</button>`
+                    : `<button type="button" id="dra-g2-retry-prepare"
+                       ${this._deploymentLogsBusy || !this._deploymentLogs.length ||
+                         this._centralExport.configured !== true ||
+                         this._centralExport.repository !== "TheDaimos/Project-Log-And-Export"
+                         ? "disabled" : ""}>G2-Test vorbereiten</button>`}
+                </details>
                 <p class="note" role="status" aria-live="polite">${this._escapeProject(this._deploymentLogsStatus)}</p>
                 <div class="dra-logs-events">
                   ${this._deploymentLogs.map(record => `
@@ -3281,6 +3335,19 @@ class DRAV2DevLabPanel extends HTMLElement {
     s.querySelector("#dra-logs-clear-confirm")?.addEventListener("click",()=>this._clearDeploymentLogs());
     s.querySelector("#dra-logs-json")?.addEventListener("click",()=>this._deploymentLogsAction("json"));
     s.querySelector("#dra-logs-git")?.addEventListener("click",()=>this._deploymentLogsAction("git"));
+    s.querySelector("#dra-g2-retry-test")?.addEventListener("toggle",e=>{
+      this._g2RetryTestOpen = e.currentTarget.open;
+    });
+    s.querySelector("#dra-g2-retry-prepare")?.addEventListener("click",()=>{
+      if (this._deploymentLogsBusy || this._centralExport.pending) return;
+      this._g2RetryTestConfirm=true; this._render();
+    });
+    s.querySelector("#dra-g2-retry-no")?.addEventListener("click",()=>{
+      this._g2RetryTestConfirm=false; this._render();
+    });
+    s.querySelector("#dra-g2-retry-yes")?.addEventListener("click",()=>{
+      this._deploymentLogsAction("g2_prepare");
+    });
     s.querySelector("#dra-logs-copy")?.addEventListener("click",()=>this._deploymentLogsAction("copy"));
     s.querySelector("#dra-g2-connection-test")?.addEventListener("click",()=>{
       if (deploymentBusy || this._mainBatchMode || !mainProject) return;
