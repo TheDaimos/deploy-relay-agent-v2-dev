@@ -140,6 +140,37 @@ class PurePreflightTests(unittest.TestCase):
         with self.assertRaises(m.PreflightError):
             m.parse_manifest(manifest(groups=groups), repository=REPO)
 
+    def test_v1_declared_budgets_are_accepted_but_not_trusted_as_v2_limits(self):
+        obj = json.loads(manifest())
+        obj["policy"]["max_files"] = 5000
+        obj["policy"]["max_uncompressed_bytes"] = 150 * 1024 * 1024
+        parsed = m.parse_manifest(json.dumps(obj).encode(), repository=REPO)
+        self.assertEqual(parsed["max_files"], m.MAX_FILES)
+        self.assertEqual(parsed["max_bytes"], m.MAX_BYTES)
+        path = "custom_components/safe_project/"
+        approved = m.inspect_tree(parsed, [tree_item(path + "one.py", b"ok")])
+        self.assertEqual(len(approved), 1)
+        # A remote source with a larger *actual* file is still fail-closed.
+        too_large = tree_item(path + "large.bin", b"x")
+        too_large["size"] = m.MAX_BYTES + 1
+        with self.assertRaises(m.PreflightError):
+            m.inspect_tree(parsed, [too_large])
+        many = [tree_item(path + str(n) + ".py") for n in range(m.MAX_FILES + 1)]
+        with self.assertRaises(m.PreflightError):
+            m.inspect_tree(parsed, many)
+
+    def test_declared_budgets_outside_v1_envelope_still_fail(self):
+        for key, value in (
+            ("max_files", m.MAX_DECLARED_FILES + 1),
+            ("max_uncompressed_bytes", m.MAX_DECLARED_BYTES + 1),
+            ("max_files", True),
+            ("max_uncompressed_bytes", 0),
+        ):
+            obj = json.loads(manifest())
+            obj["policy"][key] = value
+            with self.subTest(key=key, value=value), self.assertRaises(m.PreflightError):
+                m.parse_manifest(json.dumps(obj).encode(), repository=REPO)
+
     def test_generated_git_blob_hash_has_canonical_format(self):
         self.assertEqual(m.git_blob_sha(b""), "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391")
 
