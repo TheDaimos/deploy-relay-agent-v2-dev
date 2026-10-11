@@ -7,6 +7,10 @@ read-only, and cannot authorize a deployment.
 from __future__ import annotations
 
 from collections import deque
+import hashlib
+import secrets
+
+from .project_catalog import CatalogError, normalize_repo
 from datetime import datetime, timezone
 import re
 from time import monotonic, process_time
@@ -40,10 +44,11 @@ MAX_REPORTS = 8
 _FIELDS = frozenset({
     "schema", "run_id", "captured_at", "status", "stage",
     "reason", "duration_ms", "process_cpu_ms", "sources_verified", "installation_enabled",
-    "resources", "steps",
+    "resources", "steps", "project_ref",
 })
 _DATE_RE = re.compile(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ\Z")
 _HEX = re.compile(r"[a-f0-9]{32}\Z")
+_PROJECT_REF = re.compile(r"P-[A-F0-9]{12}\Z")
 
 
 RESOURCE_FIELDS = frozenset({
@@ -115,6 +120,8 @@ def sanitize_source_diagnostic(value: object) -> dict:
         raise SourceDiagnosticsError("invalid source diagnostic schema")
     if (value["schema"] != SCHEMA or
         type(value["run_id"]) is not str or not _HEX.fullmatch(value["run_id"]) or
+        (value["project_ref"] is not None and (type(value["project_ref"]) is not str or
+          not _PROJECT_REF.fullmatch(value["project_ref"]))) or
         type(value["captured_at"]) is not str or
         not _DATE_RE.fullmatch(value["captured_at"]) or
         type(value["stage"]) is not str or value["stage"] not in ALLOWED_STAGES or
@@ -219,11 +226,29 @@ def classify_source_failure(stage: str, error: BaseException) -> str:
 class SourceDiagnosticLog:
     def __init__(self) -> None:
         self._entries: deque[dict] = deque(maxlen=MAX_REPORTS)
+        self._project_secret = secrets.token_bytes(32)
+        self._private_repositories: dict[str, str] = {}
 
     def begin(self) -> dict:
         start = monotonic()
-        return {"run_id": uuid4().hex, "started": start, "process_started": process_time(), "stage": "admission",
+        return {"run_id": uuid4().hex, "started": start, "process_started": process_time(),
+                "stage": "admission", "project_ref": None, "repository": None,
                 "steps": [{"stage": "admission", "elapsed_ms": 0}]}
+
+    def bind_project(self, context: dict, repository: str) -> str:
+        """Attach server-verified project identity, never sent in ordinary logs."""
+        try:
+            canonical = normalize_repo(repository)
+        except CatalogError:
+            raise SourceDiagnosticsError("invalid project identity") from None
+        if context.get("repository") is not None:
+            raise SourceDiagnosticsError("diagnostic project already bound")
+        digest = hashlib.blake2s(canonical.casefold().encode("ascii"),
+                                  key=self._project_secret, digest_size=6).hexdigest().upper()
+        reference = "P-" + digest
+        context["repository"] = canonical
+        context["project_ref"] = reference
+        return reference
 
     @staticmethod
     def stage(context: dict, name: str) -> None:
@@ -252,11 +277,31 @@ class SourceDiagnosticLog:
             "process_cpu_ms": min(1000000000, max(0, round(
                 (process_time()-context["process_started"])*1000))),
             "resources": resources, "steps": steps,
+            "project_ref": context["project_ref"],
             "sources_verified": bool(success),
             "installation_enabled": False,
         })
+        if context["repository"] is not None:
+            self._private_repositories[record["run_id"]] = context["repository"]
+        if len(self._entries) == MAX_REPORTS:
+            removed = self._entries[0]["run_id"]
+            self._private_repositories.pop(removed, None)
         self._entries.append(record)
         return dict(record)
+
+    def private_repository_for(self, run_id: str) -> str | None:
+        """Private Git sink only; never expose through generic WS / JSON."""
+        return self._private_repositories.get(run_id)
+
+    def clear(self, *, expected_run_id: str) -> int:
+        """CAS clearing of ephemeral logs only; no Git files or export queue."""
+        if (type(expected_run_id) is not str or not _HEX.fullmatch(expected_run_id)
+                or not self._entries or self._entries[-1]["run_id"] != expected_run_id):
+            raise SourceDiagnosticsError("logs changed or unavailable")
+        cleared = len(self._entries)
+        self._entries.clear()
+        self._private_repositories.clear()
+        return cleared
 
     def latest(self) -> dict | None:
         return sanitize_source_diagnostic(self._entries[-1]) if self._entries else None
