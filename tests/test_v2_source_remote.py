@@ -117,6 +117,23 @@ class SourceRemoteTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(all("Authorization" not in kwargs["headers"] for _, kwargs in session.calls))
         self.assertTrue(any("/contents/deploy-relay.json?ref=" + COMMIT in url for url, _ in session.calls))
 
+    async def test_large_declared_v1_policy_is_clamped_during_real_readonly_preview(self):
+        obj = json.loads(manifest())
+        obj["policy"]["max_files"] = 5000
+        obj["policy"]["max_uncompressed_bytes"] = 150 * 1024 * 1024
+        source = json.dumps(obj).encode()
+        folder = self.root / "custom_components" / "safe_project"
+        (folder / "one.py").write_bytes(b"old")
+        report = await m.inspect_public_repository(
+            Session(payloads(content=source)), self.root, REPO,
+        )
+        self.assertEqual(report["source_commit"], COMMIT)
+        self.assertEqual(report["change"], ["custom_components/safe_project/one.py"])
+        self.assertTrue(report["sources_verified"])
+        self.assertFalse(report["installation_enabled"])
+        self.assertFalse(report["backup_verified"])
+        self.assertEqual((folder / "one.py").read_bytes(), b"old")
+
     async def test_private_read_token_only_reaches_fixed_github_host(self):
         session = Session(payloads())
         token = "github_pat_READ_ONLY_DEMONSTRATION"
