@@ -38,8 +38,10 @@ class DeploymentLogUiContract(unittest.TestCase):
 
     def test_conditional_clear_has_confirmation_and_ids_for_screenshots(self):
         js = self.frontend
-        self.assertIn('this._deploymentLogs.length > 0 ? ', js)
+        self.assertIn('this._deploymentLogCount > 0 ? ', js)
         self.assertIn('id="dra-deployment-logs-clear"', js)
+        self.assertIn('data.deployment_log_count', js)
+        self.assertIn('result.count !== result.records.length', js)
         self.assertIn('id="dra-logs-clear-confirm"', js)
         self.assertIn('id="dra-logs-clear-cancel"', js)
         self.assertIn('Nur die letzten temporären V2-Protokolle leeren?', js)
