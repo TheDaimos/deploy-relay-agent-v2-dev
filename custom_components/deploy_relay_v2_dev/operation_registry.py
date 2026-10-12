@@ -48,13 +48,16 @@ class OperationRegistry:
     *outside* this class before registering any mutation.
     """
 
-    def __init__(self, *, max_completed: int = 64, max_readonly: int = 2) -> None:
+    def __init__(self, *, max_completed: int = 64, max_readonly: int = 2, max_mutating: int = 1) -> None:
         if type(max_completed) is not int or not 1 <= max_completed <= 1000:
             raise OperationContractError("max_completed must be between 1 and 1000")
         if type(max_readonly) is not int or not 1 <= max_readonly <= 32:
             raise OperationContractError("max_readonly must be between 1 and 32")
+        if type(max_mutating) is not int or not 1 <= max_mutating <= 4:
+            raise OperationContractError("max_mutating must be between 1 and 4")
         self._max_completed = max_completed
         self._max_readonly = max_readonly
+        self._max_mutating = max_mutating
         self._lock = asyncio.Lock()
         self._records: OrderedDict[str, OperationRecord] = OrderedDict()
         self._idempotency: dict[str, tuple[str, OperationType, str, str | None, str | None]] = {}
@@ -112,8 +115,8 @@ class OperationRegistry:
                 return self._records[old_id].snapshot()
             in_flight = [op for op in self._records.values() if not op.terminal]
             if typ in MUTATING_OPERATIONS:
-                if any(op.operation_type in MUTATING_OPERATIONS for op in in_flight):
-                    raise OperationContractError("a mutating operation is already queued or active")
+                if sum(op.operation_type in MUTATING_OPERATIONS for op in in_flight) >= self._max_mutating:
+                    raise OperationContractError("mutating operation capacity reached")
             elif sum(op.operation_type not in MUTATING_OPERATIONS for op in in_flight) >= self._max_readonly:
                 raise OperationContractError("read-only operation capacity reached")
             self._records[candidate.operation_id] = candidate
