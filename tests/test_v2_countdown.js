@@ -744,7 +744,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
 (async () => {
   const probe = new Panel();
   probe._view = "main";
-  probe._serverVersion = "0.1.72";
+  probe._serverVersion = "0.1.73";
   probe._projects = [{repository:"TheDaimos/gewitterradar",name:"Gewitterradar",active:true}];
   probe._mainSourceRef = "";
   const calls = [];
@@ -782,7 +782,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   await probe._sourceCheck({dataset:{repo:"TheDaimos/gewitterradar"}},true);
   assert.equal(calls.length,0);
   assert.match(probe._sourceMessage,/Python-Laufzeit 0.1.64/);
-  probe._serverVersion = "0.1.72";
+  probe._serverVersion = "0.1.73";
   probe._render();
   assert.match(probe.shadowRoot.innerHTML,/Laufzeit kompatibel/);
   await probe._sourceCheck({dataset:{repo:"TheDaimos/gewitterradar"}},true);
@@ -812,7 +812,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
     if (request.type === "deploy_relay_v2_dev/deployment/status") {
       return {schema:"dra-v2-install-status.v1",job:null};
     }
-    return {version:"0.1.72",operations:[],projects:[]};
+    return {version:"0.1.73",operations:[],projects:[]};
   }};
   await versions._refresh();
   assert.deepEqual(requests,[
