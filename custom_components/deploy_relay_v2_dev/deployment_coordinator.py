@@ -173,6 +173,9 @@ class DeploymentCoordinator:
     async def latest(self) -> dict[str, object] | None:
         return await self._jobs.latest()
 
+    async def list(self) -> list[dict[str, object]]:
+        return await self._jobs.list()
+
     async def close(self) -> None:
         async with self._lock:
             self._closed = True
