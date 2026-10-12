@@ -258,7 +258,7 @@ AUDIT_EXPORT_SCHEMA = "dra-v2-dev-git-audit.v1"
 AUDIT_NOTE = "Bounded allowlisted V2 installation phases; no raw paths or tokens."
 AUDIT_STAGES = frozenset({"queued","running","staging","backup","install","verify_install",
                           "rollback","success","failed","recovery_required","interrupted"})
-AUDIT_ID = re.compile(r"[A-Za-z0-9_-]{1,128}\\Z")
+AUDIT_ID = re.compile(r"[A-Za-z0-9_-]{1,128}\Z")
 
 def sanitized_audit(value: object) -> dict:
     if (type(value) is not dict or set(value) != {"schema","records","count"}
