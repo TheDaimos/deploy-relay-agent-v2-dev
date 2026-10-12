@@ -44,6 +44,7 @@ class ServerDeploymentJobs:
         self._tasks: dict[str, asyncio.Task] = {}
         # The exact original V1 deployment target boundaries, never browser paths.
         self._reserved_targets: dict[str, tuple[str, ...]] = {}
+        self._reserved_projects: dict[str, str] = {}
         # Only transactions whose V1 engine actually reported their ID may
         # remain nonterminal during a second, independent project's preflight.
         self._reported_transactions: dict[str, str] = {}
@@ -89,6 +90,16 @@ class ServerDeploymentJobs:
         async with self._start_lock:
             if self._closed:
                 raise OperationContractError("deployment task owner is closed")
+            existing = await self._registry.existing_request(
+                operation_type=OperationType.INSTALL,
+                project_key=manifest.project_id,
+                source_commit=inventory.source_commit,
+                request_id=request_id,
+            )
+            if existing is not None:
+                return existing
+            if manifest.project_id in self._reserved_projects.values():
+                raise OperationContractError("project already deploying")
             # Reject any parent/child/case-insensitive overlap before the V1
             # engine starts, but allow disjoint projects to run concurrently.
             if any(_paths_overlap(target, held) for target in targets
@@ -104,6 +115,7 @@ class ServerDeploymentJobs:
             if identifier in self._tasks or entry["status"] != "queued":
                 return entry
             self._reserved_targets[identifier] = targets
+            self._reserved_projects[identifier] = manifest.project_id
 
             async def run() -> None:
                 try:
@@ -162,6 +174,7 @@ class ServerDeploymentJobs:
                     # Release target ownership only after V1 has returned or
                     # exhausted its rollback attempt. No unsafe parallel write.
                     self._reserved_targets.pop(identifier, None)
+                    self._reserved_projects.pop(identifier, None)
                     self._reported_transactions.pop(identifier, None)
                     if self._on_terminal is not None:
                         snapshot = await self._registry.get(identifier)
@@ -178,6 +191,7 @@ class ServerDeploymentJobs:
             except Exception:
                 coroutine.close()
                 self._reserved_targets.pop(identifier, None)
+                self._reserved_projects.pop(identifier, None)
                 await self._registry.transition(identifier, OperationStatus.FAILED,
                                                 error_family=ErrorFamily.RESOURCE)
                 raise OperationContractError("cannot schedule server deployment") from None
@@ -198,6 +212,9 @@ class ServerDeploymentJobs:
     async def active_transaction_ids(self) -> frozenset[str]:
         """Only IDs reported by actually running V1 engines are exempted."""
         return frozenset(self._reported_transactions.values())
+
+    async def project_active(self, project_id: str) -> bool:
+        return project_id in self._reserved_projects.values()
 
     async def finish_before_unload(self) -> None:
         """Gracefully drain writes; NEVER cancel an in-progress mutation here."""
