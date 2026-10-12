@@ -10,6 +10,7 @@ from collections import deque
 from datetime import datetime, timezone
 import json
 import re
+from time import monotonic
 
 _SAFE_ID = re.compile(r"[a-zA-Z0-9_-]{1,128}\Z")
 _ALLOWED = frozenset({"queued", "running", "staging", "backup", "install",
@@ -26,6 +27,7 @@ class DeploymentAudit:
         self._save_lock = asyncio.Lock()
         self._events: deque[dict[str, object]] = deque(maxlen=_MAX_EVENTS)
         self._seq = 0
+        self._started: dict[str, float] = {}
 
     async def load(self) -> None:
         if self._store is None:
@@ -45,12 +47,13 @@ class DeploymentAudit:
         last_seq = 0
         for row in document["records"]:
             if (type(row) is not dict or set(row) != {"sequence", "captured_at",
-                    "operation_id", "project_key", "stage", "status"}
+                    "operation_id", "project_key", "stage", "status", "elapsed_ms"}
                 or type(row["sequence"]) is not int or row["sequence"] <= last_seq
                 or type(row["captured_at"]) is not str or not row["captured_at"].endswith("Z")
                 or type(row["operation_id"]) is not str or not _SAFE_ID.fullmatch(row["operation_id"])
                 or type(row["project_key"]) is not str or not _SAFE_ID.fullmatch(row["project_key"])
-                or row["stage"] not in _ALLOWED or row["status"] not in _ALLOWED):
+                or row["stage"] not in _ALLOWED or row["status"] not in _ALLOWED
+                or type(row["elapsed_ms"]) is not int or not 0 <= row["elapsed_ms"] <= 86400000):
                 raise ValueError("invalid audit event")
             try:
                 parsed = datetime.fromisoformat(row["captured_at"].replace("Z", "+00:00"))
@@ -81,6 +84,10 @@ class DeploymentAudit:
             or not isinstance(project_key, str) or not _SAFE_ID.fullmatch(project_key)
             or stage not in _ALLOWED or status not in _ALLOWED):
             return
+        now = monotonic()
+        if stage == "queued" or operation_id not in self._started:
+            self._started[operation_id] = now
+        elapsed_ms = max(0, min(86400000, int((now - self._started[operation_id]) * 1000)))
         self._seq += 1
         self._events.append({
             "sequence": self._seq,
@@ -89,7 +96,10 @@ class DeploymentAudit:
             "project_key": project_key,
             "stage": stage,
             "status": status,
+            "elapsed_ms": elapsed_ms,
         })
+        if status in {"success", "failed", "recovery_required", "interrupted"}:
+            self._started.pop(operation_id, None)
 
     def entries(self) -> list[dict[str, object]]:
         return list(reversed(self._events))
