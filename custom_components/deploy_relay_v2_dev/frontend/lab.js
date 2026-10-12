@@ -83,6 +83,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._g2RetryTestConfirm = false;
     this._sourceChecks = new Map();
     this._connectionBusy = false;
+    this._draftConnectionCheck = null;
     this._checkAllBusy = false;
     this._checkAllProgress = "";
     this._highlightMovedRepo = null;
@@ -1134,6 +1135,102 @@ class DRAV2DevLabPanel extends HTMLElement {
         : "Quellprüfung nicht startbar. Die Installation bleibt gesperrt.";
       this._sourceBusy = false;
     } finally {
+      if (this.isConnected) this._render();
+    }
+  }
+
+  async _checkDraftProjectConnection() {
+    // A just-entered repository and optional token are checked before storage.
+    // The token is a local variable, never persistent state or visible feedback.
+    if (!this._hass || this._connectionBusy || this._projectBusy ||
+        this._sourceBusy || this._checkAllBusy) return;
+    const input = this.shadowRoot?.querySelector("#manage-repository");
+    const secretInput = this.shadowRoot?.querySelector("#manage-token");
+    const repository = input?.value.trim() || "";
+    const token = secretInput?.value || "";
+    const managed = this._projects.find(p=>p.repository===this._projectSettingsRepo);
+    if (!repository || !/^[A-Za-z0-9_.-]{1,100}\/[A-Za-z0-9_.-]{1,100}$/.test(repository)) {
+      this._draftConnectionCheck = {repository,status:"failure",
+        message:"Bitte zuerst eine gültige Repositoryadresse eingeben."};
+      this._render();
+      return;
+    }
+    if (managed && managed.repository.toLowerCase()===repository.toLowerCase() && !token) {
+      await this._checkProjectConnection(managed.repository);
+      return;
+    }
+    this._connectionBusy = true;
+    this._draftConnectionCheck = {repository,status:"checking",message:"Verbindung wird geprüft …"};
+    this._render();
+    try {
+      const response = await this._hass.callWS({
+        type:"deploy_relay_v2_dev/projects/connection_check",
+        repository,draft:true,...(token ? {token} : {}),
+      });
+      if (!response || response.repository?.toLowerCase()!==repository.toLowerCase()) {
+        throw Error("unexpected repository identity");
+      }
+      const message = response.connected === true ?
+        "Verbindung erfolgreich · " +
+          (response.private ? "Privates" : "Öffentliches") + " Repository · " +
+          (response.authenticated ? "Token geprüft" : "ohne Token erreichbar") :
+        "Verbindung fehlgeschlagen · " +
+          (response.reason || "Repository oder Token prüfen.");
+      this._draftConnectionCheck = {repository,
+        status:response.connected === true ? "success" : "failure",message};
+    } catch (_error) {
+      this._draftConnectionCheck = {repository,status:"failure",
+        message:"Verbindung nicht bestätigt. Repository, Token oder GitHub-Erreichbarkeit prüfen."};
+    } finally {
+      this._connectionBusy = false;
+      if (this.isConnected) this._render();
+    }
+  }
+
+  async _saveNewProject() {
+    if (!this._hass || this._projectBusy || this._projectSettingsRepo !== "__new__") return;
+    const root=this.shadowRoot;
+    const repository=root?.querySelector("#manage-repository")?.value.trim() || "";
+    const name=root?.querySelector("#manage-name")?.value.trim() || "";
+    const note=root?.querySelector("#manage-note")?.value || "";
+    const active=root?.querySelector("#manage-active")?.checked === true;
+    const access_mode=root?.querySelector("#manage-access-mode")?.value || "read_only";
+    const token=root?.querySelector("#manage-token")?.value || "";
+    this._projectBusy=true;
+    this._projectMessage="Projekt wird gespeichert …";
+    this._render();
+    let registered=false;
+    try {
+      const created=await this._hass.callWS({
+        type:"deploy_relay_v2_dev/projects/add",
+        repository,name,note,active,access_mode,
+      });
+      if (!Array.isArray(created?.projects) ||
+          !created.projects.some(p=>p.repository.toLowerCase()===repository.toLowerCase())) {
+        throw Error("project was not confirmed");
+      }
+      registered=true;
+      this._projects=created.projects;
+      if (token) {
+        const saved=await this._hass.callWS({
+          type:"deploy_relay_v2_dev/projects/token",repository,token,
+        });
+        if (!Array.isArray(saved?.projects)) throw Error("token save not confirmed");
+        this._projects=saved.projects;
+      }
+      this._draftConnectionCheck=null;
+      this._projectSettingsRepo=null;
+      this._batchSelection=null;
+      this._batchPreview=null;
+      this._projectMessage=token ?
+        "Projekt und GitHub-Token gespeichert." : "Projekt gespeichert.";
+    } catch (_error) {
+      this._projectMessage=registered ?
+        "Projekt gespeichert, Token konnte nicht bestätigt werden. In den Projekteinstellungen erneut speichern." :
+        "Projekt konnte nicht angelegt werden. Eingaben prüfen.";
+      if (registered) this._projectSettingsRepo=repository;
+    } finally {
+      this._projectBusy=false;
       if (this.isConnected) this._render();
     }
   }
