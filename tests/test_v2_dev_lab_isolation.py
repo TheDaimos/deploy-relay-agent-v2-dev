@@ -362,6 +362,24 @@ class LabIsolationContracts(unittest.TestCase):
         self.assertIn('async_projects_connection_check,', server)
         self.assertNotIn('this._sourceChecks.set(repository, false)', frontend)
 
+    def test_new_project_connection_can_be_verified_without_prior_save(self):
+        frontend = (LAB_ROOT / "frontend/lab.js").read_text(encoding="utf-8")
+        api = (LAB_ROOT / "websocket_api.py").read_text(encoding="utf-8")
+        self.assertIn('this._checkDraftProjectConnection()', frontend)
+        self.assertIn('async _checkDraftProjectConnection()', frontend)
+        self.assertIn('async _saveNewProject()', frontend)
+        self.assertIn('draft:true,...(token ? {token} : {})', frontend)
+        self.assertIn('probatio.Optional("draft"): bool', api)
+        self.assertIn('probatio.Optional("token"): str', api)
+        self.assertIn('if not draft and not any(', api)
+        self.assertIn('not GitReadAuth._valid_token(msg["token"])', api)
+        self.assertIn('check_token = (msg.get("token") if draft', api)
+        self.assertIn('token=check_token,', api)
+        self.assertIn('@websocket_api.require_admin', api)
+        self.assertIn('Ein neu eingegebener Token wird ausschließlich für diese Prüfung verwendet', frontend)
+        self.assertNotIn('runtime.project_auth.save(repo, check_token)', api)
+        self.assertNotIn('self._draftConnectionCheck = {repository,token', frontend)
+
     def test_project_management_uses_uniform_svg_icon_actions(self):
         frontend = (LAB_ROOT / "frontend/lab.js").read_text(encoding="utf-8")
         self.assertIn('viewBox="0 0 24 24"', frontend)
