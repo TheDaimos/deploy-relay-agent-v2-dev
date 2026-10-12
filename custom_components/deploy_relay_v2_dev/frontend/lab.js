@@ -668,6 +668,18 @@ class DRAV2DevLabPanel extends HTMLElement {
     }
   }
 
+  _formatHistoryTime(value) {
+    if (typeof value !== "string" || !value.trim()) return "Zeit unbekannt";
+    // Server timestamps remain UTC; render history consistently in German local time.
+    const parsed = new Date(value);
+    if (!Number.isFinite(parsed.getTime())) return "Zeit unbekannt";
+    return new Intl.DateTimeFormat("de-DE", {
+      timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", year: "numeric",
+      hour: "2-digit", minute: "2-digit", second: "2-digit",
+      timeZoneName: "short",
+    }).format(parsed);
+  }
+
   _escapeProject(value) {
     return String(value ?? "").replace(/[&<>"\x27]/g, ch => ({
       "&": "&amp;", "<": "&lt;", ">": "&gt;",
@@ -3083,7 +3095,7 @@ class DRAV2DevLabPanel extends HTMLElement {
                             item.status === "failed" ? "Prüfung gescheitert" :
                             item.status === "interrupted" ? "Unterbrochen" : "Begonnen"}</span>
                         </div>
-                        <span class="dra-history-item-time">${this._escapeProject(item.finished_at || item.created_at)}</span>
+                        <span class="dra-history-item-time">${this._escapeProject(this._formatHistoryTime(item.finished_at || item.created_at))}</span>
                       </div>`).join("")}
                   </div>
                   ${this._sourceJobHistory.length > 3
