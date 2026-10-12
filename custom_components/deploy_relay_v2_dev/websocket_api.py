@@ -1061,7 +1061,7 @@ async def async_install_prepare(hass, connection, msg):
         connection.send_error(msg["id"], "not_permitted", "Projekt nicht zur Installation freigegeben")
         return
     project = projects[0]
-    if project["project_id"] in {"deploy_relay", "deploy_relay_v2_dev"}:
+    if project["project_id"] in {"deploy_relay", "deploy_relay_v2_dev", "deploy_relay_agent_v2_dev"}:
         connection.send_error(msg["id"], "self_update_blocked", "Selbstupdate nicht verfügbar")
         return
     if runtime.source_scan_lock.locked():
@@ -1108,7 +1108,7 @@ async def async_install_start(hass, connection, msg):
     permitted = any(
         p["repository"].casefold() == repository.casefold()
         and p.get("active") is True and p.get("access_mode") == "read_write"
-        and p.get("project_id") not in {"deploy_relay", "deploy_relay_v2_dev"}
+        and p.get("project_id") not in {"deploy_relay", "deploy_relay_v2_dev", "deploy_relay_agent_v2_dev"}
         for p in runtime.projects.list()
     )
     if not permitted or msg["confirm"] is not True:
