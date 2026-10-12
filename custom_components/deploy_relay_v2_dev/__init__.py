@@ -17,6 +17,8 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .const import DOMAIN
 from .operation_registry import OperationRegistry
+from .server_deployment_jobs import ServerDeploymentJobs
+from .deployment_coordinator import DeploymentCoordinator
 from .operation_journal import JournalError, OperationJournal
 from .git_measurement_export import GitMeasurementError, MeasurementGitExport
 from .project_catalog import CatalogError, ProjectCatalog
@@ -48,6 +50,7 @@ class LabRuntime:
     source_diagnostics: SourceDiagnosticLog
     source_preview_jobs: SourcePreviewJobs
     source_job_history: SourceJobHistory
+    deployment: DeploymentCoordinator
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -112,6 +115,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         on_registered=journal.capture,
         on_terminal=journal.capture,
     )
+    # Dedicated V2 write-job owner: never use the read-only G2 journal,
+    # which deliberately accepts only preview records.
+    write_registry = OperationRegistry(max_completed=12, max_readonly=1)
+    deployment = DeploymentCoordinator(ServerDeploymentJobs(
+        write_registry,
+        lambda coroutine: hass.async_create_background_task(
+            coroutine, "Deploy Relay V2 server deployment", eager_start=False,
+        ),
+    ))
     runtime = LabRuntime(registry=registry, supervisor=supervisor, journal=journal,
                          measurement=measurement, suite=suite, git_export=git_export,
                          projects=projects, settings=settings,
@@ -120,12 +132,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                          source_diagnostics=SourceDiagnosticLog(),
                          source_preview_jobs=SourcePreviewJobs(
                              PreviewTaskFactory(hass, entry), history=source_job_history),
-                         source_job_history=source_job_history)
+                         source_job_history=source_job_history,
+                         deployment=deployment)
     store["runtime"] = runtime
     try:
         async_register_commands(hass)
         await async_register_panel(hass)
     except Exception:
+        await deployment.close()
         await runtime.source_preview_jobs.close()
         await supervisor.close()
         store.pop("runtime", None)
@@ -139,6 +153,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     store = hass.data.get(DOMAIN)
     runtime = store.get("runtime") if isinstance(store, dict) else None
     if runtime is not None:
+        # Mutations must finish their V1 journal/rollback before entry unload.
+        await runtime.deployment.close()
         await runtime.source_preview_jobs.close()
         await runtime.supervisor.close()
     async_remove_panel(hass)
