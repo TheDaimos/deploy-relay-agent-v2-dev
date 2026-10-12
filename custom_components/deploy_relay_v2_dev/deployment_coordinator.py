@@ -98,6 +98,8 @@ class DeploymentCoordinator:
             # Refresh only this project's pending confirmation. Different
             # approved projects may prepare while an independent V1 job runs.
             self._pending.pop(expected_project_id, None)
+            if await self._jobs.project_active(expected_project_id):
+                raise OperationContractError("project already has running installation")
             active_ids = await self._jobs.active_transaction_ids()
             await asyncio.to_thread(_require_resolved_v1_transactions,
                                     config_root, active_ids)
