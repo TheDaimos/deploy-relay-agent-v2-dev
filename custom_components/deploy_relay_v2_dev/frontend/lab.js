@@ -49,6 +49,9 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._sourceRepository = null;
     this._sourceMessage = "";
     this._sourcePreview = null;
+    this._previewDetailsOpen = false;
+    this._previewFileFilter = "all";
+    this._previewFileSearch = "";
     this._deploymentPreviewRef = null;
     this._installPreparation = null;
     this._installJobId = null;
@@ -1688,6 +1691,15 @@ class DRAV2DevLabPanel extends HTMLElement {
       this._deploymentPreviewRef === this._mainSourceRef.trim() &&
       this._sourcePreview?.sources_verified === true &&
       this._sourcePreview?.installation_enabled === false;
+    const previewFiles = mainPreviewVerified ? [
+      ...((this._sourcePreview.add || []).map(path => ({path, status:"add", label:"Hinzugefügt"}))),
+      ...((this._sourcePreview.change || []).map(path => ({path, status:"change", label:"Geändert"}))),
+      ...((this._sourcePreview.remove || []).map(path => ({path, status:"remove", label:"Entfernt"}))),
+    ].filter(entry => typeof entry.path === "string") : [];
+    const visiblePreviewFiles = previewFiles.filter(entry =>
+      (this._previewFileFilter === "all" || entry.status === this._previewFileFilter) &&
+      entry.path.toLocaleLowerCase("de-DE").includes(this._previewFileSearch.toLocaleLowerCase("de-DE"))
+    );
     const diagnosticStageLabels = {
       admission:"Annahme", repository:"Repository", commit:"Quellcommit",
       manifest:"Manifest", tree:"Git-Dateibaum", local_inventory:"HA-Dateibestand",
@@ -3185,6 +3197,29 @@ class DRAV2DevLabPanel extends HTMLElement {
               <span>Hinzugefügt: ${this._sourcePreview.add?.length ?? 0} · Geändert: ${this._sourcePreview.change?.length ?? 0} ·
                 Entfernt: ${this._sourcePreview.remove?.length ?? 0} · Unverändert: ${this._sourcePreview.unchanged_count ?? 0}</span>
               <span class="note">Keine Schreib- oder Installationsfreigabe.</span>
+              <details id="dra-preview-details" ${this._previewDetailsOpen ? "open" : ""}>
+                <summary>Details der Vorschau · Dateiliste, Filter und Suche</summary>
+                <div class="dra-preview-controls" style="display:flex;gap:10px;flex-wrap:wrap;margin:12px 0">
+                  <label for="dra-preview-status">Dateistatus
+                    <select id="dra-preview-status">
+                      ${[["all","Alle Veränderungen"],["add","Hinzugefügt"],["change","Geändert"],["remove","Entfernt"]].map(([value,label])=>
+                        `<option value="${value}" ${this._previewFileFilter === value ? "selected" : ""}>${label}</option>`).join("")}
+                    </select>
+                  </label>
+                  <label for="dra-preview-search">Dateien suchen
+                    <input id="dra-preview-search" type="search" placeholder="Dateiname oder Pfad" value="${this._escapeProject(this._previewFileSearch)}" />
+                  </label>
+                </div>
+                <div style="overflow-x:auto;max-height:320px;overflow-y:auto">
+                  <table style="width:100%;border-collapse:collapse">
+                    <thead><tr><th scope="col">Status</th><th scope="col">Dateipfad relativ zu /config</th></tr></thead>
+                    <tbody>${visiblePreviewFiles.length ? visiblePreviewFiles.map(entry =>
+                      `<tr><td>${this._escapeProject(entry.label)}</td><td style="overflow-wrap:anywhere">${this._escapeProject(entry.path)}</td></tr>`).join("") :
+                      `<tr><td colspan="2">Keine passenden Dateiveränderungen.</td></tr>`}</tbody>
+                  </table>
+                </div>
+                <p class="note">${visiblePreviewFiles.length} von ${previewFiles.length} veränderten Dateien angezeigt · ${this._sourcePreview.unchanged_count ?? 0} unverändert (nur Anzahl verfügbar).</p>
+              </details>
             </div>` : this._mainBatchPreview ? `<div class="dra-deployment-result">
               <strong>Gruppenauswahl bestätigt: ${this._mainBatchPreview.count} Projekte</strong>
               <span class="note">Die Quellstände sind noch nicht geprüft. Installation gesperrt.</span>
@@ -3712,6 +3747,23 @@ class DRAV2DevLabPanel extends HTMLElement {
       } else if (deploymentStage === 2 && mainProject && !preparedInstall) {
         this._prepareInstallation(mainProject);
       }
+    });
+    s.querySelector("#dra-preview-details")?.addEventListener("toggle", event => {
+      this._previewDetailsOpen = event.currentTarget.open;
+    });
+    s.querySelector("#dra-preview-status")?.addEventListener("change", event => {
+      this._previewFileFilter = event.currentTarget.value;
+      this._previewDetailsOpen = true;
+      this._render();
+    });
+    s.querySelector("#dra-preview-search")?.addEventListener("input", event => {
+      this._previewFileSearch = event.currentTarget.value;
+      this._previewDetailsOpen = true;
+      const position = event.currentTarget.selectionStart;
+      this._render();
+      const field = this.shadowRoot?.querySelector("#dra-preview-search");
+      field?.focus();
+      if (typeof position === "number") field?.setSelectionRange(position,position);
     });
     s.querySelector("#dra-install-confirm")?.addEventListener("click",()=>this._confirmInstallation());
     s.querySelector("#dra-install-cancel")?.addEventListener("click",()=>{
