@@ -53,6 +53,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._installPreparation = null;
     this._installJobId = null;
     this._installJob = null;
+    this._installJobs = [];
     this._installBusy = false;
     this._installMessage = "";
     this._installTimer = null;
@@ -356,12 +357,17 @@ class DRAV2DevLabPanel extends HTMLElement {
     try {
       const response = await this._hass.callWS({
         type:"deploy_relay_v2_dev/deployment/status",
-        ...(this._installJobId ? {operation_id:this._installJobId} : {}),
       });
       if (response?.schema !== "dra-v2-install-status.v1") throw Error("bad job response");
-      const job = response.job;
+      // The HA server owns all jobs. Browser changes or selecting another
+      // project never hide the other projects' active installations.
+      this._installJobs = Array.isArray(response.jobs)
+        ? response.jobs.filter(j=>/^[a-f0-9]{32}$/.test(j?.operation_id || "")).slice(0,12)
+        : response.job ? [response.job] : [];
+      const chosenProject = this._projects.find(p=>p.repository===this._selectedMainRepo)
+        || this._projects.find(p=>p.active!==false);
+      const job = this._installJobs.find(j=>j.project_key===chosenProject?.project_id) || null;
       if (job && /^[a-f0-9]{32}$/.test(job.operation_id || "")) {
-
         this._installJobId = job.operation_id;
         this._installJob = job;
         if (job.status === "success") {
@@ -374,13 +380,14 @@ class DRAV2DevLabPanel extends HTMLElement {
           this._installMessage = "Update fehlgeschlagen oder unterbrochen. Transaktionsprotokoll prüfen.";
         } else {
           this._installMessage = "Serverseitig aktiv: " + (job.phase || "Vorbereitung");
-          if (this.isConnected) this._installTimer =
-            setTimeout(()=>this._pollInstallation(),1500);
         }
-      } else if (this._installJobId) {
-        this._installJobId = null;
+      } else {
         this._installJob = null;
-        this._installMessage = "Alter Auftrag nach HA-Neustart nicht mehr in der Auftragsliste. V1-Transaktionsprotokoll prüfen.";
+        this._installJobId = null;
+      }
+      if (this.isConnected && this._installJobs.some(j=>
+        ["queued","running","waiting_for_resource","cancel_requested"].includes(j.status))) {
+        this._installTimer = setTimeout(()=>this._pollInstallation(),1500);
       }
     } catch (_error) {
       this._installMessage = "Serverstatus nicht abrufbar; ein laufendes Update wird dadurch nicht abgebrochen.";
@@ -1626,7 +1633,10 @@ class DRAV2DevLabPanel extends HTMLElement {
       runtimeVersionKnown ? "matched" : "pending";
     const deploymentBusy = this._mainBatchMode ? this._mainBatchBusy : (this._sourceBusy || this._installBusy);
     const installActive = !!this._installJob &&
+      this._installJob.project_key === mainProject?.project_id &&
       ["queued","running","waiting_for_resource","cancel_requested"].includes(this._installJob.status);
+    const runningJobs = this._installJobs.filter(j=>
+      ["queued","running","waiting_for_resource","cancel_requested"].includes(j.status));
     const installFinished = this._installJob?.status === "success" &&
       mainPreviewVerified && this._installJob?.project_key === mainProject?.project_id &&
       this._installJob?.source_commit === this._sourcePreview?.source_commit;
@@ -3016,6 +3026,12 @@ class DRAV2DevLabPanel extends HTMLElement {
                 <button type="button" id="dra-install-confirm" ${deploymentBusy ? "disabled" : ""}>Ja, Update installieren</button>
                 <button type="button" id="dra-install-cancel" ${deploymentBusy ? "disabled" : ""}>Abbrechen</button>
               </div>` : ""}
+            ${runningJobs.length ? `<div class="dra-deployment-result" role="status">
+              <strong>Parallele serverseitige Updates: ${runningJobs.length} von maximal 4</strong>
+              ${runningJobs.map(j=>`<span>Projekt ${this._escapeProject(j.project_key)}
+                · ${this._escapeProject(j.phase)} · ${this._escapeProject(j.status)}</span>`).join("")}
+              <span class="note">Anderes Projekt auswählen, um dort unabhängig weiterzuarbeiten.</span>
+            </div>` : ""}
             ${this._installJob ? `<div class="dra-deployment-result" role="status">
               <strong>Serverseitiger Auftrag: ${this._escapeProject(this._installJob.status)}</strong>
               <span>Schritt: ${this._escapeProject(this._installJob.phase)}</span>
