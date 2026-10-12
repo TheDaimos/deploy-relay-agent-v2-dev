@@ -74,6 +74,8 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._deploymentLogsOpen = false;
     this._auditOpen = false;
     this._auditLevel = "all";
+    this._auditProject = "all";
+    this._auditKind = "all";
     this._auditPhase = "all";
     this._auditSearch = "";
     this._installAuditRecords = [];
@@ -1742,9 +1744,13 @@ class DRAV2DevLabPanel extends HTMLElement {
         ...steps.map(step => ({record, stage:step.stage || "unknown",elapsed:step.elapsed_ms,final:false}))];
     })];
     const auditStages = [...new Set(auditRows.map(row => row.stage))].sort();
+    const auditProjects = [...new Set(auditRows.map(row => row.record.project_ref).filter(Boolean))].sort();
     const filteredAuditRows = auditRows.filter(row => {
       const level = row.installation ? (["failed","recovery_required","interrupted"].includes(row.record.status) ? "ERROR" : "INFO") : row.final ? (row.record.status === "success" ? "INFO" : "ERROR") : "DEBUG";
       if (this._auditLevel !== "all" && level !== this._auditLevel) return false;
+      if (this._auditProject !== "all" && row.record.project_ref !== this._auditProject) return false;
+      if (this._auditKind !== "all" &&
+          (row.installation ? "installation" : "source") !== this._auditKind) return false;
       if (this._auditPhase !== "all" && row.stage !== this._auditPhase) return false;
       return [row.record.captured_at,row.record.run_id,row.record.project_ref,row.record.reason,
         row.stage,level].filter(Boolean).join(" ").toLocaleLowerCase("de-DE")
@@ -3096,6 +3102,16 @@ class DRAV2DevLabPanel extends HTMLElement {
                     ${[["all","Alle Stufen"],["INFO","INFO"],["DEBUG","DEBUG"],["ERROR","ERROR"]].map(([value,label]) =>
                       `<option value="${value}" ${this._auditLevel === value ? "selected" : ""}>${label}</option>`).join("")}
                   </select></label>
+                  <label>Projekt <select id="dra-audit-project">
+                    <option value="all">Alle Projekte</option>
+                    ${auditProjects.map(project => `<option value="${this._escapeProject(project)}"
+                      ${this._auditProject === project ? "selected" : ""}>${this._escapeProject(project)}</option>`).join("")}
+                  </select></label>
+                  <label>Vorgang <select id="dra-audit-kind">
+                    <option value="all">Alle Vorgänge</option>
+                    <option value="source" ${this._auditKind === "source" ? "selected" : ""}>Quellprüfung</option>
+                    <option value="installation" ${this._auditKind === "installation" ? "selected" : ""}>Installation</option>
+                  </select></label>
                   <label>Phase <select id="dra-audit-phase">
                     <option value="all">Alle Phasen</option>
                     ${auditStages.map(stage => `<option value="${this._escapeProject(stage)}"
@@ -3896,7 +3912,7 @@ class DRAV2DevLabPanel extends HTMLElement {
       if (this._auditOpen) await Promise.all([this._refreshDeploymentLogs(),this._refreshInstallAudit()]);
     });
     s.querySelector("#dra-audit-refresh")?.addEventListener("click", () => Promise.all([this._refreshDeploymentLogs(),this._refreshInstallAudit()]));
-    for (const [id,key] of [["dra-audit-level","_auditLevel"],["dra-audit-phase","_auditPhase"]]) {
+    for (const [id,key] of [["dra-audit-level","_auditLevel"],["dra-audit-phase","_auditPhase"],["dra-audit-project","_auditProject"],["dra-audit-kind","_auditKind"]]) {
       s.querySelector("#"+id)?.addEventListener("change", event => {
         this[key] = event.currentTarget.value;
         this._render();
