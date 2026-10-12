@@ -90,7 +90,7 @@ async def async_build_parallel_preview(
         manifest, source_ref=inventory.source_ref,
         source_commit=inventory.source_commit,
     )
-    ids = [g.id for g in inventory.groups]
+    ids = [g.group_id for g in inventory.groups]
     if (len(ids) != len(plan.groups)
         or len(ids) != len(set(ids))
         or set(ids) != {g.id for g in plan.groups}
