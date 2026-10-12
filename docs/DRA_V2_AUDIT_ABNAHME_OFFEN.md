@@ -24,3 +24,12 @@ GitHub Read-Only/Read-Write ist nur informative Token-Metadaten und keine lokale
 **Nicht schließen, bevor jede offene Anforderung anhand von Code, Prüfung und HA-Abnahme nachgewiesen ist.**
 
 GitHub Issue: https://github.com/TheDaimos/deploy-relay-agent-v2-dev/issues/9
+
+## Implementierungsfortschritt vom 12.10.2026
+
+- Audit-Ereignisspeicher `deployment_audit.py` ergänzt: maximal 256 Einträge, UTC, geprüfte Phasen/Status und begrenzte Kennungen, ohne Dateiinhalte oder Tokens.
+- `server_deployment_jobs.py` zeichnet echte V1-Engine-Phasen (staging, backup, install, verify_install, rollback) und terminale Zustände auf.
+- Administratorgeschützte, rein lesende Schnittstelle `deployment/audit` und tabellarische Anzeige im bestehenden Audit-Bereich verbunden.
+- Neue Vertragsprüfungen `tests/test_v2_deployment_audit.py` und bestehende Sicherheitsprüfungen erfolgreich; CI 38255519922.
+- **Offen und nicht als fertig melden:** In-Memory-Audit übersteht keinen HA-Neustart; vollständige persistente Ereignishistorie, Export, tatsächliche HA-Realabnahme und der Abgleich der Darstellung mit der DRA-V1-Tiefendiagnose sind nicht abgeschlossen. Issue #9 offen lassen.
+- **Keine HA-Installationsfreigabe:** Dieser Zwischenstand liegt ausschließlich im freigegebenen Featurezweig und ist noch nicht versioniert.
