@@ -253,6 +253,43 @@ def sanitized_suite(data: object) -> dict[str, object]:
     }
 
 
+AUDIT_SCHEMA = "dra-v2-deployment-audit.v1"
+AUDIT_EXPORT_SCHEMA = "dra-v2-dev-git-audit.v1"
+AUDIT_NOTE = "Bounded allowlisted V2 installation phases; no raw paths or tokens."
+AUDIT_STAGES = frozenset({"queued","running","staging","backup","install","verify_install",
+                          "rollback","success","failed","recovery_required","interrupted"})
+AUDIT_ID = re.compile(r"[A-Za-z0-9_-]{1,128}\\Z")
+
+def sanitized_audit(value: object) -> dict:
+    if (type(value) is not dict or set(value) != {"schema","records","count"}
+        or value["schema"] != AUDIT_SCHEMA or type(value["records"]) is not list
+        or not 0 < len(value["records"]) <= 256 or
+        value["count"] != len(value["records"])):
+        raise GitMeasurementError("invalid audit report")
+    records = []
+    for row in value["records"]:
+        if (type(row) is not dict or set(row) != {"sequence","captured_at",
+                "operation_id","project_key","stage","status","elapsed_ms"} or
+            type(row["sequence"]) is not int or row["sequence"] < 1 or
+            type(row["captured_at"]) is not str or len(row["captured_at"]) > 40 or
+            not row["captured_at"].endswith("Z") or
+            type(row["operation_id"]) is not str or not AUDIT_ID.fullmatch(row["operation_id"]) or
+            type(row["project_key"]) is not str or not AUDIT_ID.fullmatch(row["project_key"]) or
+            row["stage"] not in AUDIT_STAGES or row["status"] not in AUDIT_STAGES or
+            type(row["elapsed_ms"]) is not int or not 0 <= row["elapsed_ms"] <= 86400000):
+            raise GitMeasurementError("invalid audit event")
+        try:
+            ts = datetime.fromisoformat(row["captured_at"].replace("Z","+00:00"))
+            if ts.utcoffset() != timezone.utc.utcoffset(None):
+                raise ValueError()
+        except ValueError:
+            raise GitMeasurementError("invalid audit timestamp") from None
+        records.append(dict(row))
+    if len({row["sequence"] for row in records}) != len(records):
+        raise GitMeasurementError("duplicate audit event")
+    return {"schema":AUDIT_SCHEMA,"count":len(records),"records":records}
+
+
 def archive_document(summary: object, *, version: str, now: datetime,
                      export_id: str, display_name: str = APPLICATION_NAME,
                      source_commit: str | None = None,
@@ -272,7 +309,17 @@ def archive_document(summary: object, *, version: str, now: datetime,
         raise GitMeasurementError("invalid export time")
     normalized = now.astimezone(timezone.utc)
     captured = normalized.isoformat(timespec="seconds").replace("+00:00", "Z")
-    if type(summary) is dict and summary.get("schema") == SOURCE_DIAGNOSTIC_SCHEMA:
+    if type(summary) is dict and summary.get("schema") == AUDIT_SCHEMA:
+        if private_source_repository is not None:
+            raise GitMeasurementError("audit report cannot contain repository metadata")
+        snapshot = {
+            "schema": AUDIT_EXPORT_SCHEMA, "created_at": captured,
+            "component": "deploy_relay_v2_dev", "version": version,
+            "mode": "READ_ONLY_TEST", "audit": sanitized_audit(summary),
+            "note": AUDIT_NOTE,
+        }
+        test_id = "V2-DEPLOYMENT-AUDIT"
+    elif type(summary) is dict and summary.get("schema") == SOURCE_DIAGNOSTIC_SCHEMA:
         snapshot = {
             "schema": "dra-v2-dev-git-source-diagnostic.v1",
             "created_at": captured,
@@ -400,7 +447,13 @@ def _validated_snapshot(value: object) -> tuple[dict, str]:
     """Rebuild only known diagnostic content, stripping no unknown fields."""
     if type(value) is not dict:
         raise GitMeasurementError("invalid archived snapshot")
-    if (set(value) in (
+    if (set(value) == {"schema","created_at","component","version","mode","audit","note"}
+        and value["schema"] == AUDIT_EXPORT_SCHEMA):
+        sanitized = sanitized_audit(value["audit"])
+        expected_note = AUDIT_NOTE
+        test_id = "V2-DEPLOYMENT-AUDIT"
+        key = "audit"
+    elif (set(value) in (
         {"schema", "created_at", "component", "version", "mode", "source_diagnostic", "note"},
         {"schema", "created_at", "component", "version", "mode", "source_diagnostic", "note",
          "private_source_repository"},
@@ -512,6 +565,7 @@ def _validate_pending(value: object) -> dict | None:
                 or test["capabilityId"] is not None or test["capabilityUiNumber"] is not None
                 or type(test["id"]) is not str
                 or set(snap) not in (
+                    {"schema", "created_at", "component", "version", "mode", "audit", "note"},
                     {"schema", "created_at", "component", "version", "mode", "suite", "note"},
                     {"schema", "created_at", "component", "version", "mode", "measurement", "note"},
                     {"schema", "created_at", "component", "version", "mode", "source_diagnostic", "note"},
