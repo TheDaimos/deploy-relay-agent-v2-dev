@@ -829,11 +829,13 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
         source_commit:"a".repeat(40),status:"running",phase:"staging"}};
     }
     assert.equal(request.type,"deploy_relay_v2_dev/deployment/status");
-    assert.equal(request.operation_id,"c".repeat(32));
-    return {schema:"dra-v2-install-status.v1",job:{
+    assert.equal(request.operation_id,undefined,
+      "the HA status endpoint returns all parallel jobs without a browser cursor");
+    const done={
       operation_id:"c".repeat(32),project_key:"example",
       source_commit:"a".repeat(40),status:"success",phase:"complete",
-      restart_required:true}};
+      restart_required:true};
+    return {schema:"dra-v2-install-status.v1",job:done,jobs:[done]};
   }};
   panel._render();
   assert.match(panel.shadowRoot.innerHTML,/data-stage="2"/);
