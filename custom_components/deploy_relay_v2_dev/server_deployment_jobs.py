@@ -157,6 +157,13 @@ class ServerDeploymentJobs:
     async def get(self, operation_id: str) -> dict[str, object] | None:
         return await self._registry.get(operation_id)
 
+    async def latest(self) -> dict[str, object] | None:
+        records = await self._registry.list(limit=1)
+        return records[0] if records else None
+
+    async def active(self) -> bool:
+        return bool(await self._registry.list(active_only=True, limit=1))
+
     async def finish_before_unload(self) -> None:
         """Gracefully drain writes; NEVER cancel an in-progress mutation here."""
         async with self._start_lock:
