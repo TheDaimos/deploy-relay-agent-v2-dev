@@ -72,6 +72,10 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._sourceJobHistory = [];
     this._sourceJobHistoryStatus = "";
     this._deploymentLogsOpen = false;
+    this._auditOpen = false;
+    this._auditLevel = "all";
+    this._auditPhase = "all";
+    this._auditSearch = "";
     this._deploymentLogsBusy = false;
     this._historyRefreshBusy = false;
     this._historyRefreshStatus = "Nicht geprüft";
@@ -1707,6 +1711,20 @@ class DRAV2DevLabPanel extends HTMLElement {
       return [record.captured_at,record.status,record.stage,record.reason,record.project_ref,record.run_id]
         .filter(Boolean).join(" ").toLocaleLowerCase("de-DE").includes(this._logSearch.toLocaleLowerCase("de-DE"));
     });
+    const auditRows = this._deploymentLogs.flatMap(record => {
+      const steps = Array.isArray(record.steps) ? record.steps : [];
+      return [{record, stage:record.stage || "complete", elapsed:record.duration_ms, final:true},
+        ...steps.map(step => ({record, stage:step.stage || "unknown",elapsed:step.elapsed_ms,final:false}))];
+    });
+    const auditStages = [...new Set(auditRows.map(row => row.stage))].sort();
+    const filteredAuditRows = auditRows.filter(row => {
+      const level = row.final ? (row.record.status === "success" ? "INFO" : "ERROR") : "DEBUG";
+      if (this._auditLevel !== "all" && level !== this._auditLevel) return false;
+      if (this._auditPhase !== "all" && row.stage !== this._auditPhase) return false;
+      return [row.record.captured_at,row.record.run_id,row.record.project_ref,row.record.reason,
+        row.stage,level].filter(Boolean).join(" ").toLocaleLowerCase("de-DE")
+        .includes(this._auditSearch.toLocaleLowerCase("de-DE"));
+    });
     const diagnosticStageLabels = {
       admission:"Annahme", repository:"Repository", commit:"Quellcommit",
       manifest:"Manifest", tree:"Git-Dateibaum", local_inventory:"HA-Dateibestand",
@@ -2146,6 +2164,27 @@ class DRAV2DevLabPanel extends HTMLElement {
           overflow-wrap:anywhere;}
         .dra-logs-event {padding:9px 0;border-top:1px solid #455864;}
         .dra-logs-event strong {display:block;margin-bottom:4px;}
+        .dra-audit-heading {display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;
+          padding:10px 12px;border-left:3px solid #d7b778;background:#243340;border-radius:7px;}
+        .dra-audit-heading strong {color:#f4d99c;font-size:15px;}
+        .dra-audit-filters {display:flex;flex-wrap:wrap;gap:12px;align-items:end;margin:14px 0;}
+        .dra-audit-filters label {display:flex;flex-direction:column;gap:5px;font-size:12px;color:#bed2df;}
+        .dra-audit-filters select,.dra-audit-filters input {min-height:38px;color:#eef5f8;background:#14232d;
+          border:1px solid #60798a;border-radius:7px;padding:7px;}
+        .dra-audit-search {flex:1;min-width:170px;}
+        .dra-audit-scroll {max-height:420px;overflow:auto;border:1px solid #415b6d;border-radius:9px;}
+        .dra-audit-table {width:100%;min-width:800px;border-collapse:collapse;font-size:12px;}
+        .dra-audit-table th {position:sticky;top:0;background:#304555;color:#f5dca6;z-index:1;
+          text-align:left;padding:11px 9px;border-bottom:2px solid #b99758;}
+        .dra-audit-table td {padding:10px 9px;border-bottom:1px solid #344c5c;vertical-align:top;}
+        .dra-audit-table tbody tr:nth-child(even) {background:#1e303c;}
+        .dra-audit-table tbody tr:nth-child(odd) {background:#172731;}
+        .dra-audit-table tr.dra-audit-success .dra-audit-level {color:#9ce3b6;}
+        .dra-audit-table tr.dra-audit-failed .dra-audit-level {color:#ffa9a9;}
+        .dra-audit-table tr.dra-audit-debug .dra-audit-level {color:#8dc8ed;}
+        .dra-audit-table details {min-width:90px;}
+        .dra-audit-table details div {padding:4px 0;overflow-wrap:anywhere;}
+        .dra-audit-table summary {cursor:pointer;color:#f0cc8e;}
         /* G2 history refresh: premium gold-on-slate control, inside logs only. */
         .dra-history-heading {display:flex;align-items:center;justify-content:space-between;
           gap:12px;min-width:0;flex-wrap:nowrap;margin:0 0 8px;}
@@ -3019,8 +3058,52 @@ class DRAV2DevLabPanel extends HTMLElement {
                 <button id="dra-deployment-logs-toggle" class="dra-logs-pill"
                   aria-controls="dra-deployment-logs-panel"
                   aria-expanded="${this._deploymentLogsOpen}">Logs</button>
+                <button type="button" id="dra-audit-toggle" class="dra-logs-pill"
+                  aria-controls="dra-audit-panel" aria-expanded="${this._auditOpen}">Audit</button>
               </div>
             </div>
+            ${this._auditOpen ? `
+              <section class="dra-logs-panel dra-audit-panel" id="dra-audit-panel" aria-label="Audit – detaillierter Prüfverlauf">
+                <div class="dra-audit-heading"><strong>Audit · Prüfphasen und Ereignisse</strong>
+                  <span class="note">Serverseitig verfügbare Quellprüfungen und ihre Phasen · keine erfundenen Installationsereignisse</span></div>
+                <div class="dra-audit-filters">
+                  <label>Stufe <select id="dra-audit-level">
+                    ${[["all","Alle Stufen"],["INFO","INFO"],["DEBUG","DEBUG"],["ERROR","ERROR"]].map(([value,label]) =>
+                      `<option value="${value}" ${this._auditLevel === value ? "selected" : ""}>${label}</option>`).join("")}
+                  </select></label>
+                  <label>Phase <select id="dra-audit-phase">
+                    <option value="all">Alle Phasen</option>
+                    ${auditStages.map(stage => `<option value="${this._escapeProject(stage)}"
+                      ${this._auditPhase === stage ? "selected" : ""}>${this._escapeProject(diagnosticStageLabels[stage] || stage)}</option>`).join("")}
+                  </select></label>
+                  <label class="dra-audit-search">Suche <input id="dra-audit-search" type="search"
+                    placeholder="Kennung, Phase, Ursache …" value="${this._escapeProject(this._auditSearch)}"/></label>
+                  <button type="button" id="dra-audit-refresh" ${this._deploymentLogsBusy ? "disabled" : ""}>Aktualisieren</button>
+                </div>
+                <div class="dra-audit-scroll">
+                  <table class="dra-audit-table">
+                    <thead><tr><th>Zeit (MESZ/MEZ)</th><th>Stufe</th><th>Vorgang</th>
+                      <th>Phase</th><th>Ergebnis / Ursache</th><th>Dauer</th><th>Details</th></tr></thead>
+                    <tbody>${filteredAuditRows.length ? filteredAuditRows.map(row => `
+                      <tr class="dra-audit-${row.final ? (row.record.status === "success" ? "success" : "failed") : "debug"}">
+                        <td>${this._escapeProject(this._formatHistoryTime(row.record.captured_at))}</td>
+                        <td><span class="dra-audit-level">${row.final ? (row.record.status === "success" ? "INFO" : "ERROR") : "DEBUG"}</span></td>
+                        <td>Quellprüfung</td><td>${this._escapeProject(diagnosticStageLabels[row.stage] || row.stage)}</td>
+                        <td>${row.final ? this._escapeProject(diagnosticReasonLabels[row.record.reason] || row.record.reason || "Abgeschlossen") : "Prüfschritt"}</td>
+                        <td>${Number.isFinite(row.elapsed) ? row.elapsed + " ms" : "—"}</td>
+                        <td><details><summary>Details</summary>
+                          <div>Prüfkennung: ${this._escapeProject(row.record.run_id || "—")}</div>
+                          <div>Projektkennung: ${this._escapeProject(row.record.project_ref || "—")}</div>
+                          <div>Phase: ${this._escapeProject(row.stage)}</div>
+                          <div>Status: ${this._escapeProject(row.record.status || "—")}</div>
+                          <div>CPU-Zeit des HA-Prozesses: ${Number.isInteger(row.record.process_cpu_ms) ? row.record.process_cpu_ms + " ms" : "—"}</div>
+                        </details></td></tr>`).join("") :
+                        '<tr><td colspan="7">Keine passenden Ereignisse vorhanden.</td></tr>'}</tbody>
+                  </table>
+                </div>
+                <p class="note">${filteredAuditRows.length} von ${auditRows.length} verfügbaren Prüfeinträgen ·
+                  weitere Ereignisarten nur nach serverseitiger Anbindung verfügbar.</p>
+              </section>` : ""}
             ${this._deploymentLogsOpen ? `
               <section class="dra-logs-panel" id="dra-deployment-logs-panel"
                 aria-label="Bereinigte Deployment-Protokolle">
@@ -3781,6 +3864,26 @@ class DRAV2DevLabPanel extends HTMLElement {
       const field = this.shadowRoot?.querySelector("#dra-preview-search");
       field?.focus();
       if (typeof position === "number") field?.setSelectionRange(position,position);
+    });
+    s.querySelector("#dra-audit-toggle")?.addEventListener("click", async () => {
+      this._auditOpen = !this._auditOpen;
+      this._render();
+      if (this._auditOpen) await this._refreshDeploymentLogs();
+    });
+    s.querySelector("#dra-audit-refresh")?.addEventListener("click", () => this._refreshDeploymentLogs());
+    for (const [id,key] of [["dra-audit-level","_auditLevel"],["dra-audit-phase","_auditPhase"]]) {
+      s.querySelector("#"+id)?.addEventListener("change", event => {
+        this[key] = event.currentTarget.value;
+        this._render();
+      });
+    }
+    s.querySelector("#dra-audit-search")?.addEventListener("input", event => {
+      this._auditSearch = event.currentTarget.value;
+      const caret = event.currentTarget.selectionStart;
+      this._render();
+      const field = this.shadowRoot?.querySelector("#dra-audit-search");
+      field?.focus();
+      if (typeof caret === "number") field?.setSelectionRange(caret,caret);
     });
     s.querySelector("#dra-log-filter")?.addEventListener("change", event => {
       this._logFilter = event.currentTarget.value;
