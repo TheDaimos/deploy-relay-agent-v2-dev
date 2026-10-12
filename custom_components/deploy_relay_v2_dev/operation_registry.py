@@ -125,6 +125,28 @@ class OperationRegistry:
             self._prune_completed()
             return candidate.snapshot()
 
+    async def existing_request(
+        self, *, operation_type: OperationType, project_key: str,
+        source_commit: str | None, request_id: str,
+    ) -> dict[str, object] | None:
+        """Find an existing identical request before target admission.
+
+        This preserves retries without loosening overlapping-target checks,
+        and rejects a reused request key for another project or Git commit.
+        """
+        typ = OperationType(operation_type)
+        candidate = OperationRecord(operation_type=typ, project_key=project_key,
+                                    source_commit=source_commit)
+        fingerprint = self._hash_request(request_id)
+        async with self._lock:
+            found = self._idempotency.get(fingerprint)
+            if found is None:
+                return None
+            identifier, *stored = found
+            if tuple(stored) != (typ, candidate.project_key, candidate.source_commit, None):
+                raise OperationContractError("request id reused for a different operation")
+            return self._records[identifier].snapshot()
+
     async def get(self, operation_id: str) -> dict[str, object] | None:
         self._operation_id(operation_id)
         async with self._lock:
