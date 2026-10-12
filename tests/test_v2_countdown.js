@@ -949,8 +949,15 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
 
   const publicPanel = new Panel();
   publicPanel._projectSettingsRepo="__new__";
-  publicPanel.shadowRoot.querySelector=q=>q==="#manage-repository" ?
-    {value:"TheDaimos/Test-Repo-DRA-V2"} : q==="#manage-token" ? {value:""} : null;
+  const publicFields = {
+    "#manage-repository":{value:"TheDaimos/Test-Repo-DRA-V2",addEventListener(){}},
+    "#manage-token":{value:"",addEventListener(){}},
+    "#manage-name":{value:"DRA V2 Testprojekt"},
+    "#manage-note":{value:""},
+    "#manage-active":{checked:true},
+    "#manage-access-mode":{value:"read_only"},
+  };
+  publicPanel.shadowRoot.querySelector=q=>publicFields[q] || null;
   const seen=[];
   publicPanel._hass={async callWS(req) {
     seen.push(req);
