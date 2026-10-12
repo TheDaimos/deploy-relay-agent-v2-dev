@@ -1619,20 +1619,28 @@ class DRAV2DevLabPanel extends HTMLElement {
       ? "V" + this._serverVersion + " DEV" : "Noch nicht ermittelt";
     const runtimeVersionState = versionMismatch ? "mismatch" :
       runtimeVersionKnown ? "matched" : "pending";
-    const deploymentBusy = this._mainBatchMode ? this._mainBatchBusy : this._sourceBusy;
-    const deploymentStage = mainPreviewVerified ? 2 : 1;
+    const deploymentBusy = this._mainBatchMode ? this._mainBatchBusy : (this._sourceBusy || this._installBusy);
+    const installActive = !!this._installJob &&
+      ["queued","running","waiting_for_resource","cancel_requested"].includes(this._installJob.status);
+    const installFinished = this._installJob?.status === "success";
+    const preparedInstall = this._installPreparation &&
+      mainPreviewVerified &&
+      this._installPreparation.repository === mainProject?.repository &&
+      this._installPreparation.source_commit === this._sourcePreview?.source_commit &&
+      this._installPreparation.source_ref === this._sourcePreview?.source_ref;
+    const deploymentStage = installFinished ? 4 : installActive ? 3 : mainPreviewVerified ? 2 : 1;
     const deploymentCanPreview = this._mainBatchMode
       ? mainBatchProjects.length > 0 && !!this._hass
       : !!mainProject && !!this._hass;
     const deploymentButtonText = deploymentBusy
       ? "1/4 · " + (this._mainBatchMode ? "Projektauswahl wird geprüft …" : "Vorschau wird berechnet …")
-      : mainPreviewVerified ? "2/4 · Schreibzugriff freigeben"
+      : mainPreviewVerified ? "2/4 · Installation vorbereiten"
       : this._mainBatchMode ? "1/4 · Projektauswahl prüfen"
       : "1/4 · Vorschau berechnen";
     const deploymentStatus = this._mainBatchMode
       ? this._mainBatchMessage || "Die gemeinsame Auswahl kann gelesen, aber noch nicht installiert werden."
       : mainPreviewVerified
-        ? "Quellprüfung abgeschlossen. Schritt 2 ist bis zur Sicherheitsabnahme gesperrt."
+        ? this._installMessage || "Quellprüfung abgeschlossen. V1-Engine kann das Update vorbereiten."
         : this._sourceRepository === mainProject?.repository && this._sourceMessage
           ? this._sourceMessage : "Noch keine Vorschau berechnet.";
     // Consistent, resolution-independent 24x24 vector icons: never emoji or icon fonts.
