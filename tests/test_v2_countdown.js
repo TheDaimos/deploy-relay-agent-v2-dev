@@ -717,7 +717,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   assert.match(view,/data-stage="1"/);
   assert.match(view,/1\/4 · Vorschau berechnen/);
   assert.match(view,/dra-deploy-progress idle/);
-  assert.doesNotMatch(view,/3 · Schreibzugriff freigeben<\/button>/);
+  assert.doesNotMatch(view,/3 · Installation vorbereiten<\/button>/);
   const running=deployment._sourceCheck({dataset:{repo:"TheDaimos/example"}});
   assert.match(deployment.shadowRoot.innerHTML,/dra-deploy-progress running/);
   assert.match(deployment.shadowRoot.innerHTML,/Vorschau wird berechnet/);
@@ -726,7 +726,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   assert.equal(deployment._deploymentPreviewRef,"deploy/dev");
   view=deployment.shadowRoot.innerHTML;
   assert.match(view,/data-stage="2"/);
-  assert.match(view,/2\/4 · Schreibzugriff freigeben/);
+  assert.match(view,/2\/4 · Installation vorbereiten/);
   assert.match(view,/dra-deploy-progress verified/);
   assert.match(view,/dra-deploy-step orange current/);
   assert.match(view,/Hinzugefügt: 1/);
@@ -809,10 +809,16 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   const requests = [];
   versions._hass = {async callWS(request) {
     requests.push(request.type);
+    if (request.type === "deploy_relay_v2_dev/deployment/status") {
+      return {schema:"dra-v2-install-status.v1",job:null};
+    }
     return {version:"0.1.72",operations:[],projects:[]};
   }};
   await versions._refresh();
-  assert.deepEqual(requests,["deploy_relay_v2_dev/test/state"]);
+  assert.deepEqual(requests,[
+    "deploy_relay_v2_dev/test/state",
+    "deploy_relay_v2_dev/deployment/status"
+  ]);
   assert.match(versions.shadowRoot.innerHTML,/id="dra-version" class="dra-version matched"/);
   assert.match(versions.shadowRoot.innerHTML,/HA-Laufzeit: V0\.1\.72 DEV/);
   assert.doesNotMatch(versions.shadowRoot.innerHTML,/Abweichung ·/);
@@ -844,6 +850,8 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
     if (query.type === "deploy_relay_v2_dev/test/state") {
       return {projects:[project],operations:[],settings:{mode:"sequential"}};
     }
+    if (query.type === "deploy_relay_v2_dev/deployment/status")
+      return {schema:"dra-v2-install-status.v1",job:null};
     assert.equal(query.type,"deploy_relay_v2_dev/projects/source_job/status");
     return {
       schema:"dra-v2-source-preview-job-status.v1",installation_enabled:false,
