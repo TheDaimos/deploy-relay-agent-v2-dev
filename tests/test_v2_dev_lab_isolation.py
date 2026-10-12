@@ -46,7 +46,7 @@ class LabIsolationContracts(unittest.TestCase):
         self.assertIn('PANEL_ELEMENT: Final = "dra-v2-dev-lab-panel"', const)
         self.assertEqual(len(re.findall(r'probatio.Required\("type"\): "deploy_relay_v2_dev/test/', sockets)), 8)
         self.assertEqual(len(re.findall(r'probatio.Required\("type"\): "deploy_relay_v2_dev/projects/', sockets)), 13)
-        self.assertEqual(sockets.count("@websocket_api.require_admin"), 35)
+        self.assertEqual(sockets.count("@websocket_api.require_admin"), 38)
         self.assertNotIn('"deploy_relay/panel/', sockets)
         self.assertNotIn('"deploy_relay/panel/', frontend)
         self.assertNotIn("deploy-relay-panel", frontend)
@@ -82,17 +82,21 @@ class LabIsolationContracts(unittest.TestCase):
             "deployment_lock", "async_execute_deployment",
             "restore_backup", "set_mode", "select_source",
             "install_project", "async_update_subentry",
-            "async_add_executor_job", "GitHubClient",
+            "GitHubClient",
         ):
             self.assertNotIn(forbidden, source)
         self.assertIn('project_key="lab_readonly_preview"', source)
+        self.assertIn('runtime.deployment.prepare(', source)
+        self.assertIn('runtime.deployment.confirm(', source)
+        self.assertEqual(source.count('blocking_executor=hass.async_add_executor_job'), 1)
+        self.assertIn('probatio.Required("confirm"): bool', source)
         self.assertIn('store["runtime"]', (LAB_ROOT / "__init__.py").read_text(encoding="utf-8"))
 
     def test_async_ws_handlers_are_scheduled_and_admin_guarded(self):
         sockets = (LAB_ROOT / "websocket_api.py").read_text(encoding="utf-8")
-        self.assertEqual(sockets.count("@websocket_api.async_response"), 35)
-        self.assertEqual(sockets.count("@websocket_api.require_admin"), 35)
-        self.assertEqual(sockets.count("@websocket_api.websocket_command("), 35)
+        self.assertEqual(sockets.count("@websocket_api.async_response"), 38)
+        self.assertEqual(sockets.count("@websocket_api.require_admin"), 38)
+        self.assertEqual(sockets.count("@websocket_api.websocket_command("), 38)
         self.assertIn("import probatio", sockets)
         self.assertNotIn("import voluptuous", sockets)
         for handler in ("async_state", "async_measure", "async_multicore",
@@ -105,7 +109,8 @@ class LabIsolationContracts(unittest.TestCase):
                         "async_git_read_clear",
                         "async_settings_get", "async_settings_save",
                         "async_settings_ack_cpu_warning",
-                        "async_batch_preview"):
+                        "async_batch_preview", "async_install_prepare",
+                        "async_install_start", "async_install_status"):
             self.assertIn(
                 chr(10).join((
                     "@websocket_api.require_admin",
@@ -637,7 +642,7 @@ class LabIsolationContracts(unittest.TestCase):
         self.assertIn("No project or file access", (LAB_ROOT / "readonly_benchmark.py").read_text(encoding="utf-8"))
         self.assertNotIn("20-Sekunden-Test", frontend)
         self.assertNotIn("for index in range(1, 21):", sockets)
-        self.assertEqual(sockets.count("@websocket_api.require_admin"), 35)
+        self.assertEqual(sockets.count("@websocket_api.require_admin"), 38)
 
 
 if __name__ == "__main__":
