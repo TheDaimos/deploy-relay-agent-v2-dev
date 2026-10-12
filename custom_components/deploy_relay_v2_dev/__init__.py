@@ -117,7 +117,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
     # Dedicated V2 write-job owner: never use the read-only G2 journal,
     # which deliberately accepts only preview records.
-    write_registry = OperationRegistry(max_completed=12, max_readonly=1)
+    # A maximum of four independent, non-overlapping V1 transactions.
+    # Registry capacity AND target-boundary reservations both apply.
+    write_registry = OperationRegistry(max_completed=12, max_readonly=1,
+                                       max_mutating=4)
     deployment = DeploymentCoordinator(ServerDeploymentJobs(
         write_registry,
         lambda coroutine: hass.async_create_background_task(
