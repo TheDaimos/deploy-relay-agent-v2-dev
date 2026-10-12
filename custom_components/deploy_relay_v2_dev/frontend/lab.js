@@ -1767,7 +1767,8 @@ class DRAV2DevLabPanel extends HTMLElement {
       mainPreviewVerified &&
       this._installPreparation.repository === mainProject?.repository &&
       this._installPreparation.source_commit === this._sourcePreview?.source_commit &&
-      this._installPreparation.source_ref === this._sourcePreview?.source_ref;
+      this._installPreparation.source_ref === this._sourcePreview?.source_ref
+        ? this._installPreparation : null;
     const deploymentStage = installFinished ? 4 : installActive ? 3 : mainPreviewVerified ? 2 : 1;
     const deploymentCanPreview = this._mainBatchMode
       ? mainBatchProjects.length > 0 && !!this._hass
