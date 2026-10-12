@@ -912,6 +912,39 @@ async def async_deployment_audit(hass, connection, msg):
 
 
 @websocket_api.websocket_command({
+    probatio.Required("type"): "deploy_relay_v2_dev/deployment/audit/export",
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def async_deployment_audit_export(hass, connection, msg):
+    runtime = _runtime(hass)
+    if runtime is None:
+        connection.send_error(msg["id"], "not_ready", "Audit nicht bereit")
+        return
+    if runtime.git_export.repository != "TheDaimos/Project-Log-And-Export":
+        connection.send_error(msg["id"], "archive_not_approved",
+                              "Privates zentrales Diagnosearchiv nicht ausgewählt")
+        return
+    try:
+        if runtime.git_export.pending:
+            result = await runtime.git_export.retry_pending()
+            connection.send_result(msg["id"], {**result, "pending_retried": True})
+            return
+        rows = runtime.deployment_audit.entries()
+        if not rows:
+            connection.send_error(msg["id"], "no_audit", "Noch keine Installationsereignisse vorhanden")
+            return
+        result = await runtime.git_export.export(
+            {"schema":"dra-v2-deployment-audit.v1",
+             "records":rows,"count":len(rows)}, version=VERSION)
+    except (GitMeasurementError, ValueError):
+        connection.send_error(msg["id"], "audit_export_failed",
+                              "Privater Audit-Export fehlgeschlagen")
+        return
+    connection.send_result(msg["id"], {**result, "pending_retried": False})
+
+
+@websocket_api.websocket_command({
     probatio.Required("type"): "deploy_relay_v2_dev/deployment/logs",
 })
 @websocket_api.require_admin
@@ -1207,6 +1240,7 @@ def async_register_commands(hass: HomeAssistant) -> None:
                     async_source_job_start, async_source_job_status,
                     async_source_job_history,
                     async_deployment_audit,
+                    async_deployment_audit_export,
                     async_deployment_logs, async_deployment_logs_download,
                     async_deployment_logs_export, async_deployment_logs_clear,
                     async_git_read_configure, async_git_read_clear,
