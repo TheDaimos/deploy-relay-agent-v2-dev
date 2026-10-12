@@ -130,15 +130,6 @@ class ParallelV1InstallTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual((await self.backend.get(a["operation_id"]))["status"],"running")
             self.assertEqual((await self.backend.get(b["operation_id"]))["status"],"running")
             self.assertEqual(len(await self.backend.active_transaction_ids()),2)
-            # Retry only the original request. No duplicate install is spawned.
-            duplicate=await self.backend.start_verified(
-                manifest=source_for("alpha").manifest,
-                inventory=source_for("alpha").inventory,
-                preview=source_for("alpha").preview,
-                session=None,config_root=self.config,
-                request_id=a.get("request_id","never-a-new-challenge"),
-            ) if False else None
-            self.assertIsNone(duplicate)
             self.release.set()
             await self.coordinator.close()
             for result in (a,b):
