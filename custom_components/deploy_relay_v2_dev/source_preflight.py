@@ -50,6 +50,10 @@ def target_path(path: object) -> str:
     text = safe_path(path)
     parts = text.split("/")
     # Protected HA and V1/V2 integration paths are never eligible even for preview.
+    # Isolated public V2 test project: confined to /config/dra_v2_testprojekt/.
+    # This does not authorize installation; all server-side gates still apply.
+    if text == "dra_v2_testprojekt":
+        return text
     if len(parts) != 2 or parts[0] != "custom_components":
         raise PreflightError("deployment target not approved for V2")
     if parts[1].casefold() in DENIED_TARGETS or parts[1].startswith("."):
