@@ -54,3 +54,13 @@ Technisch implementiert und automatisch geprüft:
 - Die Quellprüfungsübersicht ist weiterhin auf acht Diagnosen begrenzt; die neue echte Installationshistorie auf 256 Ereignisse. Eine V1-identische unbegrenzte allgemeine Diagnose oder eigener privater Git-Auditexport wird nicht behauptet. Der bisherige private Git-Export der Quellprüfungen bleibt unverändert.
 
 **Abnahme:** Issue #9 nur nach erfolgreichem realem Test schließen; vorab keine Fertigmeldung.
+
+## 0.1.79 DEV – privater Audit-Export (12.10.2026)
+
+- Ein eigener Audit-Knopf **Export nach Git** ist direkt in der aufgeklappten Audit-Tabelle ergänzt; bestehender lokaler JSON-Auszug bleibt erhalten.
+- Serverroute `deployment/audit/export` nur für HA-Administratoren; Daten ausschließlich aus dem serverseitigen `deployment_audit` (keine Browser-Inhalte oder Tokens).
+- Bestehende zentrale Git-Archivkonfiguration `TheDaimos/Project-Log-And-Export`, bestehende Token-Verwaltung, Privatprüfung und dauerhafte Wiederholwarteschlange werden wiederverwendet.
+- Audit-Schema und Ereignisfelder werden explizit überprüft und bereinigt; höchstens 256 Einträge; die bestehende Exportgrößengrenze von 8192 Bytes bleibt unverändert. Ein zu großer Bericht wird sicher abgewiesen, nicht still gekürzt.
+- CI 38270643989 für 0.1.79 DEV SUCCESS; Version `0.1.79`, Commit `26f42725b628344b7588ae3915b4f5c820b0cdea`.
+- **Offen:** HA-Realtest des Git-Audit-Exports mit privater Repository-Bestätigung, inklusive Anzeige des erfolgreichen Exports; außerdem weiterhin verlässliche Wiederherstellung der 4/4-Abschlussanzeige nach HA-Neustart.
+- Issue #9 bis zur vollständigen Abnahme offen lassen. Keine Änderung an DRA V1 oder V2 main.
