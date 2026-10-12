@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Callable, Coroutine
 from pathlib import Path
+from pathlib import PurePosixPath
 from typing import Any
 
 from .operation_model import (
@@ -19,6 +20,7 @@ from .operation_model import (
 from .operation_registry import OperationRegistry
 from .v1_engine import deployment as engine
 from .v1_engine.manifest import DeploymentManifest
+from .v1_engine.planner import build_plan, _paths_overlap
 from .v1_engine.preview import PreviewResult
 from .v1_engine.source_inventory import SourceInventory
 
@@ -40,6 +42,11 @@ class ServerDeploymentJobs:
         self._on_terminal = on_terminal
         self._start_lock = asyncio.Lock()
         self._tasks: dict[str, asyncio.Task] = {}
+        # The exact original V1 deployment target boundaries, never browser paths.
+        self._reserved_targets: dict[str, tuple[str, ...]] = {}
+        # Only transactions whose V1 engine actually reported their ID may
+        # remain nonterminal during a second, independent project's preflight.
+        self._reported_transactions: dict[str, str] = {}
         self._closed = False
 
     async def start_verified(
@@ -73,15 +80,20 @@ class ServerDeploymentJobs:
             raise OperationContractError("source, target or commit not verified")
         # Pre-validate the full deployment plan using the proven V1 contract.
         try:
-            from .v1_engine.planner import build_plan
-            build_plan(manifest, source_ref=inventory.source_ref,
-                       source_commit=inventory.source_commit)
+            plan = build_plan(manifest, source_ref=inventory.source_ref,
+                              source_commit=inventory.source_commit)
+            targets = tuple(group.target.casefold() for group in plan.groups)
         except (ValueError, TypeError) as exc:
             raise OperationContractError("invalid V1 deployment plan") from None
 
         async with self._start_lock:
             if self._closed:
                 raise OperationContractError("deployment task owner is closed")
+            # Reject any parent/child/case-insensitive overlap before the V1
+            # engine starts, but allow disjoint projects to run concurrently.
+            if any(_paths_overlap(target, held) for target in targets
+                   for reserved in self._reserved_targets.values() for held in reserved):
+                raise OperationContractError("deployment target already reserved")
             entry = await self._registry.register(
                 operation_type=OperationType.INSTALL,
                 project_key=manifest.project_id,
@@ -91,6 +103,7 @@ class ServerDeploymentJobs:
             identifier = str(entry["operation_id"])
             if identifier in self._tasks or entry["status"] != "queued":
                 return entry
+            self._reserved_targets[identifier] = targets
 
             async def run() -> None:
                 try:
@@ -103,6 +116,12 @@ class ServerDeploymentJobs:
                         "rollback": OperationPhase.ROLLBACK,
                     }
                     async def progress(stage: str, details: dict) -> None:
+                        transaction_id = details.get("transaction_id")
+                        if (type(transaction_id) is str and
+                            transaction_id.startswith("dra-") and
+                            len(transaction_id) <= 128 and
+                            all(ch.isalnum() or ch == "-" for ch in transaction_id)):
+                            self._reported_transactions[identifier] = transaction_id
                         phase = phases.get(stage)
                         if phase is not None:
                             await self._registry.progress(identifier, phase=phase,
@@ -140,6 +159,10 @@ class ServerDeploymentJobs:
                     await self._registry.transition(identifier, OperationStatus.FAILED,
                                                     error_family=ErrorFamily.FILESYSTEM)
                 finally:
+                    # Release target ownership only after V1 has returned or
+                    # exhausted its rollback attempt. No unsafe parallel write.
+                    self._reserved_targets.pop(identifier, None)
+                    self._reported_transactions.pop(identifier, None)
                     if self._on_terminal is not None:
                         snapshot = await self._registry.get(identifier)
                         if snapshot is not None:
@@ -154,6 +177,7 @@ class ServerDeploymentJobs:
                     raise TypeError("task owner returned no asyncio Task")
             except Exception:
                 coroutine.close()
+                self._reserved_targets.pop(identifier, None)
                 await self._registry.transition(identifier, OperationStatus.FAILED,
                                                 error_family=ErrorFamily.RESOURCE)
                 raise OperationContractError("cannot schedule server deployment") from None
@@ -170,6 +194,10 @@ class ServerDeploymentJobs:
 
     async def active(self) -> bool:
         return bool(await self._registry.list(active_only=True, limit=1))
+
+    async def active_transaction_ids(self) -> frozenset[str]:
+        """Only IDs reported by actually running V1 engines are exempted."""
+        return frozenset(self._reported_transactions.values())
 
     async def finish_before_unload(self) -> None:
         """Gracefully drain writes; NEVER cancel an in-progress mutation here."""
