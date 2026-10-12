@@ -76,6 +76,8 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._auditLevel = "all";
     this._auditPhase = "all";
     this._auditSearch = "";
+    this._installAuditRecords = [];
+    this._auditStatus = "";
     this._deploymentLogsBusy = false;
     this._historyRefreshBusy = false;
     this._historyRefreshStatus = "Nicht geprüft";
@@ -821,6 +823,24 @@ class DRAV2DevLabPanel extends HTMLElement {
     }
   }
 
+  async _refreshInstallAudit() {
+    if (!this._hass) return false;
+    try {
+      const result = await this._hass.callWS({type:"deploy_relay_v2_dev/deployment/audit"});
+      if (result?.schema !== "dra-v2-deployment-audit.v1" ||
+          !Array.isArray(result.records) || result.records.length > 256 ||
+          result.count !== result.records.length) throw Error("invalid audit");
+      this._installAuditRecords = result.records;
+      this._auditStatus = result.count + " echte Installationsereignisse geladen.";
+      return true;
+    } catch (_error) {
+      this._installAuditRecords = [];
+      this._auditStatus = "Installationsergebnisse derzeit nicht abrufbar.";
+      return false;
+    } finally {
+      if (this.isConnected) this._render();
+    }
+  }
   async _refreshDeploymentLogs() {
     if (!this._hass || this._deploymentLogsBusy) return false;
     this._deploymentLogsBusy = true;
@@ -1711,14 +1731,19 @@ class DRAV2DevLabPanel extends HTMLElement {
       return [record.captured_at,record.status,record.stage,record.reason,record.project_ref,record.run_id]
         .filter(Boolean).join(" ").toLocaleLowerCase("de-DE").includes(this._logSearch.toLocaleLowerCase("de-DE"));
     });
-    const auditRows = this._deploymentLogs.flatMap(record => {
+    const installedAuditRows = this._installAuditRecords.map(event => ({
+      record: {captured_at:event.captured_at,run_id:event.operation_id,
+        project_ref:event.project_key,reason:event.status,status:event.status},
+      stage:event.stage,elapsed:null,final:true,installation:true,
+    }));
+    const auditRows = [...installedAuditRows, ...this._deploymentLogs.flatMap(record => {
       const steps = Array.isArray(record.steps) ? record.steps : [];
       return [{record, stage:record.stage || "complete", elapsed:record.duration_ms, final:true},
         ...steps.map(step => ({record, stage:step.stage || "unknown",elapsed:step.elapsed_ms,final:false}))];
-    });
+    })];
     const auditStages = [...new Set(auditRows.map(row => row.stage))].sort();
     const filteredAuditRows = auditRows.filter(row => {
-      const level = row.final ? (row.record.status === "success" ? "INFO" : "ERROR") : "DEBUG";
+      const level = row.installation ? (["failed","recovery_required","interrupted"].includes(row.record.status) ? "ERROR" : "INFO") : row.final ? (row.record.status === "success" ? "INFO" : "ERROR") : "DEBUG";
       if (this._auditLevel !== "all" && level !== this._auditLevel) return false;
       if (this._auditPhase !== "all" && row.stage !== this._auditPhase) return false;
       return [row.record.captured_at,row.record.run_id,row.record.project_ref,row.record.reason,
@@ -3088,7 +3113,7 @@ class DRAV2DevLabPanel extends HTMLElement {
                       <tr class="dra-audit-${row.final ? (row.record.status === "success" ? "success" : "failed") : "debug"}">
                         <td>${this._escapeProject(this._formatHistoryTime(row.record.captured_at))}</td>
                         <td><span class="dra-audit-level">${row.final ? (row.record.status === "success" ? "INFO" : "ERROR") : "DEBUG"}</span></td>
-                        <td>Quellprüfung</td><td>${this._escapeProject(diagnosticStageLabels[row.stage] || row.stage)}</td>
+                        <td>${row.installation ? "Installation" : "Quellprüfung"}</td><td>${this._escapeProject(diagnosticStageLabels[row.stage] || row.stage)}</td>
                         <td>${row.final ? this._escapeProject(diagnosticReasonLabels[row.record.reason] || row.record.reason || "Abgeschlossen") : "Prüfschritt"}</td>
                         <td>${Number.isFinite(row.elapsed) ? row.elapsed + " ms" : "—"}</td>
                         <td><details><summary>Details</summary>
@@ -3102,7 +3127,7 @@ class DRAV2DevLabPanel extends HTMLElement {
                   </table>
                 </div>
                 <p class="note">${filteredAuditRows.length} von ${auditRows.length} verfügbaren Prüfeinträgen ·
-                  weitere Ereignisarten nur nach serverseitiger Anbindung verfügbar.</p>
+                  ${this._escapeProject(this._auditStatus)}</p>
               </section>` : ""}
             ${this._deploymentLogsOpen ? `
               <section class="dra-logs-panel" id="dra-deployment-logs-panel"
@@ -3868,9 +3893,9 @@ class DRAV2DevLabPanel extends HTMLElement {
     s.querySelector("#dra-audit-toggle")?.addEventListener("click", async () => {
       this._auditOpen = !this._auditOpen;
       this._render();
-      if (this._auditOpen) await this._refreshDeploymentLogs();
+      if (this._auditOpen) await Promise.all([this._refreshDeploymentLogs(),this._refreshInstallAudit()]);
     });
-    s.querySelector("#dra-audit-refresh")?.addEventListener("click", () => this._refreshDeploymentLogs());
+    s.querySelector("#dra-audit-refresh")?.addEventListener("click", () => Promise.all([this._refreshDeploymentLogs(),this._refreshInstallAudit()]));
     for (const [id,key] of [["dra-audit-level","_auditLevel"],["dra-audit-phase","_auditPhase"]]) {
       s.querySelector("#"+id)?.addEventListener("change", event => {
         this[key] = event.currentTarget.value;
