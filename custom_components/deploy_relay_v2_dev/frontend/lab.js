@@ -3566,9 +3566,19 @@ class DRAV2DevLabPanel extends HTMLElement {
       this._sourceCheck({dataset:{repo:mainProject.repository}}, true);
     });
     s.querySelector("#dra-preview")?.addEventListener("click",()=>{
-      if (deploymentBusy || deploymentStage !== 1) return;
-      if (this._mainBatchMode) this._previewMainBatch();
-      else if (mainProject) this._sourceCheck({dataset:{repo:mainProject.repository}});
+      if (deploymentBusy) return;
+      if (deploymentStage === 1) {
+        if (this._mainBatchMode) this._previewMainBatch();
+        else if (mainProject) this._sourceCheck({dataset:{repo:mainProject.repository}});
+      } else if (deploymentStage === 2 && mainProject && !preparedInstall) {
+        this._prepareInstallation(mainProject);
+      }
+    });
+    s.querySelector("#dra-install-confirm")?.addEventListener("click",()=>this._confirmInstallation());
+    s.querySelector("#dra-install-cancel")?.addEventListener("click",()=>{
+      this._installPreparation = null;
+      this._installMessage = "Vorbereitung verworfen. Es wurden keine Dateien geändert.";
+      this._render();
     });
     s.querySelector("#measure")?.addEventListener("click", () => this._measure());
     s.querySelector("#multicore")?.addEventListener("click", () => this._runSequence("multicore"));
