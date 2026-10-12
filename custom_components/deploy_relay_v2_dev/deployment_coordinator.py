@@ -22,7 +22,7 @@ from .v1_source_bridge import PreparedV1Source, prepare_frozen_v1_source
 
 PREPARATION_LIFETIME_SECONDS = 120
 
-def _require_resolved_v1_transactions(config_root: Path) -> None:
+def _require_resolved_v1_transactions(config_root: Path, active_ids: frozenset[str] = frozenset()) -> None:
     """Inspect only V2-owned V1-engine journals, never V1's data folder.
 
     A reboot during staging/backup/apply cannot be silently followed by a new
@@ -49,10 +49,16 @@ def _require_resolved_v1_transactions(config_root: Path) -> None:
                 raise ValueError("journal too large")
             raw = entry.read_bytes()
             row = json.loads(raw)
-            if type(row) is not dict or row.get("state") not in (
-                "success", "failed_no_change", "rolled_back"
+            if type(row) is not dict or row.get("schema") not in (
+                None, "deploy-relay.transaction.v1"
             ):
-                raise ValueError("incomplete or uncertain transaction")
+                raise ValueError("invalid journal schema")
+            if row.get("state") not in ("success", "failed_no_change", "rolled_back"):
+                # The only acceptable nonterminal journal is the exact
+                # transaction ID reported by a currently active V1 engine.
+                # A stale journal from a terminated HA instance never qualifies.
+                if entry.stem not in active_ids or row.get("transaction_id") != entry.stem:
+                    raise ValueError("incomplete or uncertain transaction")
         except (OSError, ValueError, UnicodeError):
             raise OperationContractError("old transaction needs recovery review") from None
 
@@ -70,14 +76,14 @@ class PendingInstallation:
 
 
 class DeploymentCoordinator:
-    """Single prepared candidate; one V1-powered server-side writing job."""
+    """Short-lived per-project confirmations for independent V1-backed jobs."""
 
     def __init__(self, jobs: ServerDeploymentJobs) -> None:
         if not isinstance(jobs, ServerDeploymentJobs):
             raise OperationContractError("deployment job owner required")
         self._jobs = jobs
         self._lock = asyncio.Lock()
-        self._pending: PendingInstallation | None = None
+        self._pending: dict[str, PendingInstallation] = {}
         self._closed = False
 
     async def prepare(
@@ -89,12 +95,12 @@ class DeploymentCoordinator:
         async with self._lock:
             if self._closed:
                 raise OperationContractError("deployment coordinator closed")
-            # Any newly selected project/ref invalidates the previous challenge.
-            self._pending = None
-            active = await self._jobs.active()
-            if active:
-                raise OperationContractError("deployment already in progress")
-            await asyncio.to_thread(_require_resolved_v1_transactions, config_root)
+            # Refresh only this project's pending confirmation. Different
+            # approved projects may prepare while an independent V1 job runs.
+            self._pending.pop(expected_project_id, None)
+            active_ids = await self._jobs.active_transaction_ids()
+            await asyncio.to_thread(_require_resolved_v1_transactions,
+                                    config_root, active_ids)
             prepared = await prepare_frozen_v1_source(
                 session=session, repository=repository, source_ref=source_ref,
                 source_commit=source_commit,
@@ -105,7 +111,7 @@ class DeploymentCoordinator:
             if not changed:
                 raise OperationContractError("no project changes to install")
             challenge = token_hex(16)
-            self._pending = PendingInstallation(
+            self._pending[expected_project_id] = PendingInstallation(
                 challenge=challenge, expires_at=monotonic()+PREPARATION_LIFETIME_SECONDS,
                 repository=repository, project_id=expected_project_id,
                 source_ref=source_ref, commit=source_commit, prepared=prepared,
@@ -134,18 +140,21 @@ class DeploymentCoordinator:
     ) -> dict[str, object]:
         """Consume one backend-held challenge; never accept serialized plans."""
         async with self._lock:
-            candidate = self._pending
+            candidate = next((item for item in self._pending.values()
+                              if item.challenge == challenge), None)
             if self._closed or confirm is not True or (
                 type(challenge) is not str or len(challenge) != 32 or
                 type(repository) is not str or type(commit) is not str or
-                candidate is None or candidate.challenge != challenge or
-                candidate.expires_at < monotonic() or
+                candidate is None or candidate.expires_at < monotonic() or
                 candidate.repository.casefold() != repository.casefold() or
                 candidate.commit != commit
             ):
-                self._pending = None
+                # Invalid confirmation must never invalidate other prepared
+                # projects' independent tokens.
+                if candidate is not None:
+                    self._pending.pop(candidate.project_id, None)
                 raise OperationContractError("installation confirmation invalid or expired")
-            self._pending = None
+            self._pending.pop(candidate.project_id, None)
             obj = candidate.prepared
             # The confirmed git SHA is immutable; V1 verifies the target
             # hashes again before backup and immediately before each write.
@@ -165,5 +174,5 @@ class DeploymentCoordinator:
     async def close(self) -> None:
         async with self._lock:
             self._closed = True
-            self._pending = None
+            self._pending.clear()
         await self._jobs.finish_before_unload()
