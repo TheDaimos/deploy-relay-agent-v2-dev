@@ -361,6 +361,7 @@ class DRAV2DevLabPanel extends HTMLElement {
       if (response?.schema !== "dra-v2-install-status.v1") throw Error("bad job response");
       const job = response.job;
       if (job && /^[a-f0-9]{32}$/.test(job.operation_id || "")) {
+
         this._installJobId = job.operation_id;
         this._installJob = job;
         if (job.status === "success") {
@@ -376,6 +377,10 @@ class DRAV2DevLabPanel extends HTMLElement {
           if (this.isConnected) this._installTimer =
             setTimeout(()=>this._pollInstallation(),1500);
         }
+      } else if (this._installJobId) {
+        this._installJobId = null;
+        this._installJob = null;
+        this._installMessage = "Alter Auftrag nach HA-Neustart nicht mehr in der Auftragsliste. V1-Transaktionsprotokoll prüfen.";
       }
     } catch (_error) {
       this._installMessage = "Serverstatus nicht abrufbar; ein laufendes Update wird dadurch nicht abgebrochen.";
@@ -1622,7 +1627,9 @@ class DRAV2DevLabPanel extends HTMLElement {
     const deploymentBusy = this._mainBatchMode ? this._mainBatchBusy : (this._sourceBusy || this._installBusy);
     const installActive = !!this._installJob &&
       ["queued","running","waiting_for_resource","cancel_requested"].includes(this._installJob.status);
-    const installFinished = this._installJob?.status === "success";
+    const installFinished = this._installJob?.status === "success" &&
+      mainPreviewVerified && this._installJob?.project_key === mainProject?.project_id &&
+      this._installJob?.source_commit === this._sourcePreview?.source_commit;
     const preparedInstall = this._installPreparation &&
       mainPreviewVerified &&
       this._installPreparation.repository === mainProject?.repository &&
