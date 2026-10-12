@@ -1,6 +1,6 @@
 /* Separate DRA V2 DEV read-only lab. No V1 custom element or URLs. */
 // Build identity of this actually loaded JavaScript, independent of the HA Python version.
-const DRA_V2_UI_VERSION = "0.1.74";
+const DRA_V2_UI_VERSION = "0.1.75";
 const G2_TEST_PYTHON_VERSION = DRA_V2_UI_VERSION;
 class DRAV2DevLabPanel extends HTMLElement {
   constructor() {
@@ -3059,7 +3059,7 @@ class DRAV2DevLabPanel extends HTMLElement {
                 <div class="dra-logs-events">
                   ${this._deploymentLogs.map(record => `
                     <div class="dra-logs-event">
-                      <strong>${record.status === "success" ? "Erfolgreich" : "Fehlgeschlagen"} · ${this._escapeProject(record.captured_at)}</strong>
+                      <strong>${record.status === "success" ? "Erfolgreich" : "Fehlgeschlagen"} · ${this._escapeProject(this._formatHistoryTime(record.captured_at))}</strong>
                       <div class="note">Projektkennung: ${this._escapeProject(record.project_ref || "nicht zugeordnet")} ·
                         Prüfkennung: ${this._escapeProject((record.run_id || "").slice(0,12))}</div>
                       <span>Prüfschritt: ${diagnosticStageLabels[record.stage] || "Unbekannt"} ·
