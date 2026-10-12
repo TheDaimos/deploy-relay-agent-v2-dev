@@ -1,6 +1,6 @@
 # DRA V2 – Audit-Funktionsgruppe, verbindliche offene Abnahme
 
-**Status: NICHT FERTIG / NICHT ZUR HA-INSTALLATION FREIGEGEBEN.**
+**Status: 0.1.77 DEV – CODE UND CI ABGESCHLOSSEN; HA-REALABNAHME OFFEN. ISSUE #9 BLEIBT OFFEN.**
 **Nur Zweig:** `feature/v2-10-inventory-operation-contract`.
 **Ausgangspunkt:** Audit-Oberfläche Commit `1e78da77384cc6617b6f2807d8723dcdc33c01a4`, CI 38251783919 erfolgreich – dies bestätigt NICHT die vollständige Audit-Funktion.
 
@@ -33,3 +33,24 @@ GitHub Issue: https://github.com/TheDaimos/deploy-relay-agent-v2-dev/issues/9
 - Neue Vertragsprüfungen `tests/test_v2_deployment_audit.py` und bestehende Sicherheitsprüfungen erfolgreich; CI 38255519922.
 - **Offen und nicht als fertig melden:** In-Memory-Audit übersteht keinen HA-Neustart; vollständige persistente Ereignishistorie, Export, tatsächliche HA-Realabnahme und der Abgleich der Darstellung mit der DRA-V1-Tiefendiagnose sind nicht abgeschlossen. Issue #9 offen lassen.
 - **Keine HA-Installationsfreigabe:** Dieser Zwischenstand liegt ausschließlich im freigegebenen Featurezweig und ist noch nicht versioniert.
+
+## 0.1.77 DEV – gebündelter Code-Checkpoint (12.10.2026)
+
+**Git-Checkpoint:** `3323753b66b58dd71af761cc1f361b9a162e3ade`
+**CI:** Lauf 38256815155 – SUCCESS.
+**Nur Featurezweig; Draft-PR #2 nicht zusammenführen.**
+
+Technisch implementiert und automatisch geprüft:
+- Echte Ereignisse der V1-Engine in V2 `ServerDeploymentJobs`: Annahme, Start, Staging, Backup, Schreiben, Verifikation, Rollback und terminale Ergebnisse. Keine zusätzlichen V1-Schreibpfade.
+- Administratorgeschützte `deployment/audit`-Schnittstelle, keine Dateiinhalte, Tokens, unkontrollierte Meldungen oder vollständigen Repositorynamen.
+- Maximal 256 erlaubte Audit-Ereignisse und gesonderte dauerhafte HA-Speicherung `deploy_relay_v2_dev.deployment_audit`; abgeschlossene Aufträge werden gespeichert und nach HA-Neustart eingelesen. Bei beschädigter Historie wird nicht stillschweigend überschrieben.
+- Audit-Schaltfläche neben Logs, aufklappbare Tabelle direkt im Deployment; Suche, Filter nach Projekt, Art, Stufe und Phase, farblich unterschiedene Kopf-/Datenzeilen und Zustände, aufklappbare Details.
+- Echte kumulierte Laufzeit seit Installationsbeginn; Deutschland-Ortszeit in der Darstellung, UTC in Speicherung/JSON; lokaler JSON-Auditexport.
+- Automatische Vertragsprüfungen, Speicher-Rundlauf und ungültige Daten geprüft.
+
+**Noch ausdrücklich offen:**
+- Einmalige gebündelte HA-Realabnahme mit V2 0.1.77: Audit öffnen, Quellprüfung und erste reale Testinstallation, Backup/Dateiergebnis/Abschluss sowie Audit nach erneuter HA-Laufzeit kontrollieren.
+- Ereignisse aus unterbrochenen, noch nicht abgeschlossenen Aufträgen sind für Wiederherstellung ausschließlich durch die bestehenden V1-Transaktionsjournale abgesichert; im Audit werden Ereignisse anlässlich des abgeschlossenen Auftrags dauerhaft gespeichert.
+- Die Quellprüfungsübersicht ist weiterhin auf acht Diagnosen begrenzt; die neue echte Installationshistorie auf 256 Ereignisse. Eine V1-identische unbegrenzte allgemeine Diagnose oder eigener privater Git-Auditexport wird nicht behauptet. Der bisherige private Git-Export der Quellprüfungen bleibt unverändert.
+
+**Abnahme:** Issue #9 nur nach erfolgreichem realem Test schließen; vorab keine Fertigmeldung.
