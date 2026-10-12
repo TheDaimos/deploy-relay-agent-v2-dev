@@ -123,13 +123,24 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Registry capacity AND target-boundary reservations both apply.
     write_registry = OperationRegistry(max_completed=12, max_readonly=1,
                                        max_mutating=4)
-    deployment_audit = DeploymentAudit()
+    deployment_audit = DeploymentAudit(
+        Store(hass, 1, "deploy_relay_v2_dev.deployment_audit"))
+    try:
+        await deployment_audit.load()
+    except ValueError:
+        # Never silently discard an unreadable persisted audit trail.
+        return False
+
+    async def _save_deployment_audit(_snapshot):
+        await deployment_audit.save()
+
     deployment = DeploymentCoordinator(ServerDeploymentJobs(
         write_registry,
         lambda coroutine: hass.async_create_background_task(
             coroutine, "Deploy Relay V2 server deployment", eager_start=False,
         ),
         audit=deployment_audit,
+        on_terminal=_save_deployment_audit,
     ))
     runtime = LabRuntime(registry=registry, supervisor=supervisor, journal=journal,
                          measurement=measurement, suite=suite, git_export=git_export,
