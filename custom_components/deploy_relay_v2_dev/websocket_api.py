@@ -1150,6 +1150,7 @@ async def async_install_status(hass, connection, msg):
     connection.send_result(msg["id"], {
         "schema": "dra-v2-install-status.v1",
         "job": snapshot,
+        "jobs": await runtime.deployment.list(),
     })
 
 
