@@ -1647,7 +1647,9 @@ class DRAV2DevLabPanel extends HTMLElement {
     const deploymentStatus = this._mainBatchMode
       ? this._mainBatchMessage || "Die gemeinsame Auswahl kann gelesen, aber noch nicht installiert werden."
       : mainPreviewVerified
-        ? this._installMessage || "Quellprüfung abgeschlossen. V1-Engine kann das Update vorbereiten."
+        ? this._installMessage || (mainProject?.access_mode === "read_write"
+          ? "Quellprüfung abgeschlossen. Die V1-Engine kann das Update vorbereiten."
+          : "Nur Lesezugriff: Für das Update in der Projektverwaltung „Lesen und Schreiben“ einstellen.")
         : this._sourceRepository === mainProject?.repository && this._sourceMessage
           ? this._sourceMessage : "Noch keine Vorschau berechnet.";
     // Consistent, resolution-independent 24x24 vector icons: never emoji or icon fonts.
@@ -2794,7 +2796,8 @@ class DRAV2DevLabPanel extends HTMLElement {
         <header class="dra-head">
           <div><strong>DEPLOY RELAY AGENT V2</strong><div class="note">Sicheres Deployment für Git-Projekte</div></div>
           <div class="dra-actions">
-          <span class="dra-lock">GESPERRT</span>
+          <span class="dra-lock">${mainPreviewVerified && mainProject?.access_mode === "read_write" &&
+            this._serverVersion === DRA_V2_UI_VERSION ? "FREIGABEBEREIT" : "GESPERRT"}</span>
           <div id="dra-version" class="dra-version ${runtimeVersionState}"
             aria-label="Versionsübersicht: Oberfläche ${uiVersionLabel}; HA-Laufzeit ${runtimeVersionLabel}">
             <span class="dra-version-heading">Oberfläche</span>
