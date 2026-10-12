@@ -79,6 +79,8 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._historyRefreshTone = "idle";
     this._logsNotesOpen = false;
     this._deploymentLogs = [];
+    this._logFilter = "all";
+    this._logSearch = "";
     this._deploymentLogCount = 0;
     this._deploymentLogsStatus = "";
     this._deploymentLogsConfirm = false;
@@ -288,7 +290,7 @@ class DRAV2DevLabPanel extends HTMLElement {
   }
 
   async _prepareInstallation(project) {
-    if (!this._hass || !project || project.access_mode !== "read_write" ||
+    if (!this._hass || !project || project.active === false ||
         !this._sourcePreview || this._installBusy ||
         this._sourceRepository !== project.repository ||
         this._deploymentPreviewRef !== this._mainSourceRef.trim() ||
@@ -325,7 +327,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     const prepared = this._installPreparation;
     const project = this._projects.find(p=>p.repository===this._selectedMainRepo);
     if (!this._hass || !prepared || !project || this._installBusy ||
-        project.access_mode !== "read_write" ||
+        project.active === false ||
         this._sourceRepository !== prepared.repository ||
         this._sourcePreview?.source_commit !== prepared.source_commit ||
         this._deploymentPreviewRef !== this._mainSourceRef.trim()) return;
@@ -1700,6 +1702,11 @@ class DRAV2DevLabPanel extends HTMLElement {
       (this._previewFileFilter === "all" || entry.status === this._previewFileFilter) &&
       entry.path.toLocaleLowerCase("de-DE").includes(this._previewFileSearch.toLocaleLowerCase("de-DE"))
     );
+    const visibleLogs = this._deploymentLogs.filter(record => {
+      if (this._logFilter !== "all" && record.status !== this._logFilter) return false;
+      return [record.captured_at,record.status,record.stage,record.reason,record.project_ref,record.run_id]
+        .filter(Boolean).join(" ").toLocaleLowerCase("de-DE").includes(this._logSearch.toLocaleLowerCase("de-DE"));
+    });
     const diagnosticStageLabels = {
       admission:"Annahme", repository:"Repository", commit:"Quellcommit",
       manifest:"Manifest", tree:"Git-Dateibaum", local_inventory:"HA-Dateibestand",
@@ -1781,9 +1788,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     const deploymentStatus = this._mainBatchMode
       ? this._mainBatchMessage || "Die gemeinsame Auswahl kann gelesen, aber noch nicht installiert werden."
       : mainPreviewVerified
-        ? this._installMessage || (mainProject?.access_mode === "read_write"
-          ? "Quellprüfung abgeschlossen. Die V1-Engine kann das Update vorbereiten."
-          : "Nur Lesezugriff: Für das Update in der Projektverwaltung „Lesen und Schreiben“ einstellen.")
+        ? this._installMessage || "Quellprüfung abgeschlossen. Die V1-Engine kann das Update vorbereiten."
         : this._sourceRepository === mainProject?.repository && this._sourceMessage
           ? this._sourceMessage : "Noch keine Vorschau berechnet.";
     // Consistent, resolution-independent 24x24 vector icons: never emoji or icon fonts.
@@ -2930,7 +2935,7 @@ class DRAV2DevLabPanel extends HTMLElement {
         <header class="dra-head">
           <div><strong>DEPLOY RELAY AGENT V2</strong><div class="note">Sicheres Deployment für Git-Projekte</div></div>
           <div class="dra-actions">
-          <span class="dra-lock">${mainPreviewVerified && mainProject?.access_mode === "read_write" &&
+          <span class="dra-lock">${mainPreviewVerified && mainProject?.active !== false &&
             this._serverVersion === DRA_V2_UI_VERSION ? "FREIGABEBEREIT" : "GESPERRT"}</span>
           <div id="dra-version" class="dra-version ${runtimeVersionState}"
             aria-label="Versionsübersicht: Oberfläche ${uiVersionLabel}; HA-Laufzeit ${runtimeVersionLabel}">
@@ -3057,23 +3062,34 @@ class DRAV2DevLabPanel extends HTMLElement {
                          ? "disabled" : ""}>G2-Test vorbereiten</button>`}
                 </details>
                 <p class="note" role="status" aria-live="polite">${this._escapeProject(this._deploymentLogsStatus)}</p>
-                <div class="dra-logs-events">
-                  ${this._deploymentLogs.map(record => `
-                    <div class="dra-logs-event">
-                      <strong>${record.status === "success" ? "Erfolgreich" : "Fehlgeschlagen"} · ${this._escapeProject(this._formatHistoryTime(record.captured_at))}</strong>
-                      <div class="note">Projektkennung: ${this._escapeProject(record.project_ref || "nicht zugeordnet")} ·
-                        Prüfkennung: ${this._escapeProject((record.run_id || "").slice(0,12))}</div>
-                      <span>Prüfschritt: ${diagnosticStageLabels[record.stage] || "Unbekannt"} ·
-                        Ursache: ${diagnosticReasonLabels[record.reason] || "Unbekannt"} ·
-                        Dauer: ${Number.isInteger(record.duration_ms) ? record.duration_ms : "—"} ms ·
-                        HA-Prozess-CPU: ${Number.isInteger(record.process_cpu_ms) ? record.process_cpu_ms : "—"} ms</span>
-                      <div class="note">CPU-Kerne: ${Number.isInteger(record.resources?.available_cores) ? record.resources.available_cores : "unbekannt"} ·
-                        Arbeitsprozesse eingestellt: ${record.resources?.configured_worker_processes ?? "—"} ·
-                        Gleichzeitige Leseaufträge eingestellt: ${record.resources?.configured_readonly_jobs ?? "—"} ·
-                        Tatsächlich aktiv möglich: ${record.resources?.active_readonly_limit ?? "—"} Leseauftrag,
-                        ${record.resources?.active_mutation_limit ?? "—"} Schreibaufträge.</div>
-                    </div>`).join("")}
+                <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">
+                  <label>Ergebnis <select id="dra-log-filter">
+                    <option value="all" ${this._logFilter === "all" ? "selected" : ""}>Alle Ergebnisse</option>
+                    <option value="success" ${this._logFilter === "success" ? "selected" : ""}>Erfolgreich</option>
+                    <option value="failed" ${this._logFilter === "failed" ? "selected" : ""}>Fehlgeschlagen</option>
+                  </select></label>
+                  <label>Protokolle durchsuchen <input id="dra-log-search" type="search"
+                    placeholder="Zeit, Phase, Ursache oder Kennung" value="${this._escapeProject(this._logSearch)}"/></label>
                 </div>
+                <div class="dra-logs-events" style="overflow:auto;max-height:340px">
+                  <table style="width:100%;min-width:650px;border-collapse:collapse;text-align:left">
+                    <thead><tr><th>Zeit (Deutschland)</th><th>Ergebnis</th><th>Phase</th><th>Ursache</th><th>Dauer</th><th>Details</th></tr></thead>
+                    <tbody>${visibleLogs.length ? visibleLogs.map(record => `
+                      <tr><td>${this._escapeProject(this._formatHistoryTime(record.captured_at))}</td>
+                        <td>${record.status === "success" ? "Erfolgreich" : "Fehlgeschlagen"}</td>
+                        <td>${this._escapeProject(diagnosticStageLabels[record.stage] || record.stage || "—")}</td>
+                        <td>${this._escapeProject(diagnosticReasonLabels[record.reason] || record.reason || "—")}</td>
+                        <td>${Number.isInteger(record.duration_ms) ? record.duration_ms + " ms" : "—"}</td>
+                        <td><details><summary>Details</summary>
+                          <div>Projektkennung: ${this._escapeProject(record.project_ref || "—")}</div>
+                          <div>Prüfkennung: ${this._escapeProject(record.run_id || "—")}</div>
+                          <div>HA-Prozess-CPU: ${Number.isInteger(record.process_cpu_ms) ? record.process_cpu_ms + " ms" : "—"}</div>
+                          <div>CPU-Kerne: ${this._escapeProject(record.resources?.available_cores ?? "—")}</div>
+                          <div>Arbeitsprozesse eingestellt: ${this._escapeProject(record.resources?.configured_worker_processes ?? "—")}</div>
+                        </details></td></tr>`).join("") : '<tr><td colspan="6">Keine passenden Protokolle.</td></tr>'}</tbody>
+                  </table>
+                </div>
+                <p class="note">${visibleLogs.length} von ${this._deploymentLogs.length} Protokollen angezeigt.</p>
                 <div class="dra-history-section" aria-label="Serverseitige Auftragshistorie">
                   <div class="dra-history-heading">
                     <div class="dra-history-heading-title">
@@ -3133,7 +3149,7 @@ class DRAV2DevLabPanel extends HTMLElement {
               ${deploymentBusy ? "is-busy" : ""}"
               data-stage="${deploymentStage}"
               ${deploymentBusy || !deploymentCanPreview || deploymentStage >= 3 ||
-                (deploymentStage === 2 && (!mainProject || mainProject.access_mode !== "read_write" ||
+                (deploymentStage === 2 && (!mainProject || mainProject.active === false ||
                 this._serverVersion !== DRA_V2_UI_VERSION || !!preparedInstall)) ? "disabled" : ""}
               aria-label="${deploymentButtonText}">
               ${deploymentBusy
@@ -3517,7 +3533,7 @@ class DRAV2DevLabPanel extends HTMLElement {
                 `•••••<span class="safe"><strong>${this._escapeProject(managed.token_suffix)}</strong></span>` : "Nicht eingerichtet"}</div>
               <div class="project-token-access">
                 <label for="manage-access-mode">Zugriffsart:</label>
-                <select id="manage-access-mode" class="project-text" title="Informative Zugriffsart; ändert keine GitHub-Berechtigungen">
+                <select id="manage-access-mode" class="project-text" title="Angabe zu GitHub-Token-Berechtigungen, keine lokale Installationsfreigabe">
                   <option value="read_only" ${managed?.access_mode !== "read_write" ? "selected" : ""}>Read-Only</option>
                   <option value="read_write" ${managed?.access_mode === "read_write" ? "selected" : ""}>Read-Write</option>
                 </select>
@@ -3532,7 +3548,7 @@ class DRAV2DevLabPanel extends HTMLElement {
               '<p id="manage-connection-feedback" class="note" role="status">Verbindung noch nicht geprüft.</p>'}
             <p class="note">Die Verbindungsprüfung funktioniert auch vor dem Speichern. Ein neu eingegebener Token wird ausschließlich für diese Prüfung verwendet und dabei nicht gespeichert.</p>
             <p class="note">Der Token bleibt serverseitig. Leer lassen, um den bisherigen Token beizubehalten.</p>
-            <p class="note project-access-help">Die Zugriffsart steuert in DRA V2, ob ein Projekt nach zusätzlicher Bestätigung installiert werden darf. Die GitHub-Berechtigungen bleiben unverändert.</p>
+            <p class="note project-access-help">Die Zugriffsart ist ausschließlich eine Angabe über die GitHub-Token-Berechtigungen. Die lokale Installation erfordert unabhängig davon eine gesonderte Sicherheitsbestätigung.</p>
             <label>Notiz <textarea id="manage-note" class="project-text" rows="3">${this._escapeProject(managed?.note || "")}</textarea></label>
             <label>Anzeigename (optional) <input id="manage-name" class="project-text" value="${this._escapeProject(managed?.name || "")}" /></label>
             <label><input id="manage-active" type="checkbox" ${managed?.active !== false ? "checked" : ""} /> Projekt aktiv</label>
@@ -3763,6 +3779,18 @@ class DRAV2DevLabPanel extends HTMLElement {
       const position = event.currentTarget.selectionStart;
       this._render();
       const field = this.shadowRoot?.querySelector("#dra-preview-search");
+      field?.focus();
+      if (typeof position === "number") field?.setSelectionRange(position,position);
+    });
+    s.querySelector("#dra-log-filter")?.addEventListener("change", event => {
+      this._logFilter = event.currentTarget.value;
+      this._render();
+    });
+    s.querySelector("#dra-log-search")?.addEventListener("input", event => {
+      this._logSearch = event.currentTarget.value;
+      const position = event.currentTarget.selectionStart;
+      this._render();
+      const field = this.shadowRoot?.querySelector("#dra-log-search");
       field?.focus();
       if (typeof position === "number") field?.setSelectionRange(position,position);
     });
