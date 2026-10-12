@@ -50,6 +50,13 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._sourceMessage = "";
     this._sourcePreview = null;
     this._deploymentPreviewRef = null;
+    this._installPreparation = null;
+    this._installJobId = null;
+    this._installJob = null;
+    this._installBusy = false;
+    this._installMessage = "";
+    this._installTimer = null;
+    this._installPolling = false;
     this._sourceJobId = null;
     this._sourceConnectionTest = false;
     // Only the admin-only HA test/state endpoint can confirm the running Python version.
@@ -133,6 +140,8 @@ class DRAV2DevLabPanel extends HTMLElement {
   }
 
   disconnectedCallback() {
+    if (this._installTimer !== null) clearTimeout(this._installTimer);
+    this._installTimer = null;
     if (this._sourceJobTimer !== null) clearTimeout(this._sourceJobTimer);
     this._sourceJobTimer = null;
     if (typeof window !== "undefined") {
@@ -299,6 +308,9 @@ class DRAV2DevLabPanel extends HTMLElement {
         this._archiveCheckState = "stored";
       }
       this._gitReadConfigured = data.git_read_configured === true;
+      if (this._serverVersion === DRA_V2_UI_VERSION) {
+        await this._pollInstallation();
+      }
       this._gitAvailable = data.git_available === true;
       this._error = "";
       if (!this._sourceJobRestored) {
