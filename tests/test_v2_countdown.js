@@ -891,6 +891,80 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
 })().catch(error=>{console.error(error);process.exitCode=1;});
 
 (async () => {
+  const panel = new Panel();
+  panel._projectSettingsRepo = "__new__";
+  panel._projectDialogOpen = true;
+  const repository = "TheDaimos/Test-Repo-DRA-V2";
+  const exampleSecret = "ghp_TEST_VALUE_NOT_A_REAL_SECRET_123456789";
+  const fields = {
+    "#manage-repository":{value:repository},
+    "#manage-token":{value:exampleSecret},
+    "#manage-name":{value:"DRA V2 Testprojekt"},
+    "#manage-note":{value:"Nur künstliche Testdateien"},
+    "#manage-active":{checked:true},
+    "#manage-access-mode":{value:"read_write"},
+    "#manage-connection-feedback":{textContent:"",className:"note"},
+  };
+  const orig = panel.shadowRoot.querySelector.bind(panel.shadowRoot);
+  panel.shadowRoot.querySelector = q => fields[q] || orig(q);
+  const requests=[];
+  panel._hass={async callWS(request) {
+    requests.push(request);
+    if(request.type === "deploy_relay_v2_dev/projects/connection_check") {
+      assert.equal(request.draft,true);
+      assert.equal(request.repository,repository);
+      assert.equal(request.token,exampleSecret);
+      return {connected:true,repository,private:false,authenticated:true,
+        advertised_push:null,write_tested:false};
+    }
+    if(request.type === "deploy_relay_v2_dev/projects/add") {
+      assert.equal(request.token,undefined,
+        "repository save must not mix the secret into public project metadata");
+      return {projects:[{repository,project_id:"test_repo_dra_v2",name:request.name,
+        active:true,access_mode:"read_write"}]};
+    }
+    assert.equal(request.type,"deploy_relay_v2_dev/projects/token");
+    assert.equal(request.repository,repository);
+    assert.equal(request.token,exampleSecret);
+    return {projects:[{repository,project_id:"test_repo_dra_v2",name:"DRA V2 Testprojekt",
+      active:true,access_mode:"read_write",token_configured:true,token_suffix:"56789"}]};
+  }};
+  await panel._checkDraftProjectConnection();
+  assert.equal(requests.length,1,
+    "draft connection check must run before any project or token save");
+  assert.equal(panel._projects.length,0);
+  assert.equal(panel._draftConnectionCheck.status,"success");
+  assert.doesNotMatch(panel._draftConnectionCheck.message,/TEST_VALUE|123456789/);
+  assert.match(panel.shadowRoot.innerHTML,/Verbindung erfolgreich/);
+  assert.doesNotMatch(panel.shadowRoot.innerHTML,/ghp_TEST_VALUE/);
+  await panel._saveNewProject();
+  assert.deepEqual(requests.map(x=>x.type),[
+    "deploy_relay_v2_dev/projects/connection_check",
+    "deploy_relay_v2_dev/projects/add",
+    "deploy_relay_v2_dev/projects/token"
+  ]);
+  assert.equal(panel._projectSettingsRepo,null);
+  assert.equal(panel._projects[0].token_configured,true);
+  assert.doesNotMatch(panel._projectMessage,/ghp_TEST_VALUE/);
+
+  const publicPanel = new Panel();
+  publicPanel._projectSettingsRepo="__new__";
+  publicPanel.shadowRoot.querySelector=q=>q==="#manage-repository" ?
+    {value:"TheDaimos/Test-Repo-DRA-V2"} : q==="#manage-token" ? {value:""} : null;
+  const seen=[];
+  publicPanel._hass={async callWS(req) {
+    seen.push(req);
+    return {connected:true,repository:req.repository,private:false,
+      authenticated:false,write_tested:false};
+  }};
+  await publicPanel._checkDraftProjectConnection();
+  assert.equal(seen[0].token,undefined,
+    "public repository must be checkable without any token");
+  assert.equal(publicPanel._draftConnectionCheck.status,"success");
+  console.log("DRA V2 check new repository and optional transient token BEFORE saving PASS");
+})().catch(error=>{console.error(error);process.exitCode=1;});
+
+(async () => {
   const versions = new Panel();
   versions._sourceJobRestored = true;
   versions._render();
