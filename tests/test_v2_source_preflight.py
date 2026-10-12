@@ -51,6 +51,20 @@ class PurePreflightTests(unittest.TestCase):
         self.assertEqual(obj["project_id"], "safe_project")
         self.assertEqual(obj["groups"][0]["target"], "custom_components/safe_project")
 
+    def test_isolated_v2_test_target_only(self):
+        accepted = m.parse_manifest(manifest(groups=[{
+            "source": "payload", "target": "dra_v2_testprojekt",
+            "mode": "replace_directory",
+        }]), repository=REPO)
+        self.assertEqual(accepted["groups"][0]["target"], "dra_v2_testprojekt")
+        for denied in ("dra_v2_testprojekt/other", "dra_v2_testprojekt2",
+                       ".storage", "secrets.yaml", "www/unapproved"):
+            with self.subTest(target=denied), self.assertRaises(m.PreflightError):
+                m.parse_manifest(manifest(groups=[{
+                    "source": "payload", "target": denied,
+                    "mode": "replace_directory",
+                }]), repository=REPO)
+
     def test_rejects_untrusted_target_before_scanning(self):
         for target in ("custom_components/deploy_relay",
                        "custom_components/deploy_relay_v2_dev",
