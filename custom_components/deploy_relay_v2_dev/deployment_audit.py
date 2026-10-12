@@ -5,6 +5,7 @@ and deliberately non-persistent; V1 transaction journals remain authoritative.
 """
 from __future__ import annotations
 
+import asyncio
 from collections import deque
 from datetime import datetime, timezone
 import json
@@ -22,6 +23,7 @@ _SCHEMA = "dra-v2-deployment-audit.v1"
 class DeploymentAudit:
     def __init__(self, store=None) -> None:
         self._store = store
+        self._save_lock = asyncio.Lock()
         self._events: deque[dict[str, object]] = deque(maxlen=_MAX_EVENTS)
         self._seq = 0
 
@@ -63,13 +65,15 @@ class DeploymentAudit:
     async def save(self) -> None:
         if self._store is None:
             return
-        document = {"schema": _SCHEMA, "records": list(self._events)}
-        if len(json.dumps(document, separators=(",", ":"))) > _MAX_BYTES:
-            raise ValueError("audit history exceeds size limit")
-        try:
-            await self._store.async_save(document)
-        except Exception:
-            raise ValueError("audit history write failed") from None
+        # Independent deployments can finish together; serialize snapshots.
+        async with self._save_lock:
+            document = {"schema": _SCHEMA, "records": list(self._events)}
+            if len(json.dumps(document, separators=(",", ":"))) > _MAX_BYTES:
+                raise ValueError("audit history exceeds size limit")
+            try:
+                await self._store.async_save(document)
+            except Exception:
+                raise ValueError("audit history write failed") from None
 
     def record(self, *, operation_id: str, project_key: str,
                stage: str, status: str = "running") -> None:
