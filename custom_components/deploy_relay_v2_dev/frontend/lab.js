@@ -1756,7 +1756,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     const installedAuditRows = this._installAuditRecords.map(event => ({
       record: {captured_at:event.captured_at,run_id:event.operation_id,
         project_ref:event.project_key,reason:event.status,status:event.status},
-      stage:event.stage,elapsed:null,final:true,installation:true,
+      stage:event.stage,elapsed:event.elapsed_ms,final:true,installation:true,
     }));
     const auditRows = [...installedAuditRows, ...this._deploymentLogs.flatMap(record => {
       const steps = Array.isArray(record.steps) ? record.steps : [];
@@ -1780,6 +1780,15 @@ class DRAV2DevLabPanel extends HTMLElement {
         row.stage,level].filter(Boolean).join(" ").toLocaleLowerCase("de-DE")
         .includes(this._auditSearch.toLocaleLowerCase("de-DE"));
     });
+    const installStageLabels = {
+      queued:"Auftrag angenommen", running:"Auftrag gestartet",
+      staging:"Dateien werden vorbereitet", backup:"Sicherung läuft",
+      install:"Dateien werden installiert", verify_install:"Dateiprüfung läuft",
+      rollback:"Rückfallverfahren läuft", success:"Erfolgreich abgeschlossen",
+      failed:"Installation fehlgeschlagen",
+      recovery_required:"Wiederherstellung erforderlich",
+      interrupted:"Auftrag unterbrochen",
+    };
     const diagnosticStageLabels = {
       admission:"Annahme", repository:"Repository", commit:"Quellcommit",
       manifest:"Manifest", tree:"Git-Dateibaum", local_inventory:"HA-Dateibestand",
@@ -3149,13 +3158,13 @@ class DRAV2DevLabPanel extends HTMLElement {
                 <div class="dra-audit-scroll">
                   <table class="dra-audit-table">
                     <thead><tr><th>Zeit (MESZ/MEZ)</th><th>Stufe</th><th>Vorgang</th>
-                      <th>Phase</th><th>Ergebnis / Ursache</th><th>Dauer</th><th>Details</th></tr></thead>
+                      <th>Phase</th><th>Meldung / Ursache</th><th>Laufzeit</th><th>Details</th></tr></thead>
                     <tbody>${filteredAuditRows.length ? filteredAuditRows.map(row => `
                       <tr class="dra-audit-${auditLevel(row) === "ERROR" ? "failed" : auditLevel(row) === "DEBUG" ? "debug" : "success"}">
                         <td>${this._escapeProject(this._formatHistoryTime(row.record.captured_at))}</td>
                         <td><span class="dra-audit-level">${auditLevel(row)}</span></td>
                         <td>${row.installation ? "Installation" : "Quellprüfung"}</td><td>${this._escapeProject(diagnosticStageLabels[row.stage] || row.stage)}</td>
-                        <td>${row.final ? this._escapeProject(diagnosticReasonLabels[row.record.reason] || row.record.reason || "Abgeschlossen") : "Prüfschritt"}</td>
+                        <td>${row.installation ? this._escapeProject(installStageLabels[row.stage] || row.stage) : row.final ? this._escapeProject(diagnosticReasonLabels[row.record.reason] || row.record.reason || "Abgeschlossen") : "Prüfschritt"}</td>
                         <td>${Number.isFinite(row.elapsed) ? row.elapsed + " ms" : "—"}</td>
                         <td><details><summary>Details</summary>
                           <div>Prüfkennung: ${this._escapeProject(row.record.run_id || "—")}</div>
@@ -3167,6 +3176,7 @@ class DRAV2DevLabPanel extends HTMLElement {
                         '<tr><td colspan="7">Keine passenden Ereignisse vorhanden.</td></tr>'}</tbody>
                   </table>
                 </div>
+                <p class="note">Bei Installationsereignissen zeigt die Laufzeit die seit Auftragsbeginn vergangene Zeit.</p>
                 <p class="note">${filteredAuditRows.length} von ${auditRows.length} verfügbaren Prüfeinträgen ·
                   ${this._escapeProject(this._auditStatus)}</p>
               </section>` : ""}
