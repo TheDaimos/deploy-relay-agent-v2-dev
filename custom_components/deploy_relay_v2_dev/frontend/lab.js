@@ -1745,8 +1745,12 @@ class DRAV2DevLabPanel extends HTMLElement {
     })];
     const auditStages = [...new Set(auditRows.map(row => row.stage))].sort();
     const auditProjects = [...new Set(auditRows.map(row => row.record.project_ref).filter(Boolean))].sort();
+    const auditError = status => ["failed", "recovery_required", "interrupted"].includes(status);
+    const auditLevel = row => row.installation
+      ? (auditError(row.record.status) ? "ERROR" : "INFO")
+      : row.final ? (row.record.status === "success" ? "INFO" : "ERROR") : "DEBUG";
     const filteredAuditRows = auditRows.filter(row => {
-      const level = row.installation ? (["failed","recovery_required","interrupted"].includes(row.record.status) ? "ERROR" : "INFO") : row.final ? (row.record.status === "success" ? "INFO" : "ERROR") : "DEBUG";
+      const level = auditLevel(row);
       if (this._auditLevel !== "all" && level !== this._auditLevel) return false;
       if (this._auditProject !== "all" && row.record.project_ref !== this._auditProject) return false;
       if (this._auditKind !== "all" &&
@@ -3126,9 +3130,9 @@ class DRAV2DevLabPanel extends HTMLElement {
                     <thead><tr><th>Zeit (MESZ/MEZ)</th><th>Stufe</th><th>Vorgang</th>
                       <th>Phase</th><th>Ergebnis / Ursache</th><th>Dauer</th><th>Details</th></tr></thead>
                     <tbody>${filteredAuditRows.length ? filteredAuditRows.map(row => `
-                      <tr class="dra-audit-${row.final ? (row.record.status === "success" ? "success" : "failed") : "debug"}">
+                      <tr class="dra-audit-${auditLevel(row) === "ERROR" ? "failed" : auditLevel(row) === "DEBUG" ? "debug" : "success"}">
                         <td>${this._escapeProject(this._formatHistoryTime(row.record.captured_at))}</td>
-                        <td><span class="dra-audit-level">${row.final ? (row.record.status === "success" ? "INFO" : "ERROR") : "DEBUG"}</span></td>
+                        <td><span class="dra-audit-level">${auditLevel(row)}</span></td>
                         <td>${row.installation ? "Installation" : "Quellprüfung"}</td><td>${this._escapeProject(diagnosticStageLabels[row.stage] || row.stage)}</td>
                         <td>${row.final ? this._escapeProject(diagnosticReasonLabels[row.record.reason] || row.record.reason || "Abgeschlossen") : "Prüfschritt"}</td>
                         <td>${Number.isFinite(row.elapsed) ? row.elapsed + " ms" : "—"}</td>
