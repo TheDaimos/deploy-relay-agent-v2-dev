@@ -897,8 +897,8 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   const repository = "TheDaimos/Test-Repo-DRA-V2";
   const exampleSecret = "ghp_TEST_VALUE_NOT_A_REAL_SECRET_123456789";
   const fields = {
-    "#manage-repository":{value:repository},
-    "#manage-token":{value:exampleSecret},
+    "#manage-repository":{value:repository,addEventListener(){}},
+    "#manage-token":{value:exampleSecret,addEventListener(){}},
     "#manage-name":{value:"DRA V2 Testprojekt"},
     "#manage-note":{value:"Nur künstliche Testdateien"},
     "#manage-active":{checked:true},
