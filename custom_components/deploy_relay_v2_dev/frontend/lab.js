@@ -3484,7 +3484,7 @@ class DRAV2DevLabPanel extends HTMLElement {
               '<p id="manage-connection-feedback" class="note" role="status">Verbindung noch nicht geprüft.</p>'}
             <p class="note">Die Verbindungsprüfung funktioniert auch vor dem Speichern. Ein neu eingegebener Token wird ausschließlich für diese Prüfung verwendet und dabei nicht gespeichert.</p>
             <p class="note">Der Token bleibt serverseitig. Leer lassen, um den bisherigen Token beizubehalten.</p>
-            <p class="note project-access-help">Zugriffsart ist nur eine Angabe zur Übersicht; die GitHub-Berechtigungen bleiben unverändert. Änderungen werden mit „Speichern“ übernommen.</p>
+            <p class="note project-access-help">Die Zugriffsart steuert in DRA V2, ob ein Projekt nach zusätzlicher Bestätigung installiert werden darf. Die GitHub-Berechtigungen bleiben unverändert.</p>
             <label>Notiz <textarea id="manage-note" class="project-text" rows="3">${this._escapeProject(managed?.note || "")}</textarea></label>
             <label>Anzeigename (optional) <input id="manage-name" class="project-text" value="${this._escapeProject(managed?.name || "")}" /></label>
             <label><input id="manage-active" type="checkbox" ${managed?.active !== false ? "checked" : ""} /> Projekt aktiv</label>
