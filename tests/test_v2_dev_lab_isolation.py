@@ -242,8 +242,8 @@ class LabIsolationContracts(unittest.TestCase):
         self.assertNotIn('id="dra-select"', frontend)
         self.assertNotIn('<h2>Geführter Ablauf</h2>', frontend)
         self.assertIn('<h2>Deployment</h2>', frontend)
-        self.assertIn('Schreibzugriff freigeben', frontend)
-        self.assertIn('Schritt 2 ist bis zur Sicherheitsabnahme gesperrt', frontend)
+        self.assertIn('Installation vorbereiten', frontend)
+        self.assertIn('V1-Engine kann das Update vorbereiten', frontend)
         self.assertIn('Diagnose & Einstellungen', frontend)
         self.assertIn('@media(max-width:760px)', frontend)
         self.assertIn('id="dra-main-ref"', frontend)
@@ -259,7 +259,7 @@ class LabIsolationContracts(unittest.TestCase):
             '<h2>Deployment</h2>',
             'id="dra-preview" class="dra-deploy-action stage-',
             '1/4 · Vorschau berechnen',
-            '2/4 · Schreibzugriff freigeben',
+            '2/4 · Installation vorbereiten',
             'aria-label="Deployment-Fortschritt"',
             'dra-deploy-progress-fill',
             'dra-deploy-progress.running',
@@ -269,7 +269,7 @@ class LabIsolationContracts(unittest.TestCase):
             '3 · ',
             'this._deploymentPreviewRef =',
             'this._sourcePreview?.sources_verified === true',
-            'deploymentStage !== 1',
+            'deploymentStage >= 3',
             'aria-live="polite"',
             'prefers-reduced-motion:reduce',
         ):
