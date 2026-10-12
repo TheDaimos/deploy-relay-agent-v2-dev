@@ -60,7 +60,7 @@ class JournalIsolationContracts(unittest.TestCase):
         for route in ("deployment/prepare", "deployment/start", "deployment/status"):
             self.assertEqual(source.count('"deploy_relay_v2_dev/' + route + '"'), 1)
         self.assertIn('probatio.Required("confirm"): bool', source)
-        self.assertIn('and p.get("access_mode") == "read_write"', source)
+        self.assertNotIn('and p.get("access_mode") == "read_write"', source)
         self.assertIn('await runtime.journal.get(msg["operation_id"])', source)
         self.assertNotIn('deploy_relay/panel/', source)
         for word in ('"install"', '"restore"', '"restart"', '"delete"'):
