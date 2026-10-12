@@ -18,6 +18,7 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from .const import DOMAIN
 from .operation_registry import OperationRegistry
 from .server_deployment_jobs import ServerDeploymentJobs
+from .deployment_audit import DeploymentAudit
 from .deployment_coordinator import DeploymentCoordinator
 from .operation_journal import JournalError, OperationJournal
 from .git_measurement_export import GitMeasurementError, MeasurementGitExport
@@ -51,6 +52,7 @@ class LabRuntime:
     source_preview_jobs: SourcePreviewJobs
     source_job_history: SourceJobHistory
     deployment: DeploymentCoordinator
+    deployment_audit: DeploymentAudit
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -121,11 +123,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Registry capacity AND target-boundary reservations both apply.
     write_registry = OperationRegistry(max_completed=12, max_readonly=1,
                                        max_mutating=4)
+    deployment_audit = DeploymentAudit()
     deployment = DeploymentCoordinator(ServerDeploymentJobs(
         write_registry,
         lambda coroutine: hass.async_create_background_task(
             coroutine, "Deploy Relay V2 server deployment", eager_start=False,
         ),
+        audit=deployment_audit,
     ))
     runtime = LabRuntime(registry=registry, supervisor=supervisor, journal=journal,
                          measurement=measurement, suite=suite, git_export=git_export,
@@ -136,7 +140,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                          source_preview_jobs=SourcePreviewJobs(
                              PreviewTaskFactory(hass, entry), history=source_job_history),
                          source_job_history=source_job_history,
-                         deployment=deployment)
+                         deployment=deployment,
+                         deployment_audit=deployment_audit)
     store["runtime"] = runtime
     try:
         async_register_commands(hass)
