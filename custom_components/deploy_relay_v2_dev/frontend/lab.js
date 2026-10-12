@@ -1438,11 +1438,13 @@ class DRAV2DevLabPanel extends HTMLElement {
   }
   _openProjectSettings(repo) {
     if (this._projectBusy || this._checkAllBusy) return;
+    this._draftConnectionCheck = null;
     this._projectSettingsRepo = repo;
     this._projectDeleteConfirm = false;
     this._render();
   }
   _closeProjectSettings() {
+    this._draftConnectionCheck = null;
     this._projectSettingsRepo = null;
     this._projectDeleteConfirm = false;
     this._render();
@@ -3475,10 +3477,12 @@ class DRAV2DevLabPanel extends HTMLElement {
             </div>
             <div class="project-token-actions">
               <button id="manage-token-save" ${!managed || this._projectBusy ? "disabled" : ""}>Token speichern</button>
-              <button id="manage-connection-check" ${!managed || this._connectionBusy || this._projectBusy ? "disabled" : ""}>Verbindung prüfen</button>
+              <button id="manage-connection-check" ${this._connectionBusy || this._projectBusy ? "disabled" : ""}>Verbindung prüfen</button>
             </div>
-            ${managed && this._sourceChecks.get(managed.repository) ? `<p class="connection-feedback ${this._sourceChecks.get(managed.repository).status}" role="status">${this._escapeProject(this._sourceChecks.get(managed.repository).message)}</p>` : '<p class="note" role="status">Verbindung noch nicht geprüft.</p>'}
-            <p class="note">Die Verbindungsprüfung verwendet den bereits gespeicherten Token. Eine neue Eingabe bitte zuvor speichern.</p>
+            ${this._draftConnectionCheck ? `<p id="manage-connection-feedback" class="connection-feedback ${this._draftConnectionCheck.status}" role="status">${this._escapeProject(this._draftConnectionCheck.message)}</p>` :
+              managed && this._sourceChecks.get(managed.repository) ? `<p id="manage-connection-feedback" class="connection-feedback ${this._sourceChecks.get(managed.repository).status}" role="status">${this._escapeProject(this._sourceChecks.get(managed.repository).message)}</p>` :
+              '<p id="manage-connection-feedback" class="note" role="status">Verbindung noch nicht geprüft.</p>'}
+            <p class="note">Die Verbindungsprüfung funktioniert auch vor dem Speichern. Ein neu eingegebener Token wird ausschließlich für diese Prüfung verwendet und dabei nicht gespeichert.</p>
             <p class="note">Der Token bleibt serverseitig. Leer lassen, um den bisherigen Token beizubehalten.</p>
             <p class="note project-access-help">Zugriffsart ist nur eine Angabe zur Übersicht; die GitHub-Berechtigungen bleiben unverändert. Änderungen werden mit „Speichern“ übernommen.</p>
             <label>Notiz <textarea id="manage-note" class="project-text" rows="3">${this._escapeProject(managed?.note || "")}</textarea></label>
@@ -3794,18 +3798,22 @@ class DRAV2DevLabPanel extends HTMLElement {
       s.querySelector("#manage-token").value = settingsDraft.token;
     }
     s.querySelector("#manage-token-save")?.addEventListener("click", () => this._saveProjectToken());
-    s.querySelector("#manage-connection-check")?.addEventListener("click", () => this._checkProjectConnection(this._projectSettingsRepo));
+    s.querySelector("#manage-connection-check")?.addEventListener("click", () => this._checkDraftProjectConnection());
+    for (const id of ["#manage-repository", "#manage-token"]) {
+      s.querySelector(id)?.addEventListener("input", () => {
+        this._draftConnectionCheck = null;
+        const feedback = this.shadowRoot?.querySelector("#manage-connection-feedback");
+        if (feedback) {
+          feedback.className = "note";
+          feedback.textContent = "Eingabe geändert · Verbindung erneut prüfen.";
+        }
+      });
+    }
     s.querySelector("#manage-close")?.addEventListener("click", () => this._closeProjectSettings());
     s.querySelector("#manage-cancel")?.addEventListener("click", () => this._closeProjectSettings());
     s.querySelector("#manage-save")?.addEventListener("click", () => {
       if (this._projectSettingsRepo === "__new__") {
-        const repo = s.querySelector("#manage-repository")?.value.trim();
-        const name = s.querySelector("#manage-name")?.value.trim() || "";
-        const note = s.querySelector("#manage-note")?.value || "";
-        const active = s.querySelector("#manage-active")?.checked === true;
-        const access_mode = s.querySelector("#manage-access-mode")?.value || "read_only";
-        this._projectAction("add", {repository:repo,name,note,active,access_mode});
-        this._projectSettingsRepo = null;
+        this._saveNewProject();
       } else this._saveProjectSettings();
     });
     s.querySelector("#manage-remove-start")?.addEventListener("click", () => { this._projectDeleteConfirm=true;this._render(); });
