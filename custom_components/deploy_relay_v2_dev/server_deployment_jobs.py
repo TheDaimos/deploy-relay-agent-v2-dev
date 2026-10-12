@@ -18,6 +18,7 @@ from .operation_model import (
     OperationStatus, OperationType,
 )
 from .operation_registry import OperationRegistry
+from .deployment_audit import DeploymentAudit
 from .v1_engine import deployment as engine
 from .v1_engine.manifest import DeploymentManifest
 from .v1_engine.planner import build_plan, _paths_overlap
@@ -34,12 +35,14 @@ class ServerDeploymentJobs:
     """
 
     def __init__(self, registry: OperationRegistry, task_factory: Callable,
-                 *, on_terminal: Callable | None = None) -> None:
+                 *, on_terminal: Callable | None = None,
+                 audit: DeploymentAudit | None = None) -> None:
         if not isinstance(registry, OperationRegistry) or not callable(task_factory):
             raise OperationContractError("backend task owner is required")
         self._registry = registry
         self._spawn = task_factory
         self._on_terminal = on_terminal
+        self._audit = audit
         self._start_lock = asyncio.Lock()
         self._tasks: dict[str, asyncio.Task] = {}
         # The exact original V1 deployment target boundaries, never browser paths.
@@ -112,6 +115,9 @@ class ServerDeploymentJobs:
                 request_id=request_id,
             )
             identifier = str(entry["operation_id"])
+            if self._audit is not None:
+                self._audit.record(operation_id=identifier, project_key=manifest.project_id,
+                                   stage="queued", status="queued")
             if identifier in self._tasks or entry["status"] != "queued":
                 return entry
             self._reserved_targets[identifier] = targets
@@ -120,6 +126,9 @@ class ServerDeploymentJobs:
             async def run() -> None:
                 try:
                     await self._registry.transition(identifier, OperationStatus.RUNNING)
+                    if self._audit is not None:
+                        self._audit.record(operation_id=identifier, project_key=manifest.project_id,
+                                           stage="running")
                     phases = {
                         "staging": OperationPhase.STAGING,
                         "backup": OperationPhase.BACKUP,
@@ -134,6 +143,9 @@ class ServerDeploymentJobs:
                             len(transaction_id) <= 128 and
                             all(ch.isalnum() or ch == "-" for ch in transaction_id)):
                             self._reported_transactions[identifier] = transaction_id
+                        if self._audit is not None:
+                            self._audit.record(operation_id=identifier, project_key=manifest.project_id,
+                                               stage=stage)
                         phase = phases.get(stage)
                         if phase is not None:
                             await self._registry.progress(identifier, phase=phase,
@@ -155,21 +167,33 @@ class ServerDeploymentJobs:
                         ),
                     )
                     await self._registry.transition(identifier, OperationStatus.SUCCESS)
+                    if self._audit is not None:
+                        self._audit.record(operation_id=identifier, project_key=manifest.project_id,
+                                           stage="success", status="success")
                 except engine.RecoveryRequiredError:
                     await self._registry.transition(identifier,
                         OperationStatus.RECOVERY_REQUIRED,
                         error_family=ErrorFamily.ROLLBACK)
+                    if self._audit is not None:
+                        self._audit.record(operation_id=identifier, project_key=manifest.project_id,
+                                           stage="recovery_required", status="recovery_required")
                 except asyncio.CancelledError:
                     # No false success. The V1 on-disk transaction journal is
                     # the recovery source, not this in-memory status.
                     try:
                         await self._registry.transition(identifier, OperationStatus.INTERRUPTED)
+                        if self._audit is not None:
+                            self._audit.record(operation_id=identifier, project_key=manifest.project_id,
+                                               stage="interrupted", status="interrupted")
                     except OperationContractError:
                         pass
                     raise
                 except Exception:
                     await self._registry.transition(identifier, OperationStatus.FAILED,
                                                     error_family=ErrorFamily.FILESYSTEM)
+                    if self._audit is not None:
+                        self._audit.record(operation_id=identifier, project_key=manifest.project_id,
+                                           stage="failed", status="failed")
                 finally:
                     # Release target ownership only after V1 has returned or
                     # exhausted its rollback attempt. No unsafe parallel write.
