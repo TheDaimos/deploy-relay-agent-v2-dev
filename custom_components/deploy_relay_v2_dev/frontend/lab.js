@@ -282,6 +282,111 @@ class DRAV2DevLabPanel extends HTMLElement {
     }
   }
 
+  async _prepareInstallation(project) {
+    if (!this._hass || !project || project.access_mode !== "read_write" ||
+        !this._sourcePreview || this._installBusy ||
+        this._sourceRepository !== project.repository ||
+        this._deploymentPreviewRef !== this._mainSourceRef.trim() ||
+        this._serverVersion !== DRA_V2_UI_VERSION) return;
+    this._installBusy = true;
+    this._installPreparation = null;
+    this._installMessage = "Die V1-Engine prüft die Dateien erneut …";
+    this._render();
+    try {
+      const result = await this._hass.callWS({
+        type:"deploy_relay_v2_dev/deployment/prepare",
+        repository:project.repository,
+        ref:this._sourcePreview.source_ref,
+        commit:this._sourcePreview.source_commit,
+      });
+      if (result?.schema !== "dra-v2-install-preparation.v1" ||
+          result?.confirmation_required !== true ||
+          !/^[0-9a-f]{32}$/.test(result.challenge || "") ||
+          result.repository !== project.repository ||
+          result.source_commit !== this._sourcePreview.source_commit) {
+        throw Error("unexpected preparation");
+      }
+      this._installPreparation = result;
+      this._installMessage = "Vorbereitung abgeschlossen. Noch wurden keine Dateien geändert.";
+    } catch (_error) {
+      this._installMessage = "Vorbereitung fehlgeschlagen. Keine Dateien wurden geändert.";
+    } finally {
+      this._installBusy = false;
+      if (this.isConnected) this._render();
+    }
+  }
+
+  async _confirmInstallation() {
+    const prepared = this._installPreparation;
+    const project = this._projects.find(p=>p.repository===this._selectedMainRepo);
+    if (!this._hass || !prepared || !project || this._installBusy ||
+        project.access_mode !== "read_write" ||
+        this._sourceRepository !== prepared.repository ||
+        this._sourcePreview?.source_commit !== prepared.source_commit ||
+        this._deploymentPreviewRef !== this._mainSourceRef.trim()) return;
+    this._installPreparation = null;
+    this._installBusy = true;
+    this._installMessage = "Der Auftrag wird an Home Assistant übergeben …";
+    this._render();
+    try {
+      const receipt = await this._hass.callWS({
+        type:"deploy_relay_v2_dev/deployment/start",
+        challenge:prepared.challenge, repository:prepared.repository,
+        commit:prepared.source_commit, confirm:true,
+      });
+      if (receipt?.schema !== "dra-v2-install-start.v1" ||
+          !/^[a-f0-9]{32}$/.test(receipt.job?.operation_id || "")) throw Error("invalid receipt");
+      this._installJobId = receipt.job.operation_id;
+      this._installJob = receipt.job;
+      await this._pollInstallation();
+    } catch (_error) {
+      this._installMessage = "Auftragsannahme nicht bestätigt. Bitte zuerst Serverstatus aktualisieren.";
+    } finally {
+      this._installBusy = false;
+      if (this.isConnected) this._render();
+    }
+  }
+
+  async _pollInstallation() {
+    if (!this._hass || this._installPolling ||
+        this._serverVersion !== DRA_V2_UI_VERSION) return;
+    this._installPolling = true;
+    if (this._installTimer !== null) clearTimeout(this._installTimer);
+    this._installTimer = null;
+    try {
+      const response = await this._hass.callWS({
+        type:"deploy_relay_v2_dev/deployment/status",
+        ...(this._installJobId ? {operation_id:this._installJobId} : {}),
+      });
+      if (response?.schema !== "dra-v2-install-status.v1") throw Error("bad job response");
+      const job = response.job;
+      if (job && /^[a-f0-9]{32}$/.test(job.operation_id || "")) {
+        this._installJobId = job.operation_id;
+        this._installJob = job;
+        if (job.status === "success") {
+          this._installMessage = job.restart_required ?
+            "Update erfolgreich. Home-Assistant-Neustart erforderlich." :
+            "Update erfolgreich installiert und geprüft.";
+        } else if (job.status === "recovery_required") {
+          this._installMessage = "Wiederherstellung erforderlich. Keine weiteren Updates starten.";
+        } else if (job.status === "failed" || job.status === "interrupted") {
+          this._installMessage = "Update fehlgeschlagen oder unterbrochen. Transaktionsprotokoll prüfen.";
+        } else {
+          this._installMessage = "Serverseitig aktiv: " + (job.phase || "Vorbereitung");
+          if (this.isConnected) this._installTimer =
+            setTimeout(()=>this._pollInstallation(),1500);
+        }
+      }
+    } catch (_error) {
+      this._installMessage = "Serverstatus nicht abrufbar; ein laufendes Update wird dadurch nicht abgebrochen.";
+      if (this._installJobId && this.isConnected) this._installTimer =
+        setTimeout(()=>this._pollInstallation(),5000);
+    } finally {
+      this._installPolling = false;
+      if (this.isConnected) this._render();
+    }
+  }
+
   async _refresh() {
     if (!this._hass || this._busy) return;
     this._busy = true;
