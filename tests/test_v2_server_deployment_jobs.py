@@ -73,7 +73,9 @@ class ServerDeploymentJobsTests(unittest.IsolatedAsyncioTestCase):
             await kwargs["progress"]("backup", {})
             active.set()
             await release.wait()
-            return types.SimpleNamespace(state=engine.TransactionState.SUCCESS)
+            return types.SimpleNamespace(state=engine.TransactionState.SUCCESS,
+                                         restart_required=True,
+                                         lifecycle="home_assistant_restart")
         with patch.object(engine, "async_execute_deployment", v1_engine):
             started=await self.owner.start_verified(**self.args)
             await asyncio.wait_for(active.wait(),timeout=1)
@@ -133,12 +135,15 @@ class ServerDeploymentJobsTests(unittest.IsolatedAsyncioTestCase):
                 await self.owner.start_verified(**(self.args|changed))
         self.assertEqual(await self.registry.list(),[])
 
-    def test_no_live_writing_websocket_or_runtime_wiring_yet(self):
+    def test_only_explicit_admin_confirmed_backend_wiring_exists(self):
         api=(ROOT/"websocket_api.py").read_text(encoding="utf-8")
         runtime=(ROOT/"__init__.py").read_text(encoding="utf-8")
-        self.assertNotIn("server_deployment_jobs",api)
-        self.assertNotIn("server_deployment_jobs",runtime)
         self.assertNotIn("async_execute_deployment",api)
+        self.assertIn("from .server_deployment_jobs import ServerDeploymentJobs",runtime)
+        self.assertIn("runtime.deployment.confirm(",api)
+        self.assertIn('probatio.Required("confirm"): bool',api)
+        self.assertIn("await runtime.deployment.close()",runtime)
+        self.assertIn("V2 server deployment",runtime)
 
 
 if __name__=="__main__":
