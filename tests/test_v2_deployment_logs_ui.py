@@ -86,7 +86,7 @@ class DeploymentLogUiContract(unittest.TestCase):
         self.assertIn('id="dra-logs-clear-cancel"', js)
         self.assertIn('Nur die letzten temporären V2-Protokolle leeren?', js)
         self.assertIn('expected_run_id:expected', js)
-        self.assertIn('project_ref || "nicht zugeordnet"', js)
+        self.assertIn('record.project_ref || "—"', js)
         self.assertIn('record.run_id || "").slice(0,12)', js)
         self.assertIn('Temporäre Logs geleert. Private Git-Exporte bleiben erhalten.', js)
 
