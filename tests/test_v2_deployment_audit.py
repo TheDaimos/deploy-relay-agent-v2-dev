@@ -55,5 +55,51 @@ class DeploymentAuditContracts(unittest.TestCase):
         self.assertIn("installedAuditRows", frontend)
 
 
+
+class AuditPersistenceContracts(unittest.IsolatedAsyncioTestCase):
+    async def test_terminal_roundtrip_and_corrupt_fail_closed(self):
+        class MemoryStore:
+            def __init__(self):
+                self.document = None
+            async def async_load(self):
+                return self.document
+            async def async_save(self, value):
+                import copy
+                self.document = copy.deepcopy(value)
+
+        store = MemoryStore()
+        audit = module.DeploymentAudit(store)
+        await audit.load()
+        audit.record(operation_id="dra-123", project_key="test_repo_dra_v2",
+                     stage="backup")
+        audit.record(operation_id="dra-123", project_key="test_repo_dra_v2",
+                     stage="success", status="success")
+        await audit.save()
+        restored = module.DeploymentAudit(store)
+        await restored.load()
+        self.assertEqual(restored.entries(), audit.entries())
+        self.assertEqual(store.document["schema"], "dra-v2-deployment-audit.v1")
+
+        store.document["records"][0]["project_key"] = "../../secrets.yaml"
+        with self.assertRaises(ValueError):
+            await module.DeploymentAudit(store).load()
+
+    async def test_two_terminal_saves_preserve_order(self):
+        class MemoryStore:
+            async def async_load(self):
+                return None
+            async def async_save(self, value):
+                import copy
+                self.data = copy.deepcopy(value)
+        store = MemoryStore()
+        audit = module.DeploymentAudit(store)
+        audit.record(operation_id="dra-1", project_key="test_repo_dra_v2",
+                     stage="success", status="success")
+        await audit.save()
+        audit.record(operation_id="dra-2", project_key="test_repo_dra_v2",
+                     stage="failed", status="failed")
+        await audit.save()
+        self.assertEqual(len(store.data["records"]), 2)
+
 if __name__ == "__main__":
     unittest.main()
