@@ -843,6 +843,26 @@ class DRAV2DevLabPanel extends HTMLElement {
       if (this.isConnected) this._render();
     }
   }
+  _downloadAuditJSON() {
+    if (!this._installAuditRecords.length) return;
+    const payload = JSON.stringify({
+      schema:"dra-v2-deployment-audit-export.v1",
+      created_at:new Date().toISOString(),
+      records:this._installAuditRecords,
+    },null,2);
+    const blob = new Blob([payload],{type:"application/json;charset=utf-8"});
+    const url = URL.createObjectURL(blob);
+    try {
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "dra-v2-audit-" + new Date().toISOString().slice(0,10) + ".json";
+      link.click();
+    } finally {
+      setTimeout(() => URL.revokeObjectURL(url),1000);
+    }
+    this._auditStatus = "Audit-JSON-Download gestartet.";
+    this._render();
+  }
   async _refreshDeploymentLogs() {
     if (!this._hass || this._deploymentLogsBusy) return false;
     this._deploymentLogsBusy = true;
@@ -3124,6 +3144,7 @@ class DRAV2DevLabPanel extends HTMLElement {
                   <label class="dra-audit-search">Suche <input id="dra-audit-search" type="search"
                     placeholder="Kennung, Phase, Ursache …" value="${this._escapeProject(this._auditSearch)}"/></label>
                   <button type="button" id="dra-audit-refresh" ${this._deploymentLogsBusy ? "disabled" : ""}>Aktualisieren</button>
+                  <button type="button" id="dra-audit-json" ${!this._installAuditRecords.length ? "disabled" : ""}>Audit als JSON</button>
                 </div>
                 <div class="dra-audit-scroll">
                   <table class="dra-audit-table">
@@ -3916,6 +3937,7 @@ class DRAV2DevLabPanel extends HTMLElement {
       if (this._auditOpen) await Promise.all([this._refreshDeploymentLogs(),this._refreshInstallAudit()]);
     });
     s.querySelector("#dra-audit-refresh")?.addEventListener("click", () => Promise.all([this._refreshDeploymentLogs(),this._refreshInstallAudit()]));
+    s.querySelector("#dra-audit-json")?.addEventListener("click",()=>this._downloadAuditJSON());
     for (const [id,key] of [["dra-audit-level","_auditLevel"],["dra-audit-phase","_auditPhase"],["dra-audit-project","_auditProject"],["dra-audit-kind","_auditKind"]]) {
       s.querySelector("#"+id)?.addEventListener("change", event => {
         this[key] = event.currentTarget.value;
