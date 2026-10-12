@@ -21,8 +21,9 @@ class DeploymentAuditContracts(unittest.TestCase):
                          ["queued", "running", "staging", "backup",
                           "install", "verify_install", "success"])
         self.assertTrue(all(r["captured_at"].endswith("Z") for r in rows))
+        self.assertTrue(all(type(r["elapsed_ms"]) is int and r["elapsed_ms"] >= 0 for r in rows))
         self.assertTrue(all(set(r) == {"sequence", "captured_at",
-                                     "operation_id", "project_key", "stage", "status"}
+                                     "operation_id", "project_key", "stage", "status", "elapsed_ms"}
                             for r in rows))
 
     def test_reject_unknown_stages_and_private_values(self):
