@@ -80,6 +80,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._auditSearch = "";
     this._installAuditRecords = [];
     this._auditStatus = "";
+    this._auditExportBusy = false;
     this._deploymentLogsBusy = false;
     this._historyRefreshBusy = false;
     this._historyRefreshStatus = "Nicht geprüft";
@@ -843,6 +844,41 @@ class DRAV2DevLabPanel extends HTMLElement {
       if (this.isConnected) this._render();
     }
   }
+  async _exportAuditToGit() {
+    if (!this._hass || this._auditExportBusy ||
+        (this._installAuditRecords.length === 0 && !this._centralExport.pending)) return;
+    if (this._centralExport.configured !== true ||
+        this._centralExport.repository !== "TheDaimos/Project-Log-And-Export") {
+      this._auditStatus = "Bitte zuerst das private zentrale Git-Archiv einrichten.";
+      this._render();
+      return;
+    }
+    this._auditExportBusy = true;
+    this._auditStatus = "Bereinigter Audit-Bericht wird privat exportiert …";
+    this._render();
+    try {
+      const response = await this._hass.callWS({
+        type:"deploy_relay_v2_dev/deployment/audit/export",
+      });
+      if (response?.repository !== "TheDaimos/Project-Log-And-Export" ||
+          !/^[a-f0-9]{32}$/.test(response.export_id || "") ||
+          !/^[a-f0-9]{40}$/.test(response.commit_sha || "") ||
+          !String(response.path || "").startsWith("exports/deploy-relay-agent-v2/") ||
+          !String(response.file_url || "").startsWith("https://github.com/TheDaimos/Project-Log-And-Export/blob/")) {
+        throw Error("invalid audit export receipt");
+      }
+      this._centralExport = {...this._centralExport,pending:false};
+      this._auditStatus = response.pending_retried ?
+        "Ausstehender privater Bericht erneut erfolgreich übertragen. Audit bei Bedarf erneut exportieren." :
+        "Audit erfolgreich in das private Git-Archiv übertragen · " + response.export_id;
+    } catch (_error) {
+      this._auditStatus = "Privater Audit-Export nicht bestätigt. Keine weitere Installation erforderlich; Export später erneut versuchen.";
+    } finally {
+      this._auditExportBusy = false;
+      this._render();
+    }
+  }
+
   _downloadAuditJSON() {
     if (!this._installAuditRecords.length) return;
     const payload = JSON.stringify({
@@ -3172,6 +3208,11 @@ class DRAV2DevLabPanel extends HTMLElement {
                   <label class="dra-audit-search">Suche <input id="dra-audit-search" type="search"
                     placeholder="Kennung, Phase, Ursache …" value="${this._escapeProject(this._auditSearch)}"/></label>
                   <button type="button" id="dra-audit-refresh" ${this._deploymentLogsBusy ? "disabled" : ""}>Aktualisieren</button>
+                  <button type="button" id="dra-audit-git" ${this._auditExportBusy ||
+                    (!this._installAuditRecords.length && !this._centralExport.pending) ||
+                    this._centralExport.configured !== true ||
+                    this._centralExport.repository !== "TheDaimos/Project-Log-And-Export"
+                    ? "disabled" : ""}>Export nach Git</button>
                   <button type="button" id="dra-audit-json" ${!this._installAuditRecords.length ? "disabled" : ""}>Audit als JSON</button>
                 </div>
                 <div class="dra-audit-scroll">
@@ -3196,7 +3237,7 @@ class DRAV2DevLabPanel extends HTMLElement {
                   </table>
                 </div>
                 <p class="note">Bei Installationsereignissen zeigt die Laufzeit die seit Auftragsbeginn vergangene Zeit.</p>
-                <p class="note">${filteredAuditRows.length} von ${auditRows.length} verfügbaren Prüfeinträgen ·
+                <p class="note" role="status" aria-live="polite">${filteredAuditRows.length} von ${auditRows.length} verfügbaren Prüfeinträgen ·
                   ${this._escapeProject(this._auditStatus)}</p>
               </section>` : ""}
             ${this._deploymentLogsOpen ? `
@@ -3968,6 +4009,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     });
     s.querySelector("#dra-audit-refresh")?.addEventListener("click", () => Promise.all([this._refreshDeploymentLogs(),this._refreshInstallAudit()]));
     s.querySelector("#dra-audit-json")?.addEventListener("click",()=>this._downloadAuditJSON());
+    s.querySelector("#dra-audit-git")?.addEventListener("click",()=>this._exportAuditToGit());
     for (const [id,key] of [["dra-audit-level","_auditLevel"],["dra-audit-phase","_auditPhase"],["dra-audit-project","_auditProject"],["dra-audit-kind","_auditKind"]]) {
       s.querySelector("#"+id)?.addEventListener("change", event => {
         this[key] = event.currentTarget.value;
