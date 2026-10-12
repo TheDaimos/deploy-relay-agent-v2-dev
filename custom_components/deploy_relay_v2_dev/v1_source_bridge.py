@@ -6,7 +6,6 @@ All remote source bytes are read from the exact pinned commit, not a branch.
 """
 from __future__ import annotations
 
-import asyncio
 from dataclasses import dataclass
 from pathlib import Path
 import re
@@ -14,7 +13,8 @@ from typing import Any
 
 from .v1_engine.github_client import GitHubClient
 from .v1_engine.manifest import DeploymentManifest, parse_manifest
-from .v1_engine.preview import PreviewResult, build_preview
+from .v1_engine.preview import PreviewResult
+from .parallel_preview import async_build_parallel_preview
 from .v1_engine.repository import normalize_repository
 from .v1_engine.source_inventory import SourceInventory, async_build_source_inventory
 
@@ -77,8 +77,9 @@ async def prepare_frozen_v1_source(
         inventory = await async_build_source_inventory(
             session, manifest, source_ref=source_ref,
             source_commit=source_commit, token=token)
-        preview = await asyncio.to_thread(build_preview, manifest,inventory,
-                                          config_root=config_root)
+        preview = await async_build_parallel_preview(
+            manifest, inventory, config_root=config_root,
+        )
     except Exception:
         raise SourceBridgeError("frozen source not safely inspectable") from None
     if (preview.source_commit != source_commit or
