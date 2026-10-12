@@ -8,7 +8,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from pathlib import Path
 
-from .remote_source import inspect_public_repository, inspect_repository_connection, source_ref, GitReadAuthError
+from .remote_source import inspect_public_repository, inspect_repository_connection, source_ref, GitReadAuthError, GitReadAuth
 from .source_preflight import PreflightError
 from .source_diagnostics import (SourceDiagnosticsError, classify_source_failure, resource_snapshot)
 from .target_ownership import TargetClaimError, assess_target_claims
@@ -16,7 +16,7 @@ from .target_ownership import TargetClaimError, assess_target_claims
 from .const import DOMAIN, VERSION
 from .operation_model import OperationContractError, OperationPhase
 from .git_measurement_export import GitMeasurementError
-from .project_catalog import CatalogError, v1_proposals
+from .project_catalog import CatalogError, v1_proposals, normalize_repo
 from .settings import SettingsError
 
 
@@ -687,19 +687,37 @@ async def async_batch_preview(hass, connection, msg):
 @websocket_api.websocket_command({
     probatio.Required("type"): "deploy_relay_v2_dev/projects/connection_check",
     probatio.Required("repository"): str,
+    probatio.Optional("draft"): bool,
+    probatio.Optional("token"): str,
 })
 @websocket_api.require_admin
 @websocket_api.async_response
 async def async_projects_connection_check(hass, connection, msg):
-    """GET /repos for selected registered project. Never tests or enables writes."""
+    """Read-only GitHub check, optionally for an UNSAVED repository and token.
+
+    A draft token is scoped solely to this awaited GET request: no token
+    persistence, no source diagnostics, no status echo, no filesystem writes.
+    Existing registered-project calls keep their previous behavior.
+    """
     runtime = _runtime(hass)
     if runtime is None:
         connection.send_error(msg["id"], "not_ready", "Projektverwaltung nicht bereit")
         return
-    repo = msg["repository"]
-    if not any(p["repository"].casefold() == repo.casefold() for p in runtime.projects.list()):
+    try:
+        repo = normalize_repo(msg["repository"])
+    except CatalogError:
+        connection.send_error(msg["id"], "invalid_repository", "Repositoryadresse ungültig")
+        return
+    draft = msg.get("draft") is True
+    if not draft and not any(p["repository"].casefold() == repo.casefold() for p in runtime.projects.list()):
         connection.send_error(msg["id"], "not_registered", "Projekt nicht registriert")
         return
+    if "token" in msg and (not draft or not GitReadAuth._valid_token(msg["token"])):
+        connection.send_error(msg["id"], "invalid_credential", "GitHub-Token für Vorprüfung ungültig")
+        return
+    check_token = (msg.get("token") if draft and "token" in msg else
+                   None if draft else
+                   runtime.project_auth.token(repo) or runtime.source_auth.token)
     if runtime.source_scan_lock.locked():
         connection.send_error(msg["id"], "busy", "Eine GitHub-Prüfung läuft bereits")
         return
@@ -708,7 +726,7 @@ async def async_projects_connection_check(hass, connection, msg):
             result = await asyncio.wait_for(
                 inspect_repository_connection(
                     async_get_clientsession(hass), repo,
-                    token=runtime.project_auth.token(repo) or runtime.source_auth.token,
+                    token=check_token,
                 ), timeout=20)
     except (PreflightError, TimeoutError, OSError, ValueError):
         connection.send_result(msg["id"], {
