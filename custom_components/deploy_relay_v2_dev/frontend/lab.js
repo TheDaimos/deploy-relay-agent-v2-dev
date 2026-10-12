@@ -2988,14 +2988,31 @@ class DRAV2DevLabPanel extends HTMLElement {
             <button id="dra-preview" class="dra-deploy-action stage-${deploymentStage}
               ${deploymentBusy ? "is-busy" : ""}"
               data-stage="${deploymentStage}"
-              ${deploymentBusy || deploymentStage !== 1 || !deploymentCanPreview ? "disabled" : ""}
+              ${deploymentBusy || !deploymentCanPreview || deploymentStage >= 3 ||
+                (deploymentStage === 2 && (!mainProject || mainProject.access_mode !== "read_write" ||
+                this._serverVersion !== DRA_V2_UI_VERSION || !!preparedInstall)) ? "disabled" : ""}
               aria-label="${deploymentButtonText}">
               ${deploymentBusy
                 ? iconSvg('<path d="M12 3a9 9 0 1 0 9 9"/>',25)
                 : deploymentStage === 2 ? deploymentIcons[1] : deploymentIcons[0]}
               <span>${deploymentButtonText}</span>
             </button>
-            <div class="dra-deploy-progress ${deploymentBusy ? "running" : mainPreviewVerified ? "verified" : "idle"}"
+            ${preparedInstall ? `
+              <div class="dra-deployment-result" role="group" aria-label="Installation bestätigen">
+                <strong>V1-Engine · Installation ausdrücklich bestätigen</strong>
+                <span>Commit: ${this._escapeProject(preparedInstall.source_commit)}</span>
+                <span>Dateien: ${preparedInstall.add} hinzugefügt · ${preparedInstall.change} geändert · ${preparedInstall.remove} entfernt</span>
+                <span class="note">Sicherung, Installation, Prüfung und Rückfall erfolgen nach dem bewährten V1-Verfahren.</span>
+                <button type="button" id="dra-install-confirm" ${deploymentBusy ? "disabled" : ""}>Ja, Update installieren</button>
+                <button type="button" id="dra-install-cancel" ${deploymentBusy ? "disabled" : ""}>Abbrechen</button>
+              </div>` : ""}
+            ${this._installJob ? `<div class="dra-deployment-result" role="status">
+              <strong>Serverseitiger Auftrag: ${this._escapeProject(this._installJob.status)}</strong>
+              <span>Schritt: ${this._escapeProject(this._installJob.phase)}</span>
+              <span>Auftragskennung: ${this._escapeProject(this._installJob.operation_id)}</span>
+              <span>${this._escapeProject(this._installMessage)}</span>
+            </div>` : ""}
+            <div class="dra-deploy-progress ${deploymentBusy || installActive ? "running" : installFinished ? "verified" : mainPreviewVerified ? "verified" : "idle"}"
               role="progressbar" aria-label="Deployment-Fortschritt"
               aria-valuemin="0" aria-valuemax="4" ${deploymentBusy ? "" : `aria-valuenow="${mainPreviewVerified ? 1 : 0}"`}>
               <div class="dra-deploy-progress-fill"></div>
@@ -3024,7 +3041,7 @@ class DRAV2DevLabPanel extends HTMLElement {
               G2 · Verbindungstest (60 s)
             </button>
             <p class="dra-deployment-status note" role="status" aria-live="polite">
-              ${this._escapeProject(deploymentStatus)}
+              ${this._escapeProject(this._installMessage || deploymentStatus)}
             </p>
             ${mainPreviewVerified ? `<div class="dra-deployment-result">
               <strong>Schreibgeschützte Vorschau</strong>
@@ -3036,8 +3053,8 @@ class DRAV2DevLabPanel extends HTMLElement {
               <span class="note">Die Quellstände sind noch nicht geprüft. Installation gesperrt.</span>
             </div>` : ""}
             <p class="dra-deployment-hint note">
-              Die zentrale Schaltfläche führt durch alle vier Schritte, sobald sie technisch freigegeben sind.
-              Aktuell steht ausschließlich die schreibgeschützte Vorschau zur Verfügung.
+              Einzelupdates nutzen die V1-Installationsengine. Schreiben erfordert einen freigegebenen Projektzugang
+              und eine separate Bestätigung. Sammelupdates und Selbstupdate folgen später.
             </p>
           </article>
 
