@@ -56,12 +56,13 @@ class LabIsolationContracts(unittest.TestCase):
         manifest = json.loads((ROOT / "deploy-relay.json").read_text(encoding="utf-8"))
         approved_files = list(LAB_ROOT.rglob("*"))
         self.assertTrue(approved_files)
-        self.assertEqual(manifest["policy"]["max_files"], 46,
+        self.assertEqual(manifest["policy"]["max_files"], 47,
                          "Reviewed V1 engine reuse, backend job adapter and source bridge only")
         self.assertTrue((LAB_ROOT / "target_presence.py").is_file())
         self.assertTrue((LAB_ROOT / "server_deployment_jobs.py").is_file())
         self.assertTrue((LAB_ROOT / "v1_source_bridge.py").is_file())
         self.assertTrue((LAB_ROOT / "parallel_preview.py").is_file())
+        self.assertTrue((LAB_ROOT / "deployment_coordinator.py").is_file())
         engine = LAB_ROOT / "v1_engine"
         self.assertTrue((engine / "deployment.py").is_file())
         self.assertTrue((engine / "const.py").is_file())
