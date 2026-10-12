@@ -116,6 +116,13 @@ class ServerDeploymentJobs:
                     # journal before returning successfully.
                     if result.state != engine.TransactionState.SUCCESS:
                         raise engine.DeploymentError("V1 engine did not finish")
+                    await self._registry.post_action(
+                        identifier, restart_required=result.restart_required,
+                        frontend_reload_possible=(
+                            result.lifecycle == "frontend_reload"
+                            and not result.restart_required
+                        ),
+                    )
                     await self._registry.transition(identifier, OperationStatus.SUCCESS)
                 except engine.RecoveryRequiredError:
                     await self._registry.transition(identifier,
