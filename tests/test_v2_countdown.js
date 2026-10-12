@@ -796,6 +796,67 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
 })().catch(error=>{console.error(error);process.exitCode=1;});
 
 (async () => {
+  const panel = new Panel();
+  panel._view = "main";
+  panel._serverVersion = "0.1.73";
+  panel._projects = [{repository:"TheDaimos/example",project_id:"example",
+                      name:"Example",active:true,access_mode:"read_write"}];
+  panel._selectedMainRepo = "TheDaimos/example";
+  panel._sourceRepository = "TheDaimos/example";
+  panel._mainSourceRef = "deploy/dev";
+  panel._deploymentPreviewRef = "deploy/dev";
+  panel._sourcePreview = {
+    repository:"TheDaimos/example",sources_verified:true,
+    installation_enabled:false,source_ref:"deploy/dev",
+    source_commit:"a".repeat(40),add:[{path:"main.py"}],change:[],remove:[],
+    unchanged_count:0,
+  };
+  const calls = [];
+  panel._hass = {async callWS(request) {
+    calls.push(request.type);
+    if (request.type === "deploy_relay_v2_dev/deployment/prepare") {
+      assert.equal(request.commit,"a".repeat(40));
+      return {schema:"dra-v2-install-preparation.v1",
+              challenge:"b".repeat(32),confirmation_required:true,
+              repository:"TheDaimos/example",source_ref:"deploy/dev",
+              source_commit:"a".repeat(40),add:1,change:0,remove:0};
+    }
+    if (request.type === "deploy_relay_v2_dev/deployment/start") {
+      assert.equal(request.confirm,true);
+      assert.equal(request.challenge,"b".repeat(32));
+      return {schema:"dra-v2-install-start.v1",job:{
+        operation_id:"c".repeat(32),project_key:"example",
+        source_commit:"a".repeat(40),status:"running",phase:"staging"}};
+    }
+    assert.equal(request.type,"deploy_relay_v2_dev/deployment/status");
+    assert.equal(request.operation_id,"c".repeat(32));
+    return {schema:"dra-v2-install-status.v1",job:{
+      operation_id:"c".repeat(32),project_key:"example",
+      source_commit:"a".repeat(40),status:"success",phase:"complete",
+      restart_required:true}};
+  }};
+  panel._render();
+  assert.match(panel.shadowRoot.innerHTML,/data-stage="2"/);
+  assert.doesNotMatch(panel.shadowRoot.innerHTML,/id="dra-preview"[^>]*disabled/);
+  await panel._prepareInstallation(panel._projects[0]);
+  panel._render();
+  assert.match(panel.shadowRoot.innerHTML,/id="dra-install-confirm"/);
+  assert.deepEqual(calls,["deploy_relay_v2_dev/deployment/prepare"],
+    "preparing must never start a write");
+  await panel._confirmInstallation();
+  panel._render();
+  assert.equal(panel._installJob.status,"success");
+  assert.match(panel.shadowRoot.innerHTML,/data-stage="4"/);
+  assert.match(panel.shadowRoot.innerHTML,/Home-Assistant-Neustart erforderlich/);
+  assert.deepEqual(calls,[
+    "deploy_relay_v2_dev/deployment/prepare",
+    "deploy_relay_v2_dev/deployment/start",
+    "deploy_relay_v2_dev/deployment/status",
+  ]);
+  console.log("DRA V2 stage-2 one-time confirmation and server result PASS");
+})().catch(error=>{console.error(error);process.exitCode=1;});
+
+(async () => {
   const versions = new Panel();
   versions._sourceJobRestored = true;
   versions._render();
