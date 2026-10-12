@@ -859,6 +859,38 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
 })().catch(error=>{console.error(error);process.exitCode=1;});
 
 (async () => {
+  const panel = new Panel();
+  panel._serverVersion = "0.1.73";
+  panel._projects = [
+    {repository:"TheDaimos/alpha",name:"Alpha",project_id:"alpha",
+     access_mode:"read_write",active:true},
+    {repository:"TheDaimos/beta",name:"Beta",project_id:"beta",
+     access_mode:"read_write",active:true}
+  ];
+  panel._selectedMainRepo="TheDaimos/alpha";
+  const alpha={operation_id:"a".repeat(32),project_key:"alpha",
+    status:"running",phase:"backup",source_commit:"a".repeat(40)};
+  const beta={operation_id:"b".repeat(32),project_key:"beta",
+    status:"running",phase:"install",source_commit:"b".repeat(40)};
+  panel._hass={async callWS(request) {
+    assert.equal(request.type,"deploy_relay_v2_dev/deployment/status");
+    assert.equal(request.operation_id,undefined);
+    return {schema:"dra-v2-install-status.v1",job:beta,jobs:[beta,alpha]};
+  }};
+  await panel._pollInstallation();
+  assert.equal(panel._installJob.project_key,"alpha");
+  assert.match(panel.shadowRoot.innerHTML,/Parallele serverseitige Updates: 2 von maximal 4/);
+  assert.match(panel.shadowRoot.innerHTML,/Projekt alpha/);
+  assert.match(panel.shadowRoot.innerHTML,/Projekt beta/);
+  panel._selectedMainRepo="TheDaimos/beta";
+  await panel._pollInstallation();
+  assert.equal(panel._installJob.project_key,"beta");
+  assert.match(panel.shadowRoot.innerHTML,/data-stage="3"/);
+  panel.disconnectedCallback();
+  console.log("DRA V2 parallel job status survives switching selected projects PASS");
+})().catch(error=>{console.error(error);process.exitCode=1;});
+
+(async () => {
   const versions = new Panel();
   versions._sourceJobRestored = true;
   versions._render();
