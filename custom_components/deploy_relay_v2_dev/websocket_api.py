@@ -893,6 +893,25 @@ async def async_source_job_history(hass, connection, msg):
 
 
 @websocket_api.websocket_command({
+    probatio.Required("type"): "deploy_relay_v2_dev/deployment/audit",
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def async_deployment_audit(hass, connection, msg):
+    """Bounded real HA-owned V2 installation progress, never browser input."""
+    runtime = _runtime(hass)
+    if runtime is None:
+        connection.send_error(msg["id"], "not_ready", "Audit nicht bereit")
+        return
+    entries = runtime.deployment_audit.entries()
+    connection.send_result(msg["id"], {
+        "schema": "dra-v2-deployment-audit.v1",
+        "records": entries,
+        "count": len(entries),
+    })
+
+
+@websocket_api.websocket_command({
     probatio.Required("type"): "deploy_relay_v2_dev/deployment/logs",
 })
 @websocket_api.require_admin
@@ -1187,6 +1206,7 @@ def async_register_commands(hass: HomeAssistant) -> None:
                     async_projects_source_preview,
                     async_source_job_start, async_source_job_status,
                     async_source_job_history,
+                    async_deployment_audit,
                     async_deployment_logs, async_deployment_logs_download,
                     async_deployment_logs_export, async_deployment_logs_clear,
                     async_git_read_configure, async_git_read_clear,
