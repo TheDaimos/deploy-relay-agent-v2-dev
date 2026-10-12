@@ -206,6 +206,10 @@ class ServerDeploymentJobs:
         records = await self._registry.list(limit=1)
         return records[0] if records else None
 
+    async def list(self) -> list[dict[str, object]]:
+        """Bounded, credential-free recent HA-owned write-job snapshots."""
+        return await self._registry.list(limit=12)
+
     async def active(self) -> bool:
         return bool(await self._registry.list(active_only=True, limit=1))
 
