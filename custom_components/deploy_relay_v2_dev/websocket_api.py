@@ -1039,6 +1039,120 @@ async def async_git_read_clear(hass, connection, msg):
     connection.send_result(msg["id"], {"configured": False})
 
 
+@websocket_api.websocket_command({
+    probatio.Required("type"): "deploy_relay_v2_dev/deployment/prepare",
+    probatio.Required("repository"): str,
+    probatio.Required("ref"): str,
+    probatio.Required("commit"): str,
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def async_install_prepare(hass, connection, msg):
+    """Rebuild a real, immutable V1 install plan; do not write anything."""
+    runtime = _runtime(hass)
+    if runtime is None:
+        connection.send_error(msg["id"], "not_ready", "Auftragsverwaltung nicht bereit")
+        return
+    repository = msg["repository"]
+    projects = [p for p in runtime.projects.list()
+                if p["repository"].casefold() == repository.casefold()
+                and p.get("active") is True and p.get("access_mode") == "read_write"]
+    if len(projects) != 1:
+        connection.send_error(msg["id"], "not_permitted", "Projekt nicht zur Installation freigegeben")
+        return
+    project = projects[0]
+    if project["project_id"] in {"deploy_relay", "deploy_relay_v2_dev"}:
+        connection.send_error(msg["id"], "self_update_blocked", "Selbstupdate nicht verfügbar")
+        return
+    if runtime.source_scan_lock.locked():
+        connection.send_error(msg["id"], "busy", "Eine Quellprüfung läuft bereits")
+        return
+    try:
+        ref = source_ref(msg["ref"])
+        if not ref:
+            raise ValueError("pinned source ref required")
+        async with runtime.source_scan_lock:
+            report = await asyncio.wait_for(
+                runtime.deployment.prepare(
+                    session=async_get_clientsession(hass), repository=repository,
+                    source_ref=ref, source_commit=msg["commit"],
+                    expected_project_id=project["project_id"],
+                    config_root=Path(hass.config.config_dir),
+                    token=runtime.project_auth.token(repository) or runtime.source_auth.token,
+                ), timeout=120)
+    except (OperationContractError, ValueError, TimeoutError, OSError):
+        connection.send_error(msg["id"], "preparation_failed", "Installationsvorbereitung nicht möglich")
+        return
+    except Exception:
+        connection.send_error(msg["id"], "source_unavailable", "Quelle nicht verfügbar")
+        return
+    connection.send_result(msg["id"], report)
+
+
+@websocket_api.websocket_command({
+    probatio.Required("type"): "deploy_relay_v2_dev/deployment/start",
+    probatio.Required("challenge"): str,
+    probatio.Required("repository"): str,
+    probatio.Required("commit"): str,
+    probatio.Required("confirm"): bool,
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def async_install_start(hass, connection, msg):
+    """Consume exactly one backend-generated confirmation before any V1 write."""
+    runtime = _runtime(hass)
+    if runtime is None:
+        connection.send_error(msg["id"], "not_ready", "Auftragsverwaltung nicht bereit")
+        return
+    repository = msg["repository"]
+    permitted = any(
+        p["repository"].casefold() == repository.casefold()
+        and p.get("active") is True and p.get("access_mode") == "read_write"
+        and p.get("project_id") not in {"deploy_relay", "deploy_relay_v2_dev"}
+        for p in runtime.projects.list()
+    )
+    if not permitted or msg["confirm"] is not True:
+        connection.send_error(msg["id"], "not_permitted", "Installationsfreigabe fehlt")
+        return
+    try:
+        snapshot = await runtime.deployment.confirm(
+            challenge=msg["challenge"], repository=repository,
+            commit=msg["commit"], confirm=True,
+            session=async_get_clientsession(hass),
+            config_root=Path(hass.config.config_dir),
+            token=runtime.project_auth.token(repository) or runtime.source_auth.token,
+            blocking_executor=hass.async_add_executor_job,
+        )
+    except (OperationContractError, ValueError, OSError):
+        connection.send_error(msg["id"], "confirmation_failed", "Installationsfreigabe abgelaufen oder ungültig")
+        return
+    connection.send_result(msg["id"], {"schema": "dra-v2-install-start.v1", "job": snapshot})
+
+
+@websocket_api.websocket_command({
+    probatio.Required("type"): "deploy_relay_v2_dev/deployment/status",
+    probatio.Optional("operation_id", default=""): str,
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def async_install_status(hass, connection, msg):
+    """Only HA owns the transaction; polling has no side effects."""
+    runtime = _runtime(hass)
+    if runtime is None:
+        connection.send_error(msg["id"], "not_ready", "Auftragsverwaltung nicht bereit")
+        return
+    try:
+        snapshot = (await runtime.deployment.get(msg["operation_id"])
+                    if msg["operation_id"] else await runtime.deployment.latest())
+    except (OperationContractError, ValueError):
+        connection.send_error(msg["id"], "invalid_operation", "Auftragskennung ungültig")
+        return
+    connection.send_result(msg["id"], {
+        "schema": "dra-v2-install-status.v1",
+        "job": snapshot,
+    })
+
+
 def async_register_commands(hass: HomeAssistant) -> None:
     state = hass.data.setdefault(DOMAIN, {})
     if state.get("commands_registered"):
@@ -1060,6 +1174,7 @@ def async_register_commands(hass: HomeAssistant) -> None:
                     async_archive_repository_set, async_archive_repository_clear,
                     async_archive_repository_configure,
                     async_archive_repository_check,
+                    async_install_prepare, async_install_start, async_install_status,
                     async_download_json):
         websocket_api.async_register_command(hass, handler)
     state["commands_registered"] = True
