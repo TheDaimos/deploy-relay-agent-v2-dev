@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
+import json
 from pathlib import Path
 from secrets import token_hex
 from time import monotonic
@@ -20,6 +21,41 @@ from .server_deployment_jobs import ServerDeploymentJobs
 from .v1_source_bridge import PreparedV1Source, prepare_frozen_v1_source
 
 PREPARATION_LIFETIME_SECONDS = 120
+
+def _require_resolved_v1_transactions(config_root: Path) -> None:
+    """Inspect only V2-owned V1-engine journals, never V1's data folder.
+
+    A reboot during staging/backup/apply cannot be silently followed by a new
+    install. The existing V1 transaction journal is authoritative for that
+    safety decision; no new transaction persistence format is invented.
+    """
+    directory = config_root / "deploy_relay_v2_dev" / "transactions"
+    if (config_root.is_symlink() or
+        (directory.parent.exists() and directory.parent.is_symlink()) or
+        directory.is_symlink()):
+        raise OperationContractError("unsafe transaction journal location")
+    if not directory.exists():
+        return
+    if not directory.is_dir():
+        raise OperationContractError("invalid transaction journal directory")
+    entries = sorted(directory.iterdir())
+    if len(entries) > 512:
+        raise OperationContractError("transaction history exceeds review limit")
+    for entry in entries:
+        if entry.is_symlink() or not entry.is_file() or entry.suffix != ".json":
+            raise OperationContractError("unrecognized transaction journal entry")
+        try:
+            if entry.stat().st_size > 262144:
+                raise ValueError("journal too large")
+            raw = entry.read_bytes()
+            row = json.loads(raw)
+            if type(row) is not dict or row.get("state") not in (
+                "success", "failed_no_change", "rolled_back"
+            ):
+                raise ValueError("incomplete or uncertain transaction")
+        except (OSError, ValueError, UnicodeError):
+            raise OperationContractError("old transaction needs recovery review") from None
+
 
 
 @dataclass(frozen=True, slots=True)
@@ -58,6 +94,7 @@ class DeploymentCoordinator:
             active = await self._jobs.active()
             if active:
                 raise OperationContractError("deployment already in progress")
+            await asyncio.to_thread(_require_resolved_v1_transactions, config_root)
             prepared = await prepare_frozen_v1_source(
                 session=session, repository=repository, source_ref=source_ref,
                 source_commit=source_commit,
