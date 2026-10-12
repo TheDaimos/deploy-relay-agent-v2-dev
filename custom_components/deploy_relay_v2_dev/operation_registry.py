@@ -174,6 +174,22 @@ class OperationRegistry:
             op.update_progress(phase=phase, current=current, total=total, overall=overall)
             return op.snapshot()
 
+    async def post_action(
+        self, operation_id: str, *, restart_required: bool,
+        frontend_reload_possible: bool,
+    ) -> dict[str, object]:
+        """Record V1's real lifecycle result before success is published."""
+        self._operation_id(operation_id)
+        async with self._lock:
+            op = self._records.get(operation_id)
+            if op is None:
+                raise OperationContractError("unknown operation")
+            op.mark_post_action(
+                restart_required=restart_required,
+                frontend_reload_possible=frontend_reload_possible,
+            )
+            return op.snapshot()
+
     async def request_cancel(self, operation_id: str) -> dict[str, object]:
         """Request cancellation; never cancels an unsafe running transaction."""
         self._operation_id(operation_id)
