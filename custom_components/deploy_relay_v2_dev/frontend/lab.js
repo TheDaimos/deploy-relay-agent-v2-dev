@@ -864,7 +864,7 @@ class DRAV2DevLabPanel extends HTMLElement {
           !/^[a-f0-9]{32}$/.test(response.export_id || "") ||
           !/^[a-f0-9]{40}$/.test(response.commit_sha || "") ||
           !String(response.path || "").startsWith("exports/deploy-relay-agent-v2/") ||
-          !String(response.file_url || "").startsWith("https://github.com/TheDaimos/Project-Log-And-Export/blob/")) {
+          !String(response.file_url || "").startsWith("https://github.com/" + this._centralExport.repository + "/blob/")) {
         throw Error("invalid audit export receipt");
       }
       this._centralExport = {...this._centralExport,pending:false};
