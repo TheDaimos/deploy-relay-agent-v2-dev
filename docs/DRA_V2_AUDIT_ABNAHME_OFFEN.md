@@ -64,3 +64,12 @@ Technisch implementiert und automatisch geprüft:
 - CI 38270643989 für 0.1.79 DEV SUCCESS; Version `0.1.79`, Commit `26f42725b628344b7588ae3915b4f5c820b0cdea`.
 - **Offen:** HA-Realtest des Git-Audit-Exports mit privater Repository-Bestätigung, inklusive Anzeige des erfolgreichen Exports; außerdem weiterhin verlässliche Wiederherstellung der 4/4-Abschlussanzeige nach HA-Neustart.
 - Issue #9 bis zur vollständigen Abnahme offen lassen. Keine Änderung an DRA V1 oder V2 main.
+
+## 0.1.80 DEV – Wiederherstellung 4/4 (13.10.2026)
+
+- Der geführte Ablauf übernimmt nach Neuladen/HA-Neustart den letzten erfolgreich beendeten Auftrag aus dem bereits persistierten V2-Audit, projektbezogen und ausschließlich lesend.
+- Anzeige: `4/4 · Letzter Abschluss (gespeichert)` mit Auftragskennung, Zeit und ausdrücklichem Hinweis, dass diese Anzeige **keine neue Installationsfreigabe** darstellt.
+- Neue Vorschau über gesonderte Schaltfläche, die den historischen Zustand für die aktuelle Bedienung ausblendet; keine automatische Installation, kein Wiederverwenden eines abgelaufenen Bestätigungstokens.
+- Aktuelle serverseitige Aufträge haben Vorrang vor historischen Erfolgen, eine neue aktuelle Vorschau ebenfalls.
+- CI Lauf 38353864224 SUCCESS, Code-Checkpoint `694952699291b4e3d61929b34b9c5d06b5c529cc`.
+- **Offen bis zur Realabnahme:** Nach Update auf 0.1.80 und HA-Neustart muss der historische 4/4-Abschluss wirklich erscheinen; anschließend für einen neuen Testcommit eine neue Vorschau und eine echte Installation auslösen und die unmittelbare 4/4-Umstellung belegen. Erst dann Issue #9 schließen.
