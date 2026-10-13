@@ -744,7 +744,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
 (async () => {
   const probe = new Panel();
   probe._view = "main";
-  probe._serverVersion = "0.1.85";
+  probe._serverVersion = "0.1.86";
   probe._projects = [{repository:"TheDaimos/gewitterradar",name:"Gewitterradar",active:true}];
   probe._mainSourceRef = "";
   const calls = [];
@@ -783,7 +783,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   await probe._sourceCheck({dataset:{repo:"TheDaimos/gewitterradar"}},true);
   assert.equal(calls.length,0);
   assert.match(probe._sourceMessage,/Python-Laufzeit 0.1.64/);
-  probe._serverVersion = "0.1.85";
+  probe._serverVersion = "0.1.86";
   probe._render();
   assert.match(probe.shadowRoot.innerHTML,/Oberfläche und Laufzeit stimmen überein/);
   await probe._sourceCheck({dataset:{repo:"TheDaimos/gewitterradar"}},true);
@@ -799,7 +799,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
 (async () => {
   const panel = new Panel();
   panel._view = "main";
-  panel._serverVersion = "0.1.85";
+  panel._serverVersion = "0.1.86";
   panel._projects = [{repository:"TheDaimos/example",project_id:"example",
                       name:"Example",active:true,access_mode:"read_write"}];
   panel._selectedMainRepo = "TheDaimos/example";
@@ -861,7 +861,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
 
 (async () => {
   const panel = new Panel();
-  panel._serverVersion = "0.1.85";
+  panel._serverVersion = "0.1.86";
   panel._projects = [
     {repository:"TheDaimos/alpha",name:"Alpha",project_id:"alpha",
      access_mode:"read_write",active:true},
@@ -979,9 +979,9 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   // At initial load no HA version may be claimed before the admin state reply.
   assert.match(versions.shadowRoot.innerHTML,/id="dra-version" class="dra-version pending"/);
   assert.match(versions.shadowRoot.innerHTML,/Oberfläche/);
-  assert.match(versions.shadowRoot.innerHTML,/V0\.1\.85 DEV/);
+  assert.match(versions.shadowRoot.innerHTML,/V0\.1\.86 DEV/);
   assert.match(versions.shadowRoot.innerHTML,/HA-Laufzeit: Noch nicht ermittelt/);
-  assert.doesNotMatch(versions.shadowRoot.innerHTML,/HA-Laufzeit: V0\.1\.85 DEV/);
+  assert.doesNotMatch(versions.shadowRoot.innerHTML,/HA-Laufzeit: V0\.1\.86 DEV/);
 
   const requests = [];
   versions._hass = {async callWS(request) {
@@ -989,7 +989,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
     if (request.type === "deploy_relay_v2_dev/deployment/status") {
       return {schema:"dra-v2-install-status.v1",job:null};
     }
-    return {version:"0.1.85",operations:[],projects:[]};
+    return {version:"0.1.86",operations:[],projects:[]};
   }};
   await versions._refresh();
   assert.deepEqual(requests,[
@@ -998,14 +998,14 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
     "deploy_relay_v2_dev/deployment/audit"
   ]);
   assert.match(versions.shadowRoot.innerHTML,/id="dra-version" class="dra-version matched"/);
-  assert.match(versions.shadowRoot.innerHTML,/HA-Laufzeit: V0\.1\.85 DEV/);
+  assert.match(versions.shadowRoot.innerHTML,/HA-Laufzeit: V0\.1\.86 DEV/);
   assert.doesNotMatch(versions.shadowRoot.innerHTML,/Abweichung ·/);
 
   versions._hass = {async callWS() {return {version:"0.1.71",operations:[],projects:[]};}};
   await versions._refresh();
   assert.match(versions.shadowRoot.innerHTML,/id="dra-version" class="dra-version mismatch"/);
   assert.match(versions.shadowRoot.innerHTML,/Abweichung · HA-Laufzeit: V0\.1\.71 DEV/);
-  assert.match(versions.shadowRoot.innerHTML,/class="dra-version-number">V0\.1\.85 DEV/);
+  assert.match(versions.shadowRoot.innerHTML,/class="dra-version-number">V0\.1\.86 DEV/);
   assert.match(versions.shadowRoot.innerHTML,/aria-label="Versionsübersicht:/);
 
   versions._hass = {async callWS() {throw new Error("backend offline");}};
@@ -1311,7 +1311,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
 (async () => {
   // Regression: a successful 4/4 MUST NOT trap the next teststand at 4/4.
   const p=new Panel();
-  p._view="main";p._serverVersion="0.1.85";
+  p._view="main";p._serverVersion="0.1.86";
   const project={repository:"TheDaimos/Test-Repo-DRA-V2",project_id:"test_repo_dra_v2",name:"Test",active:true};
   p._projects=[project];p._selectedMainRepo=project.repository;
   p._mainSourceRef="main";p._deploymentPreviewRef="main";p._sourceRepository=project.repository;
@@ -1362,7 +1362,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
 (async () => {
   // Teststand +1 writes only Git; it also releases an otherwise stuck 4/4.
   const p=new Panel();
-  p._view="main";p._serverVersion="0.1.85";p._testVersionConfirm=true;
+  p._view="main";p._serverVersion="0.1.86";p._testVersionConfirm=true;
   const project={repository:"TheDaimos/Test-Repo-DRA-V2",project_id:"test_repo_dra_v2",
     name:"Test",active:true};
   p._projects=[project];p._selectedMainRepo=project.repository;
@@ -1389,7 +1389,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
 (async () => {
   // A verified zero-change inventory is informational, not step-2 authorisation.
   const p = new Panel();
-  p._view="main";p._serverVersion="0.1.85";
+  p._view="main";p._serverVersion="0.1.86";
   const project={repository:"TheDaimos/Test-Repo-DRA-V2",project_id:"test_repo_dra_v2",name:"Test",active:true};
   p._projects=[project];p._selectedMainRepo=project.repository;
   p._sourceRepository=project.repository;
