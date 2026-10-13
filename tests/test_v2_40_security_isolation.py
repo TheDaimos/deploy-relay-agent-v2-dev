@@ -51,8 +51,8 @@ class JournalIsolationContracts(unittest.TestCase):
 
     def test_admin_only_history_without_mutating_routes(self):
         source = (LAB / "websocket_api.py").read_text(encoding="utf-8")
-        self.assertEqual(source.count("@websocket_api.require_admin"), 40)
-        self.assertEqual(source.count("@websocket_api.websocket_command("), 40)
+        self.assertEqual(source.count("@websocket_api.require_admin"), 41)
+        self.assertEqual(source.count("@websocket_api.websocket_command("), 41)
         self.assertIn("await runtime.journal.list(limit=12)", source)
         self.assertIn('project_key="lab_readonly_preview"', source)
         # The explicit admin-confirmed installation is now an intended route.
@@ -78,7 +78,7 @@ class JournalIsolationContracts(unittest.TestCase):
         self.assertIn("source_auth=source_auth", setup)
         self.assertIn('Store(hass, 1, "deploy_relay_v2_dev.journal")', setup)
         self.assertNotIn('Store(hass, 1, "deploy_relay.git_auth")', setup)
-        self.assertEqual(ws.count("@websocket_api.require_admin"), 40)
+        self.assertEqual(ws.count("@websocket_api.require_admin"), 41)
         self.assertIn("await runtime.git_export.export(summary, version=VERSION)", ws)
         self.assertNotIn("token", (LAB / "readonly_benchmark.py").read_text(encoding="utf-8"))
         self.assertIn("02 · Diagnoseexport</span>", panel)
