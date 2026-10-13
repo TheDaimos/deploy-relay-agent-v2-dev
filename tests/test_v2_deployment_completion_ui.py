@@ -39,6 +39,13 @@ class CompletionUiContract(unittest.TestCase):
         self.assertIn('aria-valuenow="${displayFinished ? 4', js)
         self.assertIn('displayFinished ? "completed"', js)
 
+    def test_step_three_during_submission(self):
+        js = self.js
+        self.assertIn('this._installSubmissionActive = true;', js)
+        self.assertIn('this._installSubmissionActive = false;', js)
+        self.assertIn('this._installSubmissionActive || installActive || installFailed', js)
+        self.assertIn('"3/4 · Auftrag wird an Home Assistant übergeben …"', js)
+
     def test_failed_and_running_are_not_marked_successful(self):
         js = self.js
         self.assertIn('"3/4 · Update läuft …"', js)
