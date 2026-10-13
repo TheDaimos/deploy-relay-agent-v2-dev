@@ -8,7 +8,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from pathlib import Path
 
-from .remote_source import inspect_public_repository, inspect_repository_connection, source_ref, GitReadAuthError, GitReadAuth
+from .remote_source import inspect_public_repository, inspect_repository_connection, inspect_source_head, source_ref, GitReadAuthError, GitReadAuth
 from .source_preflight import PreflightError
 from .source_diagnostics import (SourceDiagnosticsError, classify_source_failure, resource_snapshot)
 from .target_ownership import TargetClaimError, assess_target_claims
@@ -739,6 +739,38 @@ async def async_projects_connection_check(hass, connection, msg):
     connection.send_result(msg["id"], result)
 
 
+@websocket_api.websocket_command({
+    probatio.Required("type"): "deploy_relay_v2_dev/projects/source_head",
+    probatio.Required("repository"): str,
+    probatio.Optional("ref", default=""): str,
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def async_projects_source_head(hass, connection, msg):
+    """Fetch only remote SHA, without filesystem comparison or deployment."""
+    runtime = _runtime(hass)
+    if runtime is None:
+        connection.send_error(msg["id"], "not_ready", "Quelle nicht bereit")
+        return
+    repo = msg["repository"]
+    if not any(p["repository"] == repo and p.get("active", True) for p in runtime.projects.list()):
+        connection.send_error(msg["id"], "invalid_project", "Projekt nicht aktiv")
+        return
+    if runtime.source_scan_lock.locked():
+        connection.send_error(msg["id"], "busy", "Eine Quellprüfung läuft")
+        return
+    try:
+        async with runtime.source_scan_lock:
+            result = await asyncio.wait_for(inspect_source_head(
+                async_get_clientsession(hass), repo, msg["ref"],
+                token=runtime.project_auth.token(repo) or runtime.source_auth.token,
+            ), timeout=28)
+    except (PreflightError, TimeoutError, OSError, ValueError):
+        connection.send_error(msg["id"], "source_head_failed", "Git-Quellstand nicht abrufbar")
+        return
+    connection.send_result(msg["id"], result)
+
+
 async def _inspect_source_preview(hass, runtime, repo: str, ref: str) -> dict:
     """Shared internal read-only source inspection; no connection ownership."""
     trace = runtime.source_diagnostics.begin()
@@ -1260,6 +1292,7 @@ def async_register_commands(hass: HomeAssistant) -> None:
                     async_projects_retention, async_projects_preselect,
                     async_settings_get, async_settings_save, async_settings_ack_cpu_warning,
                     async_batch_preview, async_projects_connection_check,
+                    async_projects_source_head,
                     async_projects_source_preview,
                     async_source_job_start, async_source_job_status,
                     async_source_job_history,
