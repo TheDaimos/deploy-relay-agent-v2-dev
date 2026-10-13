@@ -16,13 +16,13 @@ class CompletionUiContract(unittest.TestCase):
         self.assertIn('this._installJob?.status === "success" && this._installJob?.phase === "complete"', js)
         self.assertIn('this._installJob?.project_key === mainProject.project_id', js)
         self.assertNotIn('mainPreviewVerified && this._installJob?.project_key', js)
-        self.assertIn('const deploymentStage = displayFinished ? 4', js)
+        self.assertIn('const deploymentStage = upToDate ? 1 : displayFinished ? 4', js)
         self.assertIn('"4/4 · Abschluss – erfolgreich installiert"', js)
 
     def test_progress_and_four_steps_reach_completion(self):
         js = self.js
         self.assertIn('displayFinished ? "completed"', js)
-        self.assertIn('aria-valuenow="${displayFinished ? 4', js)
+        self.assertIn('aria-valuenow="${upToDate ? 1 : displayFinished ? 4', js)
         self.assertIn('.dra-deploy-progress.completed .dra-deploy-progress-fill {width:100%', js)
         self.assertIn('deploymentIcons[deploymentStage-1]', js)
         self.assertIn('.dra-deploy-step.green.current', js)
@@ -33,11 +33,25 @@ class CompletionUiContract(unittest.TestCase):
         self.assertIn('event.project_key === mainProject.project_id', js)
         self.assertIn('event.stage === "success" && event.status === "success"', js)
         self.assertIn('!mainPreviewVerified', js)
-        self.assertIn('const displayFinished = installFinished || archivedFinish;', js)
+        self.assertIn('const displayFinished = !upToDate && (installFinished || archivedFinish);', js)
         self.assertIn('"4/4 · Letzter Abschluss (gespeichert)"', js)
         self.assertIn('Historischer Abschluss – keine aktuelle Quellprüfung, keine neue Freigabe.', js)
-        self.assertIn('aria-valuenow="${displayFinished ? 4', js)
+        self.assertIn('aria-valuenow="${upToDate ? 1 : displayFinished ? 4', js)
         self.assertIn('displayFinished ? "completed"', js)
+
+    def test_verified_no_change_is_informational_and_never_a_write_approval(self):
+        js = self.js
+        self.assertIn('const previewNoChanges = mainPreviewVerified', js)
+        self.assertIn('this._sourcePreview.add.length === 0', js)
+        self.assertIn('this._sourcePreview.change.length === 0', js)
+        self.assertIn('this._sourcePreview.remove.length === 0', js)
+        self.assertIn('const upToDate = previewNoChanges', js)
+        self.assertIn('"Aktuell · Kein Update verfügbar"', js)
+        self.assertIn('id="dra-up-to-date-recheck"', js)
+        self.assertIn('upToDate || deploymentBusy || !deploymentCanPreview', js)
+        self.assertIn('this._sourcePreview.remove.length === 0) return;', js)
+        self.assertIn('Vorherige Installation · Historie', js)
+        self.assertIn('.dra-deploy-action.up-to-date', js)
 
     def test_step_three_during_submission(self):
         js = self.js
