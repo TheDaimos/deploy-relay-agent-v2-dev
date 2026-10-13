@@ -27,6 +27,18 @@ class CompletionUiContract(unittest.TestCase):
         self.assertIn('deploymentIcons[deploymentStage-1]', js)
         self.assertIn('.dra-deploy-step.green.current', js)
 
+    def test_historical_completion_is_read_only_and_project_bound(self):
+        js = self.js
+        self.assertIn('this._refreshInstallAudit();', js)
+        self.assertIn('event.project_key === mainProject.project_id', js)
+        self.assertIn('event.stage === "success" && event.status === "success"', js)
+        self.assertIn('!mainPreviewVerified', js)
+        self.assertIn('const displayFinished = installFinished || archivedFinish;', js)
+        self.assertIn('"4/4 · Letzter Abschluss (gespeichert)"', js)
+        self.assertIn('Historischer Abschluss – keine aktuelle Quellprüfung, keine neue Freigabe.', js)
+        self.assertIn('aria-valuenow="${displayFinished ? 4', js)
+        self.assertIn('displayFinished ? "completed"', js)
+
     def test_failed_and_running_are_not_marked_successful(self):
         js = self.js
         self.assertIn('"3/4 · Update läuft …"', js)
