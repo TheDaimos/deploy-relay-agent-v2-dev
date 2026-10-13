@@ -315,6 +315,11 @@ class DRAV2DevLabPanel extends HTMLElement {
         this._sourceRepository !== project.repository ||
         this._deploymentPreviewRef !== this._mainSourceRef.trim() ||
         this._serverVersion !== DRA_V2_UI_VERSION) return;
+    if (Array.isArray(this._sourcePreview.add) &&
+        Array.isArray(this._sourcePreview.change) &&
+        Array.isArray(this._sourcePreview.remove) &&
+        this._sourcePreview.add.length + this._sourcePreview.change.length +
+        this._sourcePreview.remove.length === 0) return;
     this._installBusy = true;
     this._installPreparation = null;
     this._installMessage = "Die V1-Engine prüft die Dateien erneut …";
@@ -1895,6 +1900,17 @@ class DRAV2DevLabPanel extends HTMLElement {
       this._deploymentPreviewRef === this._mainSourceRef.trim() &&
       this._sourcePreview?.sources_verified === true &&
       this._sourcePreview?.installation_enabled === false;
+    // A fully verified, unchanged file inventory is not an installable update.
+    // Require actual lists, rather than interpreting a missing field as empty.
+    const previewNoChanges = mainPreviewVerified &&
+      Array.isArray(this._sourcePreview?.add) &&
+      Array.isArray(this._sourcePreview?.change) &&
+      Array.isArray(this._sourcePreview?.remove) &&
+      this._sourcePreview.add.length === 0 &&
+      this._sourcePreview.change.length === 0 &&
+      this._sourcePreview.remove.length === 0 &&
+      Number.isInteger(this._sourcePreview.unchanged_count) &&
+      this._sourcePreview.unchanged_count > 0;
     const previewFiles = mainPreviewVerified ? [
       ...((this._sourcePreview.add || []).map(path => ({path, status:"add", label:"Hinzugefügt"}))),
       ...((this._sourcePreview.change || []).map(path => ({path, status:"change", label:"Geändert"}))),
@@ -2017,21 +2033,24 @@ class DRAV2DevLabPanel extends HTMLElement {
     const archivedFinish = !!lastStoredSuccess &&
       this._dismissedHistoricalProject !== mainProject?.project_id && !mainPreviewVerified &&
       !installActive && !this._installBusy;
-    const displayFinished = installFinished || archivedFinish;
+    const upToDate = previewNoChanges && !installActive && !this._installBusy &&
+      !this._installSubmissionActive;
+    const displayFinished = !upToDate && (installFinished || archivedFinish);
     const installFailed = jobBelongsToProject &&
       ["failed","recovery_required","interrupted","cancelled"].includes(this._installJob?.status);
     const preparedInstall = this._installPreparation &&
-      mainPreviewVerified &&
+      mainPreviewVerified && !previewNoChanges &&
       this._installPreparation.repository === mainProject?.repository &&
       this._installPreparation.source_commit === this._sourcePreview?.source_commit &&
       this._installPreparation.source_ref === this._sourcePreview?.source_ref
         ? this._installPreparation : null;
-    const deploymentStage = displayFinished ? 4 :
+    const deploymentStage = upToDate ? 1 : displayFinished ? 4 :
       (this._installSubmissionActive || installActive || installFailed) ? 3 : mainPreviewVerified ? 2 : 1;
     const deploymentCanPreview = this._mainBatchMode
       ? mainBatchProjects.length > 0 && !!this._hass
       : !!mainProject && !!this._hass;
-    const deploymentButtonText = installFinished ? "4/4 · Abschluss – erfolgreich installiert" :
+    const deploymentButtonText = upToDate ? "Aktuell · Kein Update verfügbar" :
+      installFinished ? "4/4 · Abschluss – erfolgreich installiert" :
       archivedFinish ? "4/4 · Letzter Abschluss (gespeichert)" :
       installFailed ? "3/4 · Update fehlgeschlagen – Audit prüfen" :
       installActive ? "3/4 · Update läuft …" :
@@ -2041,7 +2060,11 @@ class DRAV2DevLabPanel extends HTMLElement {
       : mainPreviewVerified ? "2/4 · Installation vorbereiten"
       : this._mainBatchMode ? "1/4 · Projektauswahl prüfen"
       : "1/4 · Vorschau berechnen";
-    const deploymentStatus = this._mainBatchMode
+    const deploymentStatus = upToDate
+      ? "Dateivergleich abgeschlossen: 0 hinzugefügt · 0 geändert · 0 entfernt · " +
+        this._sourcePreview.unchanged_count +
+        " unverändert. Keine Installation erforderlich."
+      : this._mainBatchMode
       ? this._mainBatchMessage || "Die gemeinsame Auswahl kann gelesen, aber noch nicht installiert werden."
       : mainPreviewVerified
         ? this._installMessage || "Quellprüfung abgeschlossen. Die V1-Engine kann das Update vorbereiten."
@@ -2535,6 +2558,17 @@ class DRAV2DevLabPanel extends HTMLElement {
           background:linear-gradient(145deg,#73501f,#704716 60%,#58391d);
           box-shadow:inset 0 1px 0 rgba(255,237,200,.2),0 3px 9px #0005;}
         .dra-deploy-action.stage-2:disabled {opacity:1;cursor:not-allowed;transform:none;}
+        .dra-deploy-action.up-to-date {color:#d2f5fb;border-color:#3e99ae;
+          background:linear-gradient(145deg,#20495a,#205160 58%,#183b4d);
+          box-shadow:inset 0 1px 0 rgba(225,251,255,.17),0 3px 8px #0004;}
+        .dra-deploy-action.up-to-date:disabled {opacity:1;cursor:default;transform:none;}
+        .dra-up-to-date-note {margin-top:11px;padding:11px 14px;border:1px solid #427b89;
+          border-radius:10px;background:rgba(27,90,110,.16);color:#c7e9ed;font-size:13px;}
+        .dra-up-to-date-repeat {margin-top:9px;min-height:35px;}
+        .dra-history-only {margin-top:10px;padding:9px 12px;border:1px solid #425361;
+          border-radius:9px;color:#acb8c1;background:#1d2831;font-size:12px;}
+        .dra-history-only summary {cursor:pointer;font-weight:650;}
+        .dra-history-only p {margin:8px 0 0;overflow-wrap:anywhere;}
         .dra-deploy-action.is-busy {opacity:1;border-color:#56bfdc;cursor:progress;}
         .dra-deploy-action.is-busy .project-icon {animation:dra-deploy-spin 1.15s linear infinite;}
         .dra-deploy-action.is-busy {overflow:hidden;}
@@ -2553,6 +2587,8 @@ class DRAV2DevLabPanel extends HTMLElement {
           background:linear-gradient(90deg,#158db8,#39d6ed 52%,#1677ac);
           box-shadow:0 0 7px #32d0ecaa;transition:width .32s ease;}
         .dra-deploy-progress.verified .dra-deploy-progress-fill {width:25%;}
+        .dra-deploy-progress.up-to-date .dra-deploy-progress-fill {width:25%;
+          background:linear-gradient(90deg,#397d90,#63b7c4);box-shadow:none;}
         .dra-deploy-progress.completed .dra-deploy-progress-fill {width:100%;
           background:linear-gradient(90deg,#267d54,#44d99b 55%,#7ce0aa);}
         .dra-deploy-progress.failed .dra-deploy-progress-fill {width:75%;
@@ -2579,6 +2615,10 @@ class DRAV2DevLabPanel extends HTMLElement {
         .dra-deploy-step.red.pending {border-color:#70464a;color:#ae858a;}
         .dra-deploy-step.green.pending {border-color:#4a6657;color:#92b39d;}
         .dra-deploy-step.green.current {border-color:#48bd86;color:#b6f6d5;background:rgba(24,116,75,.28);}
+        .dra-deploy-step.current-review {border-color:#4b9cac;color:#c1e8ee;
+          background:rgba(33,95,112,.2);}
+        .dra-deploy-step.not-required {border-color:#3d4e58;color:#8799a4;
+          background:linear-gradient(140deg,#212b34,#1b252d);}
         .dra-deploy-step.done {border-color:#4fba8a;color:#abe6c6;background:rgba(29,113,76,.17);}
         .dra-deploy-step.red.failed {border-color:#e16c72;color:#ffc1c2;background:rgba(145,36,45,.25);}
         .dra-deploy-action.stage-4 {border-color:#45ba83;color:#d6ffe9;
@@ -3249,7 +3289,7 @@ class DRAV2DevLabPanel extends HTMLElement {
         <header class="dra-head">
           <div><strong>DEPLOY RELAY AGENT V2</strong><div class="note">Sicheres Deployment für Git-Projekte</div></div>
           <div class="dra-actions">
-          <span class="dra-lock">${mainPreviewVerified && mainProject?.active !== false &&
+          <span class="dra-lock">${mainPreviewVerified && !previewNoChanges && mainProject?.active !== false &&
             this._serverVersion === DRA_V2_UI_VERSION ? "FREIGABEBEREIT" : "GESPERRT"}</span>
           <div id="dra-version" class="dra-version ${runtimeVersionState}"
             aria-label="Versionsübersicht: Oberfläche ${uiVersionLabel}; HA-Laufzeit ${runtimeVersionLabel}">
@@ -3528,17 +3568,25 @@ class DRAV2DevLabPanel extends HTMLElement {
                 </details>
               </section>` : ""}
             <button id="dra-preview" class="dra-deploy-action stage-${deploymentStage}
-              ${deploymentBusy ? "is-busy" : ""} ${installFailed ? "has-error" : ""}"
+              ${upToDate ? "up-to-date" : ""} ${deploymentBusy ? "is-busy" : ""} ${installFailed ? "has-error" : ""}"
               data-stage="${deploymentStage}"
-              ${deploymentBusy || !deploymentCanPreview || deploymentStage >= 3 ||
+              ${upToDate || deploymentBusy || !deploymentCanPreview || deploymentStage >= 3 ||
                 (deploymentStage === 2 && (!mainProject || mainProject.active === false ||
                 this._serverVersion !== DRA_V2_UI_VERSION || !!preparedInstall)) ? "disabled" : ""}
               aria-label="${deploymentButtonText}">
               ${deploymentBusy
                 ? iconSvg('<path d="M12 3a9 9 0 1 0 9 9"/>',25)
-                : deploymentIcons[deploymentStage-1]}
+                : upToDate ? deploymentIcons[3] : deploymentIcons[deploymentStage-1]}
               <span>${deploymentButtonText}</span>
             </button>
+            ${upToDate ? `<div class="dra-up-to-date-note" role="status">
+              <strong>Bereits auf dem aktuellen Stand.</strong>
+              <div>Der Dateivergleich hat keine Änderungen festgestellt.
+                ${this._escapeProject(this._sourcePreview.unchanged_count)} Dateien unverändert.
+                Es ist keine Installation erforderlich.</div>
+              <button type="button" class="dra-up-to-date-repeat" id="dra-up-to-date-recheck"
+                ${deploymentBusy ? "disabled" : ""}>Vorschau erneut berechnen</button>
+            </div>` : ""}
             ${preparedInstall ? `
               <div class="dra-deployment-result" role="group" aria-label="Installation bestätigen">
                 <strong>V1-Engine · Installation ausdrücklich bestätigen</strong>
@@ -3565,16 +3613,21 @@ class DRAV2DevLabPanel extends HTMLElement {
             ${(installFinished || archivedFinish) && mainProject ? `
               <button type="button" id="dra-next-deployment-preview"
                 ${deploymentBusy ? "disabled" : ""}>Neue Vorschau für dieses Projekt berechnen</button>` : ""}
-            ${this._installJob ? `<div class="dra-deployment-result" role="status">
+            ${upToDate && jobBelongsToProject && this._installJob?.status === "success"
+              ? `<details class="dra-history-only"><summary>Vorherige Installation · Historie</summary>
+                  <p>Auftrag: ${this._escapeProject(this._installJob.operation_id)}</p>
+                  <p>Erfolgreich abgeschlossen; kein Bestandteil der aktuellen, unveränderten Vorschau.</p>
+                </details>` : ""}
+            ${this._installJob && !upToDate ? `<div class="dra-deployment-result" role="status">
               <strong>Serverseitiger Auftrag: ${this._escapeProject(this._installJob.status)}</strong>
               <span>Schritt: ${this._escapeProject(this._installJob.phase)}</span>
               <span>Auftragskennung: ${this._escapeProject(this._installJob.operation_id)}</span>
               <span>${this._escapeProject(this._installMessage)}</span>
             </div>` : ""}
-            <div class="dra-deploy-progress ${displayFinished ? "completed" : installFailed ? "failed" : deploymentBusy || installActive ? "running" : mainPreviewVerified ? "verified" : "idle"}"
+            <div class="dra-deploy-progress ${upToDate ? "up-to-date" : displayFinished ? "completed" : installFailed ? "failed" : deploymentBusy || installActive ? "running" : mainPreviewVerified ? "verified" : "idle"}"
               role="progressbar" aria-label="Deployment-Fortschritt"
               aria-valuemin="0" aria-valuemax="4"
-              aria-valuenow="${displayFinished ? 4 : this._installSubmissionActive || installActive || installFailed ? 3 : mainPreviewVerified ? 1 : 0}">
+              aria-valuenow="${upToDate ? 1 : displayFinished ? 4 : this._installSubmissionActive || installActive || installFailed ? 3 : mainPreviewVerified ? 1 : 0}">
               <div class="dra-deploy-progress-fill"></div>
             </div>
             <div class="dra-deploy-steps" role="list" aria-label="Vier Schritte des Deployments">
@@ -3583,8 +3636,12 @@ class DRAV2DevLabPanel extends HTMLElement {
                 ["Freigabe","Freigabe",deploymentIcons[1],"orange"],
                 ["Update","Update",deploymentIcons[2],"red"],
                 ["Abschluss","Abschluss",deploymentIcons[3],"green"],
-              ].map((item,i) => `<div class="dra-deploy-step ${item[3]} ${i+1 === deploymentStage ? installFailed ? "failed" : "current" : i+1 < deploymentStage ? "done" : "pending"}"
-                role="listitem" aria-label="Schritt ${i+1}: ${item[1]}, ${i+1 === deploymentStage ? deploymentStage===2 ? "noch gesperrt" : "aktuell" : i+1 < deploymentStage ? "abgeschlossen" : "ausstehend"}">
+              ].map((item,i) => `<div class="dra-deploy-step ${item[3]} ${upToDate ?
+                (i === 0 ? "current-review" : "not-required") :
+                i+1 === deploymentStage ? installFailed ? "failed" : "current" : i+1 < deploymentStage ? "done" : "pending"}"
+                role="listitem" aria-label="Schritt ${i+1}: ${item[1]}, ${upToDate ?
+                  (i === 0 ? "geprüft, keine Änderungen" : "nicht erforderlich") :
+                  i+1 === deploymentStage ? deploymentStage===2 ? "noch gesperrt" : "aktuell" : i+1 < deploymentStage ? "abgeschlossen" : "ausstehend"}">
                 ${item[2]}<span>${i+1}. ${item[0]}</span></div>`).join("")}
             </div>
             <p class="dra-deployment-runtime note" aria-label="Laufzeitstatus">
@@ -3596,7 +3653,7 @@ class DRAV2DevLabPanel extends HTMLElement {
               </span>
             </p>
             <p class="dra-deployment-status note" role="status" aria-live="polite">
-              ${this._escapeProject(this._installMessage || deploymentStatus)}
+              ${this._escapeProject(upToDate ? deploymentStatus : this._installMessage || deploymentStatus)}
             </p>
             ${mainPreviewVerified ? `<div class="dra-deployment-result">
               <strong>Schreibgeschützte Vorschau</strong>
@@ -4198,6 +4255,9 @@ class DRAV2DevLabPanel extends HTMLElement {
       if (deploymentBusy || this._mainBatchMode || !mainProject ||
           this._serverVersion !== G2_TEST_PYTHON_VERSION) return;
       this._sourceCheck({dataset:{repo:mainProject.repository}}, true);
+    });
+    s.querySelector("#dra-up-to-date-recheck")?.addEventListener("click",()=>{
+      if (mainProject && !deploymentBusy) this._sourceCheck({dataset:{repo:mainProject.repository}});
     });
     s.querySelector("#dra-next-deployment-preview")?.addEventListener("click",()=>{
       if (!mainProject || deploymentBusy) return;
