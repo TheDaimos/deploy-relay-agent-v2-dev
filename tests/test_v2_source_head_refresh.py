@@ -22,7 +22,7 @@ class SourceHeadContracts(unittest.TestCase):
         self.assertNotIn('async_install_prepare',body)
         self.assertIn('id="dra-source-refresh"',ui)
         self.assertIn('this._sourcePreview = null;',ui)
-        self.assertIn('Neuer Git-Commit erkannt. Alte Vorschau ungültig',ui)
+        self.assertIn('Neuer Git-Commit erkannt: ',ui)
         self.assertIn('projects/source_head',ui)
         self.assertIn('this._installPreparation = null;',ui)
 if __name__=="__main__":
