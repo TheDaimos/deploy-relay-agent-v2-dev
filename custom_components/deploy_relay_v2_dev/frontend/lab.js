@@ -65,6 +65,9 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._installPolling = false;
     this._sourceJobId = null;
     this._sourceConnectionTest = false;
+    this._testVersionBusy = false;
+    this._testVersionConfirm = false;
+    this._testVersionResult = "";
     // Only the admin-only HA test/state endpoint can confirm the running Python version.
     this._serverVersion = null;
     this._sourceJobTimer = null;
@@ -330,6 +333,34 @@ class DRAV2DevLabPanel extends HTMLElement {
       this._installMessage = "Vorbereitung fehlgeschlagen. Keine Dateien wurden geändert.";
     } finally {
       this._installBusy = false;
+      if (this.isConnected) this._render();
+    }
+  }
+
+  async _increaseTestVersion() {
+    if (this._testVersionBusy || !this._testVersionConfirm ||
+        !this._hass || this._serverVersion !== DRA_V2_UI_VERSION) return;
+    this._testVersionBusy = true;
+    this._testVersionResult = "Teststand wird ausschließlich im Test-Repository erhöht …";
+    this._render();
+    try {
+      const result = await this._hass.callWS({
+        type:"deploy_relay_v2_dev/test/version/increment",confirm:true,
+      });
+      if (result?.schema !== "dra-v2-test-version.v1" ||
+          result.repository !== "TheDaimos/Test-Repo-DRA-V2" ||
+          !Number.isInteger(result.before) || result.after !== result.before + 1 ||
+          !/^[a-f0-9]{40}$/.test(result.commit || "")) throw Error("invalid receipt");
+      this._testVersionResult = "Git-Teststand " + result.before + " → " + result.after +
+        " · Commit " + result.commit.slice(0,12) + ". Neue Vorschau kann gestartet werden.";
+      this._sourcePreview = null;
+      this._installPreparation = null;
+      this._dismissedHistoricalProject = "test_repo_dra_v2";
+    } catch (_error) {
+      this._testVersionResult = "Git-Teststand konnte nicht erhöht werden. Token-Schreibrecht und Testdatei prüfen.";
+    } finally {
+      this._testVersionBusy = false;
+      this._testVersionConfirm = false;
       if (this.isConnected) this._render();
     }
   }
@@ -1974,7 +2005,7 @@ class DRAV2DevLabPanel extends HTMLElement {
            aria-label="Sammelupdate markieren"><td>${i+1}</td>
           <td><strong>Sammelupdate</strong><div class="note">${this._mainBatchProjects().length} aktivierte Projekte · gemeinsame Auswahl</div></td>
           <td><span class="project-batch-status">Gruppenauswahl</span></td>
-          <td><button class="project-batch-settings-open project-metal-button" title="Sammelupdate-Auswahl bearbeiten"
+          <td><button class="project-batch-settings-open project-settings-open-style project-metal-button" title="Sammelupdate-Auswahl bearbeiten"
                 aria-label="Sammelupdate-Auswahl bearbeiten" ${this._batchBusy ? "disabled" : ""}>${metalSvg(gearIcon,"batch",i)}</button></td>
           <td><button class="project-move project-metal-button" data-repo="__batch_picker__" data-direction="-1"
               ${i===0 || this._projectBusy || this._checkAllBusy ? "disabled" : ""}
@@ -1995,7 +2026,7 @@ class DRAV2DevLabPanel extends HTMLElement {
           ${p.active === false ? '<span class="project-inactive-label" aria-label="Projekt inaktiv">Inaktiv</span>' : ""}</td>
         <td><button class="source-check ${state}" data-repo="${this._escapeProject(p.repository)}"
           ${this._connectionBusy || this._checkAllBusy || this._projectBusy ? "disabled" : ""} aria-label="GitHub-Verbindung für ${this._escapeProject(p.name)} prüfen" title="Verbindung prüfen">${icon}<span class="project-status-label">${label}</span></button></td>
-        <td><button class="project-settings-open project-metal-button" data-repo="${this._escapeProject(p.repository)}" ${this._checkAllBusy ? "disabled" : ""} aria-label="Einstellungen für ${this._escapeProject(p.name)}" title="Projekteinstellungen">${metalSvg(gearIcon,"settings",i)}</button></td>
+        <td><button class="project-settings-open project-settings-open-style project-metal-button" data-repo="${this._escapeProject(p.repository)}" ${this._checkAllBusy ? "disabled" : ""} aria-label="Einstellungen für ${this._escapeProject(p.name)}" title="Projekteinstellungen">${metalSvg(gearIcon,"settings",i)}</button></td>
         <td><button class="project-move project-metal-button" data-repo="${this._escapeProject(p.repository)}" data-direction="-1" ${i===0 || this._projectBusy || this._checkAllBusy ? "disabled" : ""} aria-label="${this._escapeProject(p.name)} nach oben verschieben" title="Nach oben">${metalSvg(upIcon,"up",i)}</button>
         <button class="project-move project-metal-button" data-repo="${this._escapeProject(p.repository)}" data-direction="1" ${i===this._projects.length || this._projectBusy || this._checkAllBusy ? "disabled" : ""} aria-label="${this._escapeProject(p.name)} nach unten verschieben" title="Nach unten">${metalSvg(downIcon,"down",i)}</button></td></tr>`;
     }).join("");
@@ -2468,6 +2499,10 @@ class DRAV2DevLabPanel extends HTMLElement {
           background:linear-gradient(135deg,#155b40,#1e7650);}
         .dra-deploy-action.stage-3.has-error {border-color:#dc6c70;color:#fff0f0;
           background:linear-gradient(135deg,#713037,#4f2027);}
+        .project-management-dialog .project-management-table button.project-settings-open-style {
+          width:48px;height:48px;min-width:48px;min-height:48px;max-width:48px;
+          margin:0;padding:8px;display:inline-flex;align-items:center;justify-content:center;
+        }
         .dra-tests-panel {margin-top:12px;border:1px solid #455f6c;
           border-radius:12px;background:linear-gradient(145deg,#1a2830,#17232b);}
         .dra-tests-expander>summary {cursor:pointer;padding:15px 18px;display:flex;
@@ -3525,7 +3560,25 @@ class DRAV2DevLabPanel extends HTMLElement {
                     <strong>G2:</strong> ${this._escapeProject(this._sourceMessage || "Prüfung läuft …")}
                   </p>` : ""}
                 </div>
-                <p class="note">Weitere technische Tests können hier später als eigene Einträge ergänzt werden.</p>
+                <div class="dra-test-item" style="margin-top:12px">
+                  <div class="dra-test-item-heading"><strong>Test 2 · Git-Teststand um +1 erhöhen</strong>
+                    <span class="note">Nur isoliertes Test-Repository</span></div>
+                  <p class="note">Ändert ausschließlich <code>teststand</code> in
+                    <code>TheDaimos/Test-Repo-DRA-V2 · main · payload/teststatus.json</code>.
+                    Kein automatisches Deployment, kein HA-Neustart. Der GitHub-Token dieses Testprojekts
+                    benötigt tatsächliche Schreibberechtigung; die hinterlegte Zugriffsart ist keine Freigabe.</p>
+                  <label class="dra-test-confirm"><input type="checkbox" id="dra-test-version-confirm"
+                    ${this._testVersionConfirm ? "checked" : ""} ${this._testVersionBusy ? "disabled" : ""}/>
+                    Ich bestätige die Änderung ausschließlich in der festgelegten Git-Testdatei.</label>
+                  <div class="dra-test-actions">
+                    <button type="button" id="dra-test-version-increment"
+                      ${!this._testVersionConfirm || this._testVersionBusy ||
+                        this._serverVersion !== DRA_V2_UI_VERSION ? "disabled" : ""}>
+                      ${this._testVersionBusy ? "Git-Teststand wird erhöht …" : "Teststand um +1 erhöhen"}</button>
+                  </div>
+                  <p class="dra-test-result note" role="status" aria-live="polite">
+                    ${this._escapeProject(this._testVersionResult || "Bereit zur ausdrücklich bestätigten Git-Teständerung.")}</p>
+                </div>
               </div>
             </details>
           </article>
@@ -4034,6 +4087,13 @@ class DRAV2DevLabPanel extends HTMLElement {
       this._deploymentLogsAction("g2_prepare");
     });
     s.querySelector("#dra-logs-copy")?.addEventListener("click",()=>this._deploymentLogsAction("copy"));
+    s.querySelector("#dra-test-version-confirm")?.addEventListener("change",e=>{
+      this._testVersionConfirm = e.currentTarget.checked;
+      const submit = this.shadowRoot?.querySelector("#dra-test-version-increment");
+      if (submit) submit.disabled = !this._testVersionConfirm || this._testVersionBusy ||
+        this._serverVersion !== DRA_V2_UI_VERSION;
+    });
+    s.querySelector("#dra-test-version-increment")?.addEventListener("click",()=>this._increaseTestVersion());
     s.querySelector("#dra-g2-connection-test")?.addEventListener("click",()=>{
       if (deploymentBusy || this._mainBatchMode || !mainProject ||
           this._serverVersion !== G2_TEST_PYTHON_VERSION) return;
