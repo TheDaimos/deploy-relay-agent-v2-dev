@@ -1385,3 +1385,51 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   assert.deepEqual(sent,["deploy_relay_v2_dev/test/version/increment"]);
   console.log("DRA V2 teststand bump clears completed display without deployment PASS");
 })().catch(error=>{console.error(error);process.exitCode=1;});
+
+(async () => {
+  // A verified zero-change inventory is informational, not step-2 authorisation.
+  const p = new Panel();
+  p._view="main";p._serverVersion="0.1.85";
+  const project={repository:"TheDaimos/Test-Repo-DRA-V2",project_id:"test_repo_dra_v2",name:"Test",active:true};
+  p._projects=[project];p._selectedMainRepo=project.repository;
+  p._sourceRepository=project.repository;
+  p._mainSourceRef="main";p._deploymentPreviewRef="main";
+  const oldJob={operation_id:"a".repeat(32),project_key:project.project_id,
+    source_commit:"b".repeat(40),status:"success",phase:"complete"};
+  p._installJob=oldJob;p._installJobs=[oldJob];
+  p._sourcePreview={repository:project.repository,source_ref:"main",
+    source_commit:"b".repeat(40),sources_verified:true,installation_enabled:false,
+    add:[],change:[],remove:[],unchanged_count:2};
+  const calls=[];
+  p._hass={async callWS(req) {
+    calls.push(req.type);
+    if(req.type==="deploy_relay_v2_dev/deployment/status")return {
+      schema:"dra-v2-install-status.v1",job:oldJob,jobs:[oldJob]};
+    throw Error("No-change deployment may not prepare or start an installation");
+  }};
+  p._render();
+  let html=p.shadowRoot.innerHTML;
+  assert.match(html,/Aktuell · Kein Update verfügbar/);
+  assert.match(html,/Bereits auf dem aktuellen Stand/);
+  assert.match(html,/class="dra-deploy-action stage-1\s+up-to-date/);
+  assert.match(html,/id="dra-preview"[^>]*disabled/);
+  assert.match(html,/id="dra-up-to-date-recheck"/);
+  assert.match(html,/Vorherige Installation · Historie/);
+  assert.doesNotMatch(html,/Serverseitiger Auftrag: success/);
+  assert.doesNotMatch(html,/2\/4 · Installation vorbereiten/);
+  assert.doesNotMatch(html,/FREIGABEBEREIT/);
+  assert.doesNotMatch(html,/id="dra-install-confirm"/);
+  assert.match(html,/Schritt 2: Freigabe, nicht erforderlich/);
+  await p._prepareInstallation(project);
+  assert.deepEqual(calls,[],"no-change state must never call preparation endpoint");
+  await p._pollInstallation();
+  assert.match(p.shadowRoot.innerHTML,/Aktuell · Kein Update verfügbar/,
+    "old successful server receipt must not override no-change state");
+  p._sourcePreview={...p._sourcePreview,source_commit:"c".repeat(40),
+    change:["dra_v2_testprojekt/teststatus.json"],unchanged_count:1};
+  p._render();
+  assert.match(p.shadowRoot.innerHTML,/data-stage="2"/);
+  assert.match(p.shadowRoot.innerHTML,/2\/4 · Installation vorbereiten/);
+  assert.doesNotMatch(p.shadowRoot.innerHTML,/class="dra-deploy-action stage-2\s+up-to-date/);
+  console.log("DRA V2 no-op preview gives neutral current state and never unlocks install PASS");
+})().catch(error=>{console.error(error);process.exitCode=1;});
