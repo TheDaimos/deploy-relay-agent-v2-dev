@@ -48,6 +48,9 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._sourceBusy = false;
     this._sourceRepository = null;
     this._sourceMessage = "";
+    this._sourceHeadBusy = false;
+    this._sourceHead = null;
+    this._sourceHeadMessage = "";
     this._sourcePreview = null;
     this._previewDetailsOpen = false;
     this._previewFileFilter = "all";
@@ -1231,6 +1234,43 @@ class DRAV2DevLabPanel extends HTMLElement {
     }
   }
 
+  async _refreshSourceHead() {
+    const project = this._projects.find(p=>p.repository===this._selectedMainRepo);
+    if (!this._hass || !project || this._mainBatchMode || this._sourceHeadBusy ||
+        this._sourceBusy || this._installBusy || this._installPreparation) return;
+    this._sourceHeadBusy = true;
+    this._sourceHeadMessage = "Neuester Git-Commit wird abgefragt …";
+    this._render();
+    try {
+      const ref = this._mainSourceRef.trim();
+      const result = await this._hass.callWS({
+        type:"deploy_relay_v2_dev/projects/source_head",
+        repository:project.repository,ref,
+      });
+      if (result?.schema !== "dra-v2-source-head.v1" ||
+          result.repository !== project.repository || !/^[a-f0-9]{40}$/.test(result.commit || "") ||
+          typeof result.ref !== "string") throw Error("invalid source head");
+      this._sourceHead = result;
+      const previous = this._sourcePreview;
+      if (previous && previous.source_commit !== result.commit &&
+          previous.repository === result.repository) {
+        this._sourcePreview = null;
+        this._installPreparation = null;
+        this._deploymentPreviewRef = null;
+        this._sourceHeadMessage = "Neuer Git-Commit erkannt. Alte Vorschau ungültig; bitte neu berechnen.";
+      } else {
+        this._sourceHeadMessage = previous && previous.source_commit === result.commit
+          ? "Git-Quelle unverändert. Vorhandene Vorschau bleibt gültig."
+          : "Aktuellen Git-Commit gelesen. Für Dateivergleich eine neue Vorschau berechnen.";
+      }
+    } catch (_error) {
+      this._sourceHeadMessage = "Git-Quellstand nicht abrufbar. Keine Installationsfreigabe erteilt.";
+    } finally {
+      this._sourceHeadBusy = false;
+      this._render();
+    }
+  }
+
   async _sourceCheck(button, connectionTest = false) {
     if (!button || !this._hass || this._sourceBusy) return;
     if (connectionTest && this._serverVersion !== G2_TEST_PYTHON_VERSION) {
@@ -1246,6 +1286,8 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._sourceRepository = repository;
     this._sourceBusy = true;
     this._sourcePreview = null;
+    this._sourceHead = null;
+    this._sourceHeadMessage = "";
     this._deploymentPreviewRef = null;
     this._sourceJobId = null;
     this._sourceConnectionTest = connectionTest === true;
@@ -2275,6 +2317,8 @@ class DRAV2DevLabPanel extends HTMLElement {
         /* One-button deployment workflow; V1-inspired moving progress strip. */
         .dra-source-title {display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
         .dra-source-title h2 {margin:0;}
+        .dra-source-actions {display:flex;align-items:center;flex-wrap:wrap;gap:8px;}
+        .dra-source-actions button {margin:0;min-height:34px;padding:6px 12px;}
         .dra-source-badge {font-size:12px;font-weight:700;padding:6px 10px;border-radius:20px;
           border:1px solid #a37b35;background:rgba(148,105,33,.12);color:#e9cf93;}
         .dra-source-badge.verified {border-color:#44996a;background:rgba(26,120,70,.13);color:#a4edbd;}
@@ -3201,10 +3245,16 @@ class DRAV2DevLabPanel extends HTMLElement {
           <article class="dra-source-card">
             <div class="dra-source-title">
               <h2>Quelle & Version</h2>
+              <div class="dra-source-actions">
+                <button type="button" id="dra-source-refresh" ${this._mainBatchMode ||
+                  !mainProject || this._sourceHeadBusy || deploymentBusy || !!this._installPreparation ? "disabled" : ""}>
+                  ${this._sourceHeadBusy ? "Prüfe …" : "Aktualisieren"}
+                </button>
               <span class="dra-source-badge ${mainPreviewVerified ? "verified" : "unverified"}">
                 ${mainPreviewVerified ? "Quelle geprüft" : this._mainBatchMode ? "Mehrere Projekte" : "Prüfung ausstehend"}
-              </span>
+              </span></div>
             </div>
+            ${this._sourceHeadMessage ? `<p class="note" role="status">${this._escapeProject(this._sourceHeadMessage)}</p>` : ""}
             ${this._mainBatchMode ? `
               <div class="dra-source-info">
                 <strong>Sammelupdate · ${mainBatchProjects.length} Projekte</strong>
@@ -4040,6 +4090,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     `;
     s.querySelector("#dra-toggle")?.addEventListener("click",()=>this._navigateMainView(this._view==="main"?"settings":"main"));
     s.querySelector("#dra-refresh")?.addEventListener("click",()=>this._refresh());
+    s.querySelector("#dra-source-refresh")?.addEventListener("click",()=>this._refreshSourceHead());
     s.querySelector("#dra-project-picker-open")?.addEventListener("click",()=>this._openProjectPicker());
     s.querySelector("#dra-picker-close")?.addEventListener("click",()=>this._closeProjectPicker());
     s.querySelector("#dra-picker-dialog")?.addEventListener("keydown",event=>{
