@@ -59,6 +59,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._installJobs = [];
     this._dismissedHistoricalProject = null;
     this._installBusy = false;
+    this._installSubmissionActive = false;
     this._installMessage = "";
     this._installTimer = null;
     this._installPolling = false;
@@ -343,6 +344,7 @@ class DRAV2DevLabPanel extends HTMLElement {
         this._deploymentPreviewRef !== this._mainSourceRef.trim()) return;
     this._installPreparation = null;
     this._installBusy = true;
+    this._installSubmissionActive = true;
     this._installMessage = "Der Auftrag wird an Home Assistant übergeben …";
     this._render();
     try {
@@ -360,6 +362,7 @@ class DRAV2DevLabPanel extends HTMLElement {
       this._installMessage = "Auftragsannahme nicht bestätigt. Bitte zuerst Serverstatus aktualisieren.";
     } finally {
       this._installBusy = false;
+      this._installSubmissionActive = false;
       if (this.isConnected) this._render();
     }
   }
@@ -1909,7 +1912,7 @@ class DRAV2DevLabPanel extends HTMLElement {
       this._installPreparation.source_ref === this._sourcePreview?.source_ref
         ? this._installPreparation : null;
     const deploymentStage = displayFinished ? 4 :
-      (installActive || installFailed) ? 3 : mainPreviewVerified ? 2 : 1;
+      (this._installSubmissionActive || installActive || installFailed) ? 3 : mainPreviewVerified ? 2 : 1;
     const deploymentCanPreview = this._mainBatchMode
       ? mainBatchProjects.length > 0 && !!this._hass
       : !!mainProject && !!this._hass;
@@ -1917,6 +1920,7 @@ class DRAV2DevLabPanel extends HTMLElement {
       archivedFinish ? "4/4 · Letzter Abschluss (gespeichert)" :
       installFailed ? "3/4 · Update fehlgeschlagen – Audit prüfen" :
       installActive ? "3/4 · Update läuft …" :
+      this._installSubmissionActive ? "3/4 · Auftrag wird an Home Assistant übergeben …" :
       deploymentBusy
       ? "1/4 · " + (this._mainBatchMode ? "Projektauswahl wird geprüft …" : "Vorschau wird berechnet …")
       : mainPreviewVerified ? "2/4 · Installation vorbereiten"
@@ -3439,7 +3443,7 @@ class DRAV2DevLabPanel extends HTMLElement {
             <div class="dra-deploy-progress ${displayFinished ? "completed" : installFailed ? "failed" : deploymentBusy || installActive ? "running" : mainPreviewVerified ? "verified" : "idle"}"
               role="progressbar" aria-label="Deployment-Fortschritt"
               aria-valuemin="0" aria-valuemax="4"
-              aria-valuenow="${displayFinished ? 4 : installActive || installFailed ? 3 : mainPreviewVerified ? 1 : 0}">
+              aria-valuenow="${displayFinished ? 4 : this._installSubmissionActive || installActive || installFailed ? 3 : mainPreviewVerified ? 1 : 0}">
               <div class="dra-deploy-progress-fill"></div>
             </div>
             <div class="dra-deploy-steps" role="list" aria-label="Vier Schritte des Deployments">
