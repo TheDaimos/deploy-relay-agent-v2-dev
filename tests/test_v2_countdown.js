@@ -403,7 +403,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   assert.equal((html.match(/aria-label="Projekt inaktiv">Inaktiv<\/span>/g)||[]).length,1);
   assert.doesNotMatch(html, /Status: <strong>Inaktiv/);
   assert.equal((html.match(/project-inactive-label/g)||[]).length >= 1,true);
-  assert.match(html, /class="project-settings-open project-metal-button"/);
+  assert.match(html, /class="project-settings-open project-settings-open-style project-metal-button"/);
   assert.match(html, /class="project-move project-metal-button"/);
   assert.match(html, /<linearGradient id="dra-metal-settings-0"/);
   assert.match(html, /<linearGradient id="dra-metal-up-0"/);
