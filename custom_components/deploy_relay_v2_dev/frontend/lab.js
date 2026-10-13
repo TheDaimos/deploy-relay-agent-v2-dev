@@ -65,6 +65,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._installPolling = false;
     this._sourceJobId = null;
     this._sourceConnectionTest = false;
+    this._testsOpen = false;
     this._testVersionBusy = false;
     this._testVersionConfirm = false;
     this._testVersionResult = "";
@@ -3540,7 +3541,7 @@ class DRAV2DevLabPanel extends HTMLElement {
             </p>
           </article>
           <article class="dra-tests-panel">
-            <details class="dra-tests-expander" id="dra-tests-expander">
+            <details class="dra-tests-expander" id="dra-tests-expander" ${this._testsOpen ? "open" : ""}>
               <summary><span>Tests · Entwicklungsdiagnose</span><span class="note">Technische Prüfungen ohne Installation</span></summary>
               <div class="dra-tests-content">
                 <div class="dra-test-item">
@@ -4087,6 +4088,9 @@ class DRAV2DevLabPanel extends HTMLElement {
       this._deploymentLogsAction("g2_prepare");
     });
     s.querySelector("#dra-logs-copy")?.addEventListener("click",()=>this._deploymentLogsAction("copy"));
+    s.querySelector("#dra-tests-expander")?.addEventListener("toggle",e=>{
+      this._testsOpen = e.currentTarget.open;
+    });
     s.querySelector("#dra-test-version-confirm")?.addEventListener("change",e=>{
       this._testVersionConfirm = e.currentTarget.checked;
       const submit = this.shadowRoot?.querySelector("#dra-test-version-increment");
