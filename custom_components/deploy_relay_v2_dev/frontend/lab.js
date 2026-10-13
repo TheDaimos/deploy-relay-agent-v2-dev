@@ -57,6 +57,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._installJobId = null;
     this._installJob = null;
     this._installJobs = [];
+    this._dismissedHistoricalProject = null;
     this._installBusy = false;
     this._installMessage = "";
     this._installTimer = null;
@@ -1895,7 +1896,8 @@ class DRAV2DevLabPanel extends HTMLElement {
     const lastStoredSuccess = !jobBelongsToProject && !!mainProject &&
       this._installAuditRecords.find(event => event.project_key === mainProject.project_id &&
         event.stage === "success" && event.status === "success") || null;
-    const archivedFinish = !!lastStoredSuccess && !mainPreviewVerified &&
+    const archivedFinish = !!lastStoredSuccess &&
+      this._dismissedHistoricalProject !== mainProject?.project_id && !mainPreviewVerified &&
       !installActive && !this._installBusy;
     const displayFinished = installFinished || archivedFinish;
     const installFailed = jobBelongsToProject &&
@@ -3406,6 +3408,7 @@ class DRAV2DevLabPanel extends HTMLElement {
               <span>Zeit: ${this._escapeProject(this._formatHistoryTime(lastStoredSuccess.captured_at))}</span>
               <span class="note">Historischer Abschluss – keine aktuelle Quellprüfung, keine neue Freigabe.
                 Für weitere Aktualisierungen stets eine neue Vorschau starten.</span>
+              <button type="button" id="dra-historical-new-preview">Neue Vorschau für dieses Projekt berechnen</button>
             </div>` : ""}
             ${this._installJob ? `<div class="dra-deployment-result" role="status">
               <strong>Serverseitiger Auftrag: ${this._escapeProject(this._installJob.status)}</strong>
@@ -3991,6 +3994,11 @@ class DRAV2DevLabPanel extends HTMLElement {
     s.querySelector("#dra-g2-connection-test")?.addEventListener("click",()=>{
       if (deploymentBusy || this._mainBatchMode || !mainProject) return;
       this._sourceCheck({dataset:{repo:mainProject.repository}}, true);
+    });
+    s.querySelector("#dra-historical-new-preview")?.addEventListener("click",()=>{
+      if (!mainProject || deploymentBusy) return;
+      this._dismissedHistoricalProject = mainProject.project_id;
+      this._sourceCheck({dataset:{repo:mainProject.repository}});
     });
     s.querySelector("#dra-preview")?.addEventListener("click",()=>{
       if (deploymentBusy) return;
