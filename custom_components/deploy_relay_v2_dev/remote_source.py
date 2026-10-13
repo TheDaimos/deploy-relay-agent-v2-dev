@@ -339,6 +339,29 @@ async def _get(session, url: str, *, token: str | None = None) -> dict:
     raise PreflightError("GitHub response could not be verified")
 
 
+async def inspect_source_head(session, repository: str, ref: str = "", *, token: str | None = None) -> dict:
+    """Read only the current GitHub commit. No manifest, file inventory or installation."""
+    try:
+        repository = normalize_repo(repository)
+        ref = source_ref(ref)
+    except (CatalogError, PreflightError):
+        raise PreflightError("invalid source selection") from None
+    owner, name = repository.split("/")
+    base = f"{API}/repos/{quote(owner, safe='')}/{quote(name, safe='')}"
+    if not ref:
+        meta = await _get(session, base, token=token)
+        if meta.get("full_name", "").casefold() != repository.casefold():
+            raise PreflightError("repository mismatch")
+        ref = source_ref(meta.get("default_branch", ""))
+        if not ref:
+            raise PreflightError("missing default branch")
+    head = await _get(session, base + "/commits/" + quote(ref, safe=""), token=token)
+    sha = head.get("sha")
+    if type(sha) is not str or len(sha) != 40 or any(ch not in "0123456789abcdef" for ch in sha):
+        raise PreflightError("invalid source commit")
+    return {"schema": "dra-v2-source-head.v1", "repository": repository, "ref": ref, "commit": sha}
+
+
 async def inspect_repository_connection(session, repository: str, *, token: str | None = None) -> dict:
     """Check GitHub repository visibility using GET only, independent of a DRA manifest.
 
