@@ -1307,3 +1307,81 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   assert.doesNotMatch(grouped.shadowRoot.innerHTML,/data-stage="2"/);
   console.log("DRA V2 unverified group preview does not unlock write step PASS");
 })().catch(error => {console.error(error);process.exitCode=1;});
+
+(async () => {
+  // Regression: a successful 4/4 MUST NOT trap the next teststand at 4/4.
+  const p=new Panel();
+  p._view="main";p._serverVersion="0.1.84";
+  const project={repository:"TheDaimos/Test-Repo-DRA-V2",project_id:"test_repo_dra_v2",name:"Test",active:true};
+  p._projects=[project];p._selectedMainRepo=project.repository;
+  p._mainSourceRef="main";p._deploymentPreviewRef="main";p._sourceRepository=project.repository;
+  const original="1".repeat(40), updated="2".repeat(40), operation="3".repeat(32);
+  p._sourcePreview={repository:project.repository,source_ref:"main",source_commit:original,
+    sources_verified:true,installation_enabled:false,add:[],change:[],remove:[],unchanged_count:2};
+  const oldJob={operation_id:operation,project_key:project.project_id,source_commit:original,
+    status:"success",phase:"complete",restart_required:false};
+  p._installJob=oldJob;p._installJobs=[oldJob];
+  const sent=[];
+  p._hass={async callWS(req){
+    sent.push(req.type);
+    if(req.type==="deploy_relay_v2_dev/projects/source_head") return {
+      schema:"dra-v2-source-head.v1",repository:project.repository,ref:"main",commit:updated};
+    if(req.type==="deploy_relay_v2_dev/deployment/status")return {
+      schema:"dra-v2-install-status.v1",job:oldJob,jobs:[oldJob]};
+    if(req.type==="deploy_relay_v2_dev/projects/source_job/start") return {
+      schema:"dra-v2-source-preview-job.v1",operation_id:"4".repeat(32),installation_enabled:false};
+    if(req.type==="deploy_relay_v2_dev/projects/source_job/status")return {
+      schema:"dra-v2-source-preview-job-status.v1",installation_enabled:false,job:{
+        schema:"dra-v2-source-preview-job.v1",operation_id:"4".repeat(32),
+        repository:project.repository,ref:"main",status:"success",connection_test:false,
+        installation_enabled:false,result:{repository:project.repository,source_ref:"main",
+          source_commit:updated,sources_verified:true,installation_enabled:false,
+          add:[],change:["dra_v2_testprojekt/teststatus.json"],remove:[],unchanged_count:1}}};
+    throw Error("unexpected WS: "+req.type);
+  }};
+  p._render();
+  assert.match(p.shadowRoot.innerHTML,/data-stage="4"/);
+  assert.match(p.shadowRoot.innerHTML,/id="dra-next-deployment-preview"/);
+  await p._refreshSourceHead();
+  assert.equal(p._sourcePreview,null,"changed HEAD invalidates the old preview");
+  assert.match(p._sourceHeadMessage,/Neuer Git-Commit erkannt/);
+  assert.match(p.shadowRoot.innerHTML,/data-stage="1"/,"new commit reopens step 1");
+  assert.doesNotMatch(p.shadowRoot.innerHTML,/id="dra-preview"[^>]*disabled/);
+  await p._pollInstallation();
+  assert.match(p.shadowRoot.innerHTML,/data-stage="1"/,
+    "server polling the old success must not relock the stepper");
+  await p._sourceCheck({dataset:{repo:project.repository}});
+  assert.match(p.shadowRoot.innerHTML,/data-stage="2"/,
+    "new commit source preview must permit step 2");
+  assert.equal(p._sourcePreview.source_commit,updated);
+  assert(!sent.includes("deploy_relay_v2_dev/deployment/start"),
+    "refresh and preview must never trigger installation");
+  console.log("DRA V2 completed cycle releases next Git HEAD preview without reinstall PASS");
+})().catch(error=>{console.error(error);process.exitCode=1;});
+
+(async () => {
+  // Teststand +1 writes only Git; it also releases an otherwise stuck 4/4.
+  const p=new Panel();
+  p._view="main";p._serverVersion="0.1.84";p._testVersionConfirm=true;
+  const project={repository:"TheDaimos/Test-Repo-DRA-V2",project_id:"test_repo_dra_v2",
+    name:"Test",active:true};
+  p._projects=[project];p._selectedMainRepo=project.repository;
+  p._installJob={operation_id:"a".repeat(32),project_key:project.project_id,
+    source_commit:"b".repeat(40),status:"success",phase:"complete"};
+  p._sourcePreview={repository:project.repository,source_commit:"b".repeat(40),
+    sources_verified:true,installation_enabled:false};
+  const sent=[];
+  p._hass={async callWS(req){
+    sent.push(req.type);assert.equal(req.confirm,true);
+    return {schema:"dra-v2-test-version.v1",repository:project.repository,
+      before:3,after:4,commit:"c".repeat(40)};
+  }};
+  p._render();
+  assert.match(p.shadowRoot.innerHTML,/data-stage="4"/);
+  await p._increaseTestVersion();
+  assert.match(p.shadowRoot.innerHTML,/data-stage="1"/,
+    "teststand +1 must release the old 4/4");
+  assert.equal(p._sourcePreview,null);
+  assert.deepEqual(sent,["deploy_relay_v2_dev/test/version/increment"]);
+  console.log("DRA V2 teststand bump clears completed display without deployment PASS");
+})().catch(error=>{console.error(error);process.exitCode=1;});
