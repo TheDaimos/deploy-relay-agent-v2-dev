@@ -61,6 +61,8 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._installJob = null;
     this._installJobs = [];
     this._dismissedHistoricalProject = null;
+    // Old server receipts remain visible in Audit but must not lock a new deployment.
+    this._supersededCompletionIds = new Set();
     this._installBusy = false;
     this._installSubmissionActive = false;
     this._installMessage = "";
@@ -341,6 +343,20 @@ class DRAV2DevLabPanel extends HTMLElement {
     }
   }
 
+  _releaseCompletedDeployment(project) {
+    // A completed operation is audit history, never a new installation approval.
+    // Keep the server receipt but stop using it as the active stepper state.
+    if (!project) return;
+    if (this._installJob?.project_key === project.project_id &&
+        this._installJob?.status === "success" &&
+        /^[a-f0-9]{32}$/.test(this._installJob.operation_id || "")) {
+      this._supersededCompletionIds.add(this._installJob.operation_id);
+    }
+    this._dismissedHistoricalProject = project.project_id;
+    this._installPreparation = null;
+    this._installMessage = "";
+  }
+
   async _increaseTestVersion() {
     if (this._testVersionBusy || !this._testVersionConfirm ||
         !this._hass || this._serverVersion !== DRA_V2_UI_VERSION) return;
@@ -357,9 +373,16 @@ class DRAV2DevLabPanel extends HTMLElement {
           !/^[a-f0-9]{40}$/.test(result.commit || "")) throw Error("invalid receipt");
       this._testVersionResult = "Git-Teststand " + result.before + " → " + result.after +
         " · Commit " + result.commit.slice(0,12) + ". Neue Vorschau kann gestartet werden.";
-      this._sourcePreview = null;
-      this._installPreparation = null;
-      this._dismissedHistoricalProject = "test_repo_dra_v2";
+      // The isolated test repository now has a new commit. A previous 4/4
+      // result must never disable its next source inspection.
+      const selected = this._projects.find(p=>p.repository===this._selectedMainRepo);
+      if (selected?.repository === result.repository) {
+        this._releaseCompletedDeployment(selected);
+        this._sourcePreview = null;
+        this._deploymentPreviewRef = null;
+        this._sourceHead = null;
+        this._sourceHeadMessage = "Teststand erhöht. Git-Quellstand aktualisieren oder neue Vorschau berechnen.";
+      }
     } catch (_error) {
       this._testVersionResult = "Git-Teststand konnte nicht erhöht werden. Token-Schreibrecht und Testdatei prüfen.";
     } finally {
@@ -1251,18 +1274,29 @@ class DRAV2DevLabPanel extends HTMLElement {
       if (result?.schema !== "dra-v2-source-head.v1" ||
           result.repository !== project.repository || !/^[a-f0-9]{40}$/.test(result.commit || "") ||
           typeof result.ref !== "string") throw Error("invalid source head");
+      // Do not apply a response if project/ref changed while awaiting GitHub.
+      if (this._selectedMainRepo !== project.repository ||
+          this._mainSourceRef.trim() !== ref) return;
+      const previous = this._sourcePreview?.repository === project.repository
+        ? this._sourcePreview : null;
+      const priorHead = this._sourceHead?.repository === project.repository &&
+        this._sourceHead?.ref === result.ref ? this._sourceHead.commit : null;
+      const installedCommit = this._installJob?.project_key === project.project_id
+        ? this._installJob.source_commit : null;
+      const knownCommit = previous?.source_commit || priorHead || installedCommit;
       this._sourceHead = result;
-      const previous = this._sourcePreview;
-      if (previous && previous.source_commit !== result.commit &&
-          previous.repository === result.repository) {
+      if (knownCommit && knownCommit !== result.commit) {
+        this._releaseCompletedDeployment(project);
         this._sourcePreview = null;
-        this._installPreparation = null;
         this._deploymentPreviewRef = null;
-        this._sourceHeadMessage = "Neuer Git-Commit erkannt. Alte Vorschau ungültig; bitte neu berechnen.";
+        this._sourceHeadMessage = "Neuer Git-Commit erkannt: " + result.commit.slice(0,12) +
+          ". Alte Vorschau ungültig – neuen Durchlauf mit Vorschau beginnen.";
       } else {
-        this._sourceHeadMessage = previous && previous.source_commit === result.commit
-          ? "Git-Quelle unverändert. Vorhandene Vorschau bleibt gültig."
-          : "Aktuellen Git-Commit gelesen. Für Dateivergleich eine neue Vorschau berechnen.";
+        this._sourceHeadMessage = knownCommit === result.commit
+          ? "Git-Quelle unverändert (" + result.commit.slice(0,12) +
+            "). Bestehende Vorschau bleibt gültig."
+          : "Aktueller Git-Commit: " + result.commit.slice(0,12) +
+            ". Für Dateivergleich neue Vorschau berechnen.";
       }
     } catch (_error) {
       this._sourceHeadMessage = "Git-Quellstand nicht abrufbar. Keine Installationsfreigabe erteilt.";
@@ -1282,6 +1316,11 @@ class DRAV2DevLabPanel extends HTMLElement {
       return;
     }
     const repository = button.dataset.repo;
+    // A new ordinary preview explicitly begins the next cycle; G2 never does.
+    if (!connectionTest && this._view === "main") {
+      const selected = this._projects.find(p=>p.repository===repository);
+      this._releaseCompletedDeployment(selected);
+    }
     const ref = this._view === "main" ? this._mainSourceRef.trim() :
       (this.shadowRoot?.querySelector("#source-ref")?.value?.trim() || "");
     this._sourceRepository = repository;
@@ -1970,7 +2009,8 @@ class DRAV2DevLabPanel extends HTMLElement {
     const jobBelongsToProject = !!mainProject &&
       this._installJob?.project_key === mainProject.project_id;
     const installFinished = jobBelongsToProject &&
-      this._installJob?.status === "success" && this._installJob?.phase === "complete";
+      this._installJob?.status === "success" && this._installJob?.phase === "complete" &&
+      !this._supersededCompletionIds.has(this._installJob?.operation_id);
     const lastStoredSuccess = !jobBelongsToProject && !!mainProject &&
       this._installAuditRecords.find(event => event.project_key === mainProject.project_id &&
         event.stage === "success" && event.status === "success") || null;
@@ -3520,8 +3560,11 @@ class DRAV2DevLabPanel extends HTMLElement {
               <span>Zeit: ${this._escapeProject(this._formatHistoryTime(lastStoredSuccess.captured_at))}</span>
               <span class="note">Historischer Abschluss – keine aktuelle Quellprüfung, keine neue Freigabe.
                 Für weitere Aktualisierungen stets eine neue Vorschau starten.</span>
-              <button type="button" id="dra-historical-new-preview">Neue Vorschau für dieses Projekt berechnen</button>
+              <span class="note">Eine neue Quellprüfung startet keine Installation.</span>
             </div>` : ""}
+            ${(installFinished || archivedFinish) && mainProject ? `
+              <button type="button" id="dra-next-deployment-preview"
+                ${deploymentBusy ? "disabled" : ""}>Neue Vorschau für dieses Projekt berechnen</button>` : ""}
             ${this._installJob ? `<div class="dra-deployment-result" role="status">
               <strong>Serverseitiger Auftrag: ${this._escapeProject(this._installJob.status)}</strong>
               <span>Schritt: ${this._escapeProject(this._installJob.phase)}</span>
@@ -4156,9 +4199,8 @@ class DRAV2DevLabPanel extends HTMLElement {
           this._serverVersion !== G2_TEST_PYTHON_VERSION) return;
       this._sourceCheck({dataset:{repo:mainProject.repository}}, true);
     });
-    s.querySelector("#dra-historical-new-preview")?.addEventListener("click",()=>{
+    s.querySelector("#dra-next-deployment-preview")?.addEventListener("click",()=>{
       if (!mainProject || deploymentBusy) return;
-      this._dismissedHistoricalProject = mainProject.project_id;
       this._sourceCheck({dataset:{repo:mainProject.repository}});
     });
     s.querySelector("#dra-preview")?.addEventListener("click",()=>{
