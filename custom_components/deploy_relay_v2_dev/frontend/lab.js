@@ -1237,7 +1237,8 @@ class DRAV2DevLabPanel extends HTMLElement {
   async _refreshSourceHead() {
     const project = this._projects.find(p=>p.repository===this._selectedMainRepo);
     if (!this._hass || !project || this._mainBatchMode || this._sourceHeadBusy ||
-        this._sourceBusy || this._installBusy || this._installPreparation) return;
+        this._sourceBusy || this._installBusy || this._installPreparation ||
+        this._serverVersion !== DRA_V2_UI_VERSION) return;
     this._sourceHeadBusy = true;
     this._sourceHeadMessage = "Neuester Git-Commit wird abgefragt …";
     this._render();
@@ -3247,7 +3248,8 @@ class DRAV2DevLabPanel extends HTMLElement {
               <h2>Quelle & Version</h2>
               <div class="dra-source-actions">
                 <button type="button" id="dra-source-refresh" ${this._mainBatchMode ||
-                  !mainProject || this._sourceHeadBusy || deploymentBusy || !!this._installPreparation ? "disabled" : ""}>
+                  !mainProject || this._sourceHeadBusy || deploymentBusy || !!this._installPreparation ||
+                  this._serverVersion !== DRA_V2_UI_VERSION ? "disabled" : ""}>
                   ${this._sourceHeadBusy ? "Prüfe …" : "Aktualisieren"}
                 </button>
               <span class="dra-source-badge ${mainPreviewVerified ? "verified" : "unverified"}">
