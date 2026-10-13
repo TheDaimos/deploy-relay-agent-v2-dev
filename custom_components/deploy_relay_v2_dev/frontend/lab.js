@@ -2464,6 +2464,22 @@ class DRAV2DevLabPanel extends HTMLElement {
           background:linear-gradient(135deg,#155b40,#1e7650);}
         .dra-deploy-action.stage-3.has-error {border-color:#dc6c70;color:#fff0f0;
           background:linear-gradient(135deg,#713037,#4f2027);}
+        .dra-tests-panel {margin-top:12px;border:1px solid #455f6c;
+          border-radius:12px;background:linear-gradient(145deg,#1a2830,#17232b);}
+        .dra-tests-expander>summary {cursor:pointer;padding:15px 18px;display:flex;
+          flex-wrap:wrap;justify-content:space-between;gap:8px;align-items:center;
+          color:#f0d39f;font-size:14px;font-weight:700;}
+        .dra-tests-expander>summary .note {font-size:11px;font-weight:400;}
+        .dra-tests-content {padding:0 18px 16px;}
+        .dra-test-item {padding:13px;border:1px solid #425c6c;border-radius:9px;
+          background:#20313d;}
+        .dra-test-item-heading {display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;
+          color:#f3d69f;}
+        .dra-test-item .note {line-height:1.55;}
+        .dra-test-actions {display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin:10px 0;}
+        .dra-test-actions button {min-height:42px;}
+        .dra-test-result {padding:10px;border-left:3px solid #55bdd5;background:#162936;
+          border-radius:5px;overflow-wrap:anywhere;}
         .dra-deployment-runtime {display:flex;flex-wrap:wrap;gap:6px;align-items:center;
           margin:12px 0 6px;color:#acbdc9;font-size:12px;}
         .dra-deployment-runtime .runtime-ok {color:#8dd9b1;}
@@ -3484,7 +3500,31 @@ class DRAV2DevLabPanel extends HTMLElement {
               und eine separate Bestätigung. Sammelupdates und Selbstupdate folgen später.
             </p>
           </article>
-
+          <article class="dra-tests-panel">
+            <details class="dra-tests-expander" id="dra-tests-expander">
+              <summary><span>Tests · Entwicklungsdiagnose</span><span class="note">Technische Prüfungen ohne Installation</span></summary>
+              <div class="dra-tests-content">
+                <div class="dra-test-item">
+                  <div class="dra-test-item-heading"><strong>G2 · Sichere Wiederverbindung (60 s)</strong>
+                    <span class="note">Serverseitiger, rein lesender Prüfauftrag</span></div>
+                  <p class="note">Prüft, ob ein Auftrag auch bei geschlossenem oder getrenntem Browser auf
+                    Home Assistant weiterläuft und nach der Wiederverbindung wiedergefunden wird.
+                    Kein Schreibzugriff, keine Installation und kein Neustart.</p>
+                  <div class="dra-test-actions">
+                    <button type="button" id="dra-g2-connection-test"
+                      ${this._mainBatchMode || deploymentBusy || !mainProject || !this._hass ||
+                        this._serverVersion !== G2_TEST_PYTHON_VERSION ? "disabled" : ""}>
+                      G2-Verbindungstest starten (60 s)</button>
+                    <span class="note">Projekt: ${mainProject ? this._escapeProject(mainProject.name) : "Kein Projekt ausgewählt"}</span>
+                  </div>
+                  ${this._sourceConnectionTest ? `<p class="dra-test-result" role="status">
+                    <strong>G2:</strong> ${this._escapeProject(this._sourceMessage || "Prüfung läuft …")}
+                  </p>` : ""}
+                </div>
+                <p class="note">Weitere technische Tests können hier später als eigene Einträge ergänzt werden.</p>
+              </div>
+            </details>
+          </article>
         </section>
         <section id="dra-settings-view" ${this._view==="settings"?"":"hidden"}>
         <h1>DRA V2 DEV · Diagnose & Einstellungen</h1>
@@ -3990,6 +4030,11 @@ class DRAV2DevLabPanel extends HTMLElement {
       this._deploymentLogsAction("g2_prepare");
     });
     s.querySelector("#dra-logs-copy")?.addEventListener("click",()=>this._deploymentLogsAction("copy"));
+    s.querySelector("#dra-g2-connection-test")?.addEventListener("click",()=>{
+      if (deploymentBusy || this._mainBatchMode || !mainProject ||
+          this._serverVersion !== G2_TEST_PYTHON_VERSION) return;
+      this._sourceCheck({dataset:{repo:mainProject.repository}}, true);
+    });
     s.querySelector("#dra-historical-new-preview")?.addEventListener("click",()=>{
       if (!mainProject || deploymentBusy) return;
       this._dismissedHistoricalProject = mainProject.project_id;
