@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import binascii
 import json
 
 REPOSITORY = "TheDaimos/Test-Repo-DRA-V2"
@@ -63,7 +64,7 @@ async def increase_test_version(session, token: str) -> dict:
             type(source.get("sha")) is not str or len(source["sha"]) != 40 or
             type(source.get("content")) is not str or
             source.get("encoding") != "base64" or
-            source.get("size", 99999) > 2048):
+            type(source.get("size")) is not int or source["size"] > 2048):
             raise TestVersionError("Unerwartete GitHub-Dateiangaben")
         before, after, new_file = next_test_status(base64.b64decode(source["content"], validate=True))
         payload = {
@@ -74,10 +75,10 @@ async def increase_test_version(session, token: str) -> dict:
         async with asyncio.timeout(16):
             async with session.put(API_URL, headers=headers, json=payload,
                                    allow_redirects=False) as response:
-                reply = await response.content.read(4097)
-                if response.status == 409:
+                reply = await response.content.read(16385)
+                if response.status in (409, 422):
                     raise TestVersionError("Git-Konflikt: Datei inzwischen geändert")
-                if response.status not in (200, 201) or len(reply) > 4096:
+                if response.status not in (200, 201) or len(reply) > 16384:
                     raise TestVersionError("GitHub hat die Teständerung nicht bestätigt")
         result = json.loads(reply)
         commit = result.get("commit") if isinstance(result, dict) else None
@@ -88,5 +89,5 @@ async def increase_test_version(session, token: str) -> dict:
                 "after": after, "commit": sha, "repository": REPOSITORY}
     except TestVersionError:
         raise
-    except (OSError, ValueError, UnicodeError, asyncio.TimeoutError):
+    except (OSError, ValueError, UnicodeError, binascii.Error, TypeError, asyncio.TimeoutError):
         raise TestVersionError("GitHub-Teständerung fehlgeschlagen") from None
