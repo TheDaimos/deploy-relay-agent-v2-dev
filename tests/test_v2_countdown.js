@@ -993,7 +993,8 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   await versions._refresh();
   assert.deepEqual(requests,[
     "deploy_relay_v2_dev/test/state",
-    "deploy_relay_v2_dev/deployment/status"
+    "deploy_relay_v2_dev/deployment/status",
+    "deploy_relay_v2_dev/deployment/audit"
   ]);
   assert.match(versions.shadowRoot.innerHTML,/id="dra-version" class="dra-version matched"/);
   assert.match(versions.shadowRoot.innerHTML,/HA-Laufzeit: V0\.1\.80 DEV/);
