@@ -44,9 +44,9 @@ class LabIsolationContracts(unittest.TestCase):
         self.assertIn('PANEL_PATH: Final = "dra-v2-dev-lab"', const)
         self.assertIn('STATIC_PATH: Final = "/dra_v2_dev_static"', const)
         self.assertIn('PANEL_ELEMENT: Final = "dra-v2-dev-lab-panel"', const)
-        self.assertEqual(len(re.findall(r'probatio.Required\("type"\): "deploy_relay_v2_dev/test/', sockets)), 8)
+        self.assertEqual(len(re.findall(r'probatio.Required\("type"\): "deploy_relay_v2_dev/test/', sockets)), 9)
         self.assertEqual(len(re.findall(r'probatio.Required\("type"\): "deploy_relay_v2_dev/projects/', sockets)), 13)
-        self.assertEqual(sockets.count("@websocket_api.require_admin"), 40)
+        self.assertEqual(sockets.count("@websocket_api.require_admin"), 41)
         self.assertNotIn('"deploy_relay/panel/', sockets)
         self.assertNotIn('"deploy_relay/panel/', frontend)
         self.assertNotIn("deploy-relay-panel", frontend)
@@ -56,7 +56,7 @@ class LabIsolationContracts(unittest.TestCase):
         manifest = json.loads((ROOT / "deploy-relay.json").read_text(encoding="utf-8"))
         approved_files = list(LAB_ROOT.rglob("*"))
         self.assertTrue(approved_files)
-        self.assertEqual(manifest["policy"]["max_files"], 48,
+        self.assertEqual(manifest["policy"]["max_files"], 49,
                          "Reviewed V1 engine reuse, backend job adapter and source bridge only")
         self.assertTrue((LAB_ROOT / "target_presence.py").is_file())
         self.assertTrue((LAB_ROOT / "server_deployment_jobs.py").is_file())
@@ -94,9 +94,9 @@ class LabIsolationContracts(unittest.TestCase):
 
     def test_async_ws_handlers_are_scheduled_and_admin_guarded(self):
         sockets = (LAB_ROOT / "websocket_api.py").read_text(encoding="utf-8")
-        self.assertEqual(sockets.count("@websocket_api.async_response"), 40)
-        self.assertEqual(sockets.count("@websocket_api.require_admin"), 40)
-        self.assertEqual(sockets.count("@websocket_api.websocket_command("), 40)
+        self.assertEqual(sockets.count("@websocket_api.async_response"), 41)
+        self.assertEqual(sockets.count("@websocket_api.require_admin"), 41)
+        self.assertEqual(sockets.count("@websocket_api.websocket_command("), 41)
         self.assertIn("import probatio", sockets)
         self.assertNotIn("import voluptuous", sockets)
         for handler in ("async_state", "async_measure", "async_multicore",
@@ -355,7 +355,7 @@ class LabIsolationContracts(unittest.TestCase):
         self.assertIn('Verbindung erfolgreich', frontend)
         self.assertIn('Verbindung fehlgeschlagen', frontend)
         self.assertIn('project-management-table .source-check.unverified', frontend)
-        self.assertIn('class="project-settings-open project-metal-button"', frontend)
+        self.assertIn('class="project-settings-open project-settings-open-style project-metal-button"', frontend)
         self.assertIn('class="project-icon"', frontend)
         self.assertIn('projects/connection_check', server)
         self.assertIn('inspect_repository_connection(', server)
@@ -660,7 +660,7 @@ class LabIsolationContracts(unittest.TestCase):
         self.assertIn("No project or file access", (LAB_ROOT / "readonly_benchmark.py").read_text(encoding="utf-8"))
         self.assertNotIn("20-Sekunden-Test", frontend)
         self.assertNotIn("for index in range(1, 21):", sockets)
-        self.assertEqual(sockets.count("@websocket_api.require_admin"), 40)
+        self.assertEqual(sockets.count("@websocket_api.require_admin"), 41)
 
 
 if __name__ == "__main__":
