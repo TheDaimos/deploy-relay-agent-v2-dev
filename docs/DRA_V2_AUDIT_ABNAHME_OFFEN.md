@@ -73,3 +73,12 @@ Technisch implementiert und automatisch geprüft:
 - Aktuelle serverseitige Aufträge haben Vorrang vor historischen Erfolgen, eine neue aktuelle Vorschau ebenfalls.
 - CI Lauf 38353864224 SUCCESS, Code-Checkpoint `694952699291b4e3d61929b34b9c5d06b5c529cc`.
 - **Offen bis zur Realabnahme:** Nach Update auf 0.1.80 und HA-Neustart muss der historische 4/4-Abschluss wirklich erscheinen; anschließend für einen neuen Testcommit eine neue Vorschau und eine echte Installation auslösen und die unmittelbare 4/4-Umstellung belegen. Erst dann Issue #9 schließen.
+
+## Realabnahme 13.10.2026 – 4/4 erfolgreich (DRA V2 0.1.80)
+
+- **Historische 4/4-Wiederherstellung nach HA-Neustart:** vom Anwender per Screenshot bestätigt: 4/4, vollständiger grüner Fortschrittsbalken, vier grüne Schritte, Auftragskennung und Abschlusszeit.
+- **Live-Übergang 3/4 auf 4/4:** vom Anwender per Screenshot bestätigt: Status `success`, Phase `complete`, 4/4, vollständig grüner Balken, alle vier Schritte grün. Auftrag `276ea7d711024fa0bba070f0a2bfc2a7`.
+- **Audit-Export real verifiziert:** privates Archiv `TheDaimos/Project-Log-And-Export`, Datei `exports/deploy-relay-agent-v2/2026-10/diagnostics/2026-10-13T07-26-04Z__deploy-relay-agent-v2__0.1.80__diagnostics__ba8c23e429e236599f36d57833bbae53.json`; Schema `dra-v2-dev-git-audit.v1`, 16 Ereignisse von zwei erfolgreichen Aufträgen, einschließlich neuem Auftrag mit Phasen queued/running/staging/backup/install/verify_install/success.
+- **Vorschau nach erster Installation:** Anwender prüfte 0 hinzugefügt / 0 geändert / 0 entfernt / 2 unverändert; Aktualisierung von Teststand 1 auf 2 wurde für die Live-Abnahme ausschließlich im isolierten Test-Repository durchgeführt.
+- **Nächster separater Oberflächenblock:** Der G2-Verbindungstest wurde im Featurezweig aus der Deployment-Ansicht entfernt und die Laufzeitinformation komprimiert (Commit `f4bf55ee0f95f0cb868a9176cb3b30d85250737e`); noch nicht auf HA installiert.
+- **Status:** Kernabnahme von Audit/privatem Export und Live-/historischem 4/4 abgeschlossen; offene weitere Verbesserungen getrennt bewerten. V1 und main nicht verändert.
