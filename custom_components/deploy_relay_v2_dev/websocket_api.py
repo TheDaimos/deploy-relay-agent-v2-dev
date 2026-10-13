@@ -18,6 +18,7 @@ from .operation_model import OperationContractError, OperationPhase
 from .git_measurement_export import GitMeasurementError
 from .project_catalog import CatalogError, v1_proposals, normalize_repo
 from .settings import SettingsError
+from .test_version_bump import increase_test_version, TestVersionError, REPOSITORY as TEST_REPO
 
 
 def _runtime(hass: HomeAssistant):
@@ -1224,6 +1225,29 @@ async def async_install_status(hass, connection, msg):
     })
 
 
+@websocket_api.websocket_command({
+    probatio.Required("type"): "deploy_relay_v2_dev/test/version/increment",
+    probatio.Required("confirm"): bool,
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def async_test_version_increment(hass, connection, msg):
+    """Explicit administrator write to the single isolated fixture only."""
+    runtime = _runtime(hass)
+    if runtime is None or msg["confirm"] is not True:
+        connection.send_error(msg["id"], "not_confirmed", "Bestätigung erforderlich")
+        return
+    # No repository, branch, file path, or content may come from the client.
+    token = runtime.project_auth.token(TEST_REPO)
+    try:
+        result = await increase_test_version(async_get_clientsession(hass), token)
+    except TestVersionError:
+        connection.send_error(msg["id"], "test_version_failed",
+                              "Teststand konnte nicht erhöht werden. GitHub-Zugang und Datei prüfen.")
+        return
+    connection.send_result(msg["id"], result)
+
+
 def async_register_commands(hass: HomeAssistant) -> None:
     state = hass.data.setdefault(DOMAIN, {})
     if state.get("commands_registered"):
@@ -1247,6 +1271,7 @@ def async_register_commands(hass: HomeAssistant) -> None:
                     async_archive_repository_set, async_archive_repository_clear,
                     async_archive_repository_configure,
                     async_archive_repository_check,
+                    async_test_version_increment,
                     async_install_prepare, async_install_start, async_install_status,
                     async_download_json):
         websocket_api.async_register_command(hass, handler)
