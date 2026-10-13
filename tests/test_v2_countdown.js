@@ -1049,7 +1049,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   assert.equal(recovered._sourceJobId,id);
   assert.equal(recovered._sourcePreview.sources_verified,true);
   assert.equal(recovered._deploymentPreviewRef,"");
-  assert.match(recovered.shadowRoot.innerHTML,/data-stage="2"/);
+  assert.match(recovered.shadowRoot.innerHTML,/Aktuell · Kein Update verfügbar/);
   assert.deepEqual(requested,[
     "deploy_relay_v2_dev/test/state",
     "deploy_relay_v2_dev/projects/source_job/status",
@@ -1317,7 +1317,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   p._mainSourceRef="main";p._deploymentPreviewRef="main";p._sourceRepository=project.repository;
   const original="1".repeat(40), updated="2".repeat(40), operation="3".repeat(32);
   p._sourcePreview={repository:project.repository,source_ref:"main",source_commit:original,
-    sources_verified:true,installation_enabled:false,add:[],change:[],remove:[],unchanged_count:2};
+    sources_verified:true,installation_enabled:false,add:[],change:["dra_v2_testprojekt/teststatus.json"],remove:[],unchanged_count:1};
   const oldJob={operation_id:operation,project_key:project.project_id,source_commit:original,
     status:"success",phase:"complete",restart_required:false};
   p._installJob=oldJob;p._installJobs=[oldJob];
@@ -1427,6 +1427,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
     "old successful server receipt must not override no-change state");
   p._sourcePreview={...p._sourcePreview,source_commit:"c".repeat(40),
     change:["dra_v2_testprojekt/teststatus.json"],unchanged_count:1};
+  p._releaseCompletedDeployment(project);
   p._render();
   assert.match(p.shadowRoot.innerHTML,/data-stage="2"/);
   assert.match(p.shadowRoot.innerHTML,/2\/4 · Installation vorbereiten/);
