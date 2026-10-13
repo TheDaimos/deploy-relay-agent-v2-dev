@@ -22,7 +22,7 @@ class CompletionUiContract(unittest.TestCase):
     def test_progress_and_four_steps_reach_completion(self):
         js = self.js
         self.assertIn('displayFinished ? "completed"', js)
-        self.assertIn('aria-valuenow="${installFinished ? 4', js)
+        self.assertIn('aria-valuenow="${displayFinished ? 4', js)
         self.assertIn('.dra-deploy-progress.completed .dra-deploy-progress-fill {width:100%', js)
         self.assertIn('deploymentIcons[deploymentStage-1]', js)
         self.assertIn('.dra-deploy-step.green.current', js)
