@@ -772,19 +772,19 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
     };
   }};
   probe._render();
-  assert.match(probe.shadowRoot.innerHTML,/id="dra-g2-connection-test"/);
-  assert.match(probe.shadowRoot.innerHTML,/G2 · Verbindungstest \(60 s\)/);
+  assert.doesNotMatch(probe.shadowRoot.innerHTML,/id="dra-g2-connection-test"/);
+  assert.match(probe.shadowRoot.innerHTML,/Python-Laufzeit:/);
   // Older backend must reject the special test before any WS start call.
   probe._serverVersion = "0.1.64";
   probe._render();
-  assert.match(probe.shadowRoot.innerHTML,/Test gesperrt/);
-  assert.match(probe.shadowRoot.innerHTML,/id="dra-g2-connection-test"[^>]*disabled/);
+  assert.match(probe.shadowRoot.innerHTML,/Versionsabgleich erforderlich/);
+  assert.doesNotMatch(probe.shadowRoot.innerHTML,/id="dra-g2-connection-test"/);
   await probe._sourceCheck({dataset:{repo:"TheDaimos/gewitterradar"}},true);
   assert.equal(calls.length,0);
   assert.match(probe._sourceMessage,/Python-Laufzeit 0.1.64/);
   probe._serverVersion = "0.1.80";
   probe._render();
-  assert.match(probe.shadowRoot.innerHTML,/Laufzeit kompatibel/);
+  assert.match(probe.shadowRoot.innerHTML,/Oberfläche und Laufzeit stimmen überein/);
   await probe._sourceCheck({dataset:{repo:"TheDaimos/gewitterradar"}},true);
   assert.equal(calls.length,2);
   assert.equal(probe._sourceConnectionTest,true);
