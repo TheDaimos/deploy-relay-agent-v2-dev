@@ -66,7 +66,7 @@ async def increase_test_version(session, token: str) -> dict:
             source.get("encoding") != "base64" or
             type(source.get("size")) is not int or source["size"] > 2048):
             raise TestVersionError("Unerwartete GitHub-Dateiangaben")
-        before, after, new_file = next_test_status(base64.b64decode(source["content"].replace("\\n", "").replace("\\r", ""), validate=True))
+        before, after, new_file = next_test_status(base64.b64decode("".join(source["content"].split()), validate=True))
         payload = {
             "message": f"test(dra-v2): advance isolated teststand to {after}",
             "content": base64.b64encode(new_file).decode("ascii"),
