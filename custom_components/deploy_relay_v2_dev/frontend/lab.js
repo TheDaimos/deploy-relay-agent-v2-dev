@@ -2464,6 +2464,10 @@ class DRAV2DevLabPanel extends HTMLElement {
           background:linear-gradient(135deg,#155b40,#1e7650);}
         .dra-deploy-action.stage-3.has-error {border-color:#dc6c70;color:#fff0f0;
           background:linear-gradient(135deg,#713037,#4f2027);}
+        .dra-deployment-runtime {display:flex;flex-wrap:wrap;gap:6px;align-items:center;
+          margin:12px 0 6px;color:#acbdc9;font-size:12px;}
+        .dra-deployment-runtime .runtime-ok {color:#8dd9b1;}
+        .dra-deployment-runtime .runtime-warning {color:#f4bd79;}
         .dra-deployment-status {margin:14px 0 7px;font-size:13px;}
         .dra-deployment-result {margin-top:12px;padding:12px;border:1px solid #426f63;
           background:rgba(24,88,65,.13);border-radius:10px;display:flex;flex-direction:column;gap:5px;font-size:13px;}
@@ -3432,19 +3436,14 @@ class DRAV2DevLabPanel extends HTMLElement {
                 role="listitem" aria-label="Schritt ${i+1}: ${item[1]}, ${i+1 === deploymentStage ? deploymentStage===2 ? "noch gesperrt" : "aktuell" : i+1 < deploymentStage ? "abgeschlossen" : "ausstehend"}">
                 ${item[2]}<span>${i+1}. ${item[0]}</span></div>`).join("")}
             </div>
-            <p class="note" style="margin-top:14px">G2-Verbindungstest: ausschließlich lesender HA-Auftrag
-              mit festem 60-Sekunden-Testfenster. Der Browser darf währenddessen getrennt werden.
-              Kein Neustart, keine Installationsfreigabe.</p>
-            <p class="note">Aktive Python-Version: ${this._escapeProject(this._serverVersion || "nicht ermittelt")}
-              · G2-Test benötigt ${G2_TEST_PYTHON_VERSION}.
-              ${this._serverVersion === G2_TEST_PYTHON_VERSION
-                ? "Laufzeit kompatibel."
-                : "Test gesperrt: Oberfläche und Python-Laufzeit noch nicht auf demselben Stand."}</p>
-            <button type="button" id="dra-g2-connection-test"
-              ${this._mainBatchMode || deploymentBusy || !mainProject || !this._hass ||
-                this._serverVersion !== G2_TEST_PYTHON_VERSION ? "disabled" : ""}>
-              G2 · Verbindungstest (60 s)
-            </button>
+            <p class="dra-deployment-runtime note" aria-label="Laufzeitstatus">
+              <span>Python-Laufzeit: ${this._escapeProject(this._serverVersion || "nicht ermittelt")}</span>
+              <span class="${this._serverVersion === DRA_V2_UI_VERSION ? "runtime-ok" : "runtime-warning"}">
+                ${this._serverVersion === DRA_V2_UI_VERSION
+                  ? "· Oberfläche und Laufzeit stimmen überein"
+                  : "· Versionsabgleich erforderlich"}
+              </span>
+            </p>
             <p class="dra-deployment-status note" role="status" aria-live="polite">
               ${this._escapeProject(this._installMessage || deploymentStatus)}
             </p>
@@ -3991,10 +3990,6 @@ class DRAV2DevLabPanel extends HTMLElement {
       this._deploymentLogsAction("g2_prepare");
     });
     s.querySelector("#dra-logs-copy")?.addEventListener("click",()=>this._deploymentLogsAction("copy"));
-    s.querySelector("#dra-g2-connection-test")?.addEventListener("click",()=>{
-      if (deploymentBusy || this._mainBatchMode || !mainProject) return;
-      this._sourceCheck({dataset:{repo:mainProject.repository}}, true);
-    });
     s.querySelector("#dra-historical-new-preview")?.addEventListener("click",()=>{
       if (!mainProject || deploymentBusy) return;
       this._dismissedHistoricalProject = mainProject.project_id;
