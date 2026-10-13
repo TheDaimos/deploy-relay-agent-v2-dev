@@ -40,6 +40,18 @@ def next_test_status(raw: bytes) -> tuple[int, int, bytes]:
     return before, before + 1, (json.dumps(data, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
 
 
+async def _read_bounded(response, maximum: int) -> bytes:
+    """Read to EOF under a strict byte cap; aiohttp reads may be fragmented."""
+    data = bytearray()
+    while True:
+        part = await response.content.read(min(2048, maximum + 1 - len(data)))
+        if not part:
+            return bytes(data)
+        data.extend(part)
+        if len(data) > maximum:
+            raise TestVersionError("GitHub-Antwort zu groß")
+
+
 async def increase_test_version(session, token: str) -> dict:
     """GET exact fixed path, verify exact document, conditional PUT using blob SHA."""
     if not isinstance(token, str) or not token or len(token) > 512:
@@ -55,9 +67,7 @@ async def increase_test_version(session, token: str) -> dict:
             async with session.get(API_URL, headers=headers, allow_redirects=False) as response:
                 if response.status != 200:
                     raise TestVersionError("Testdatei konnte nicht gelesen werden")
-                body = await response.content.read(4097)
-                if len(body) > 4096:
-                    raise TestVersionError("GitHub-Antwort zu groß")
+                body = await _read_bounded(response, 4096)
         source = json.loads(body)
         if (type(source) is not dict or source.get("type") != "file" or
             source.get("path") != FILE_PATH or
@@ -75,7 +85,7 @@ async def increase_test_version(session, token: str) -> dict:
         async with asyncio.timeout(16):
             async with session.put(API_URL, headers=headers, json=payload,
                                    allow_redirects=False) as response:
-                reply = await response.content.read(16385)
+                reply = await _read_bounded(response, 16384)
                 if response.status in (409, 422):
                     raise TestVersionError("Git-Konflikt: Datei inzwischen geändert")
                 if response.status not in (200, 201) or len(reply) > 16384:
