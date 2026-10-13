@@ -16,12 +16,12 @@ class CompletionUiContract(unittest.TestCase):
         self.assertIn('this._installJob?.status === "success" && this._installJob?.phase === "complete"', js)
         self.assertIn('this._installJob?.project_key === mainProject.project_id', js)
         self.assertNotIn('mainPreviewVerified && this._installJob?.project_key', js)
-        self.assertIn('const deploymentStage = installFinished ? 4', js)
+        self.assertIn('const deploymentStage = displayFinished ? 4', js)
         self.assertIn('"4/4 · Abschluss – erfolgreich installiert"', js)
 
     def test_progress_and_four_steps_reach_completion(self):
         js = self.js
-        self.assertIn('installFinished ? "completed"', js)
+        self.assertIn('displayFinished ? "completed"', js)
         self.assertIn('aria-valuenow="${installFinished ? 4', js)
         self.assertIn('.dra-deploy-progress.completed .dra-deploy-progress-fill {width:100%', js)
         self.assertIn('deploymentIcons[deploymentStage-1]', js)
