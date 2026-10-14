@@ -21,6 +21,28 @@ class SourceChoicesContract(unittest.TestCase):
         self.assertIn("runtime.project_auth.token(repo) or runtime.source_auth.token", socket)
         self.assertIn("runtime.source_scan_lock", socket)
 
+    def test_version_guard_reuses_v1_semantics(self):
+        remote = (ROOT / "remote_source.py").read_text(encoding="utf-8")
+        tree = ast.parse(remote)
+        fn = next(node for node in tree.body if isinstance(node, ast.FunctionDef)
+                  and node.name == "_version_order")
+        scope = {"re": __import__("re")}
+        fn.decorator_list = []
+        exec(compile(ast.fix_missing_locations(ast.Module(body=[fn], type_ignores=[])),
+                     "<version-guard>", "exec"), scope)
+        compare = scope["_version_order"]
+        self.assertEqual(compare("4.11.76", "4.11.75"), "upgrade")
+        self.assertEqual(compare("4.11.75", "4.11.76"), "downgrade")
+        self.assertEqual(compare("4.11.76", "4.11.76"), "same")
+        self.assertEqual(compare("n/a", "unknown"), "unknown")
+        self.assertIn("git_blob_sha(remote_bytes) != item", remote)
+        self.assertIn("await asyncio.to_thread(\n                _read_local_version_file", remote)
+        self.assertIn('report["version_guard"] = await _preview_version_guard(', remote)
+        js = (ROOT / "frontend/lab.js").read_text(encoding="utf-8")
+        self.assertIn("Versions- und Regressionsprüfung", js)
+        self.assertIn("Lokal installiert:", js)
+        self.assertIn("Rückschritt erkannt", js)
+
     def test_browser_selector_preserves_sha_bound_preview(self):
         js = (ROOT / "frontend/lab.js").read_text(encoding="utf-8")
         self.assertIn('id="dra-main-choice"', js)
