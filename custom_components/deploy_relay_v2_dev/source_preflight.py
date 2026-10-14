@@ -141,7 +141,7 @@ def inspect_tree(manifest: dict, entries: object) -> list[dict]:
         if type(item) is not dict:
             raise PreflightError("invalid repository tree entry")
         raw_path = item.get("path")
-        if type(raw_path) is not str or not 1 <= len(raw_path) <= 1024 or "\\\" in raw_path:
+        if type(raw_path) is not str or not 1 <= len(raw_path) <= 1024 or chr(92) in raw_path:
             raise PreflightError("invalid repository tree path")
         # Repository trees may contain unrelated filenames with spaces/Unicode.
         # Only files beneath manifest-managed source roots require the strict
