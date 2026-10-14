@@ -441,6 +441,24 @@ def _version_order(source: str, local: str) -> str:
     return "downgrade" if a < b else "upgrade" if a > b else "unknown"
 
 
+def _read_local_version_file(config_root: Path, relative: str, expected: str) -> bytes | None:
+    """Bounded regular-file read outside HA event loop, matched to prior inventory."""
+    root = config_root.resolve(strict=True)
+    file = root.joinpath(*relative.split("/"))
+    if not file.resolve(strict=True).is_relative_to(root):
+        return None
+    st = file.lstat()
+    if not S_ISREG(st.st_mode) or st.st_nlink != 1 or st.st_size > MAX_VERSION_MARKER_SCAN_BYTES:
+        return None
+    fd = os.open(file, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+    try:
+        with os.fdopen(fd, "rb", closefd=False) as handle:
+            payload = handle.read(MAX_VERSION_MARKER_SCAN_BYTES + 1)
+    finally:
+        os.close(fd)
+    return payload if git_blob_sha(payload) == expected else None
+
+
 async def _preview_version_guard(session, config_root: Path, base: str, commit: str,
                                  manifest: dict, remote: list[dict], local: dict[str, str],
                                  report: dict, token: str | None) -> dict:
@@ -483,21 +501,9 @@ async def _preview_version_guard(session, config_root: Path, base: str, commit: 
             if (len(remote_bytes) != item["size"] or
                     git_blob_sha(remote_bytes) != item["sha"]):
                 raise PreflightError("version source blob integrity failed")
-            root = config_root.resolve(strict=True)
-            file = root.joinpath(*target_relative.split("/"))
-            if not file.resolve(strict=True).is_relative_to(root):
-                continue
-            st = file.lstat()
-            if not S_ISREG(st.st_mode) or st.st_nlink != 1 or st.st_size > MAX_VERSION_MARKER_SCAN_BYTES:
-                continue
-            flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
-            fd = os.open(file, flags)
-            try:
-                with os.fdopen(fd, "rb", closefd=False) as handle:
-                    local_bytes = handle.read(MAX_VERSION_MARKER_SCAN_BYTES + 1)
-            finally:
-                os.close(fd)
-            if git_blob_sha(local_bytes) != expected_local:
+            local_bytes = await asyncio.to_thread(
+                _read_local_version_file, config_root, target_relative, expected_local)
+            if local_bytes is None:
                 continue
         except (OSError, ValueError, binascii.Error):
             continue
