@@ -269,7 +269,7 @@ def _local_inventory(config_root: Path, groups: list[dict], *, max_files: int, m
     return found
 
 
-async def _get(session, url: str, *, token: str | None = None) -> dict:
+async def _get(session, url: str, *, token: str | None = None, allow_list: bool = False):
     """Bounded read-only GitHub GET, one retry for transient transport errors.
 
     Never retry explicit GitHub denials, source-policy errors, excessive bodies
@@ -333,10 +333,44 @@ async def _get(session, url: str, *, token: str | None = None) -> dict:
         except (ValueError, UnicodeError):
             # A received but malformed body is not a transient network failure.
             raise PreflightError("invalid GitHub JSON") from None
-        if type(obj) is not dict:
+        if type(obj) is not dict and not (allow_list and type(obj) is list):
             raise PreflightError("invalid GitHub JSON")
         return obj
     raise PreflightError("GitHub response could not be verified")
+
+
+
+async def inspect_source_choices(session, repository: str, *, token: str | None = None) -> dict:
+    """Bounded, read-only GitHub branches/tags for the UI; never install authorization."""
+    try:
+        repository = normalize_repo(repository)
+    except CatalogError:
+        raise PreflightError("invalid source selection") from None
+    owner, name = repository.split("/")
+    base = f"{API}/repos/{quote(owner, safe='')}/{quote(name, safe='')}"
+    meta = await _get(session, base, token=token)
+    if meta.get("full_name", "").casefold() != repository.casefold():
+        raise PreflightError("repository mismatch")
+    default = source_ref(meta.get("default_branch", ""))
+    if not default:
+        raise PreflightError("missing default branch")
+    choices = []
+    for kind, endpoint in (("branch", "branches"), ("tag", "tags")):
+        rows = await _get(session, base + "/" + endpoint + "?per_page=100", token=token, allow_list=True)
+        if len(rows) > 100:
+            raise PreflightError("source list too large")
+        for row in rows:
+            if type(row) is not dict or type(row.get("commit")) is not dict:
+                raise PreflightError("invalid source entry")
+            ref = source_ref(row.get("name"))
+            sha = row["commit"].get("sha")
+            if not ref or type(sha) is not str or len(sha) != 40 or any(c not in "0123456789abcdef" for c in sha):
+                raise PreflightError("invalid source entry")
+            choices.append({"kind": kind, "ref": ref, "commit": sha})
+    return {"schema": "dra-v2-source-choices.v1", "repository": repository,
+            "default_ref": default, "choices": choices,
+            "limited": sum(c["kind"] == "branch" for c in choices) == 100 or
+                       sum(c["kind"] == "tag" for c in choices) == 100}
 
 
 async def inspect_source_head(session, repository: str, ref: str = "", *, token: str | None = None) -> dict:
