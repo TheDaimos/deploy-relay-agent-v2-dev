@@ -11,7 +11,7 @@ import binascii
 import json
 import os
 import re
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from stat import S_ISDIR, S_ISLNK, S_ISREG
 from urllib.parse import quote
 
