@@ -104,7 +104,12 @@ class DeploymentLogUiContract(unittest.TestCase):
         self.assertIn('msg["confirm"] is not True', ws)
         self.assertIn('runtime.source_diagnostics.clear(expected_run_id=msg["expected_run_id"])', ws)
         self.assertNotIn('deploy_relay_v2_dev/deployment/install', ws)
-        self.assertNotIn('deploy_relay_v2_dev/deployment/restart', ws)
+        # The distinct administrator-confirmed restart route is permitted, but
+        # logging routes must still never invoke it.
+        self.assertEqual(ws.count('"deploy_relay_v2_dev/deployment/restart"'), 1)
+        method=ws[ws.index('async def async_deployment_logs('):
+                  ws.index('async def async_deployment_logs_download(')]
+        self.assertNotIn('hass.services.async_call(', method)
 
 
 if __name__ == "__main__":
