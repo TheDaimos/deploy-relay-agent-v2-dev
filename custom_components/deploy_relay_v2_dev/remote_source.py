@@ -10,11 +10,13 @@ import base64
 import binascii
 import json
 import os
+import re
 from pathlib import Path
 from stat import S_ISDIR, S_ISLNK, S_ISREG
 from urllib.parse import quote
 
 from .project_catalog import normalize_repo, CatalogError
+from .v1_engine.version_markers import extract_version_markers, MAX_VERSION_MARKER_SCAN_BYTES
 from .source_preflight import (
     MAX_BYTES, MAX_FILES, MAX_MANIFEST_BYTES, MAX_TREE, PreflightError,
     compare_blobs, git_blob_sha, inspect_tree, parse_manifest, safe_path, target_path,
@@ -425,6 +427,105 @@ async def inspect_repository_connection(session, repository: str, *, token: str 
     }
 
 
+def _version_order(source: str, local: str) -> str:
+    """Preserve V1's conservative numeric marker comparison."""
+    if source == local:
+        return "same"
+    a = tuple(int(x) for x in re.findall(r"\\d+", source)[:8])
+    b = tuple(int(x) for x in re.findall(r"\\d+", local)[:8])
+    if not a or not b:
+        return "unknown"
+    n = max(len(a), len(b))
+    a += (0,) * (n - len(a))
+    b += (0,) * (n - len(b))
+    return "downgrade" if a < b else "upgrade" if a > b else "unknown"
+
+
+async def _preview_version_guard(session, config_root: Path, base: str, commit: str,
+                                 manifest: dict, remote: list[dict], local: dict[str, str],
+                                 report: dict, token: str | None) -> dict:
+    """Read only a bounded set of manifest-managed version files at the pinned SHA."""
+    result = {"status": "unknown", "source_version": None, "local_version": None,
+              "marker": None, "reason": "no_common_version_marker",
+              "regression": False, "warning": bool(report["remove"])}
+    if report["remove"]:
+        result["reason"] = "no_common_version_marker_with_removals"
+    candidates = []
+    for group in manifest["groups"]:
+        prefix = group["target"] + "/"
+        for item in remote:
+            path = item["path"]
+            if not path.startswith(prefix) or item["size"] > MAX_VERSION_MARKER_SCAN_BYTES:
+                continue
+            rel = path[len(prefix):]
+            # Common V1-compatible build markers, not arbitrary code or secrets.
+            if PurePosixPath(rel).name.casefold() in (
+                    "build_info.py", "manifest.json", "version.py", "const.py", "__init__.py"):
+                candidates.append((group, item, rel))
+    # The strongest BUILD_VERSION marker usually lives in build_info.py.
+    priority = {"build_info.py": 0, "version.py": 1, "const.py": 2,
+                "__init__.py": 3, "manifest.json": 4}
+    candidates.sort(key=lambda row: (priority.get(PurePosixPath(row[2]).name.casefold(), 5),
+                                     row[2]))
+    matches = []
+    for group, item, relative in candidates[:12]:
+        target_relative = item["path"]
+        expected_local = local.get(target_relative)
+        if expected_local is None:
+            continue
+        source_path = group["source"] + "/" + relative
+        try:
+            entry = await _get(session, base + "/contents/" +
+                               quote(source_path, safe="/") + "?ref=" + commit, token=token)
+            if entry.get("encoding") != "base64" or type(entry.get("content")) is not str:
+                continue
+            remote_bytes = base64.b64decode(entry["content"], validate=False)
+            if (len(remote_bytes) != item["size"] or
+                    git_blob_sha(remote_bytes) != item["sha"]):
+                raise PreflightError("version source blob integrity failed")
+            root = config_root.resolve(strict=True)
+            file = root.joinpath(*target_relative.split("/"))
+            if not file.resolve(strict=True).is_relative_to(root):
+                continue
+            st = file.lstat()
+            if not S_ISREG(st.st_mode) or st.st_nlink != 1 or st.st_size > MAX_VERSION_MARKER_SCAN_BYTES:
+                continue
+            flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+            fd = os.open(file, flags)
+            try:
+                with os.fdopen(fd, "rb", closefd=False) as handle:
+                    local_bytes = handle.read(MAX_VERSION_MARKER_SCAN_BYTES + 1)
+            finally:
+                os.close(fd)
+            if git_blob_sha(local_bytes) != expected_local:
+                continue
+        except (OSError, ValueError, binascii.Error):
+            continue
+        source_markers = extract_version_markers(group["id"], relative, remote_bytes)
+        local_markers = extract_version_markers(group["id"], relative, local_bytes)
+        for a in source_markers:
+            for b in local_markers:
+                if a.name == b.name and a.relative_path == b.relative_path:
+                    matches.append((a.rank, a, b, target_relative))
+    if matches:
+        matches.sort(key=lambda row: (-row[0], row[1].name, row[1].relative_path))
+        _, source_marker, local_marker, target = matches[0]
+        relation = _version_order(source_marker.value, local_marker.value)
+        destructive = bool(report["change"] or report["remove"])
+        return {
+            "status": relation, "source_version": source_marker.value,
+            "local_version": local_marker.value, "marker": source_marker.name,
+            "source_path": source_marker.relative_path, "target_path": target,
+            "regression": relation == "downgrade",
+            "warning": relation == "downgrade" or (relation == "same" and destructive),
+            "reason": ("source_older_than_local" if relation == "downgrade" else
+                       "source_newer_than_local" if relation == "upgrade" else
+                       "same_version_with_file_changes" if destructive and relation == "same" else
+                       "same_version" if relation == "same" else "version_order_unknown"),
+        }
+    return result
+
+
 async def inspect_public_repository(session, config_root: Path, repository: str, ref: str = "", *, token: str | None = None, stage_hook=None) -> dict:
     """Actual pinned remote tree versus read-only HA inventory; no write capability.
 
@@ -489,4 +590,6 @@ async def inspect_public_repository(session, config_root: Path, repository: str,
     report["source_ref"] = selected
     report["source_name"] = "GitHub V2 read-only access" if token else "GitHub public (no V1 credentials)"
     report["total_local_files"] = len(local)
+    report["version_guard"] = await _preview_version_guard(
+        session, config_root, base, sha, manifest, remote, local, report, token)
     return report
