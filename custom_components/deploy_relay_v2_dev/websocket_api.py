@@ -761,6 +761,8 @@ async def async_projects_source_choices(hass, connection, msg):
             result = await asyncio.wait_for(inspect_source_choices(
                 async_get_clientsession(hass), repo,
                 token=runtime.project_auth.token(repo) or runtime.source_auth.token,
+                expected_project_id=next(p["project_id"] for p in runtime.projects.list()
+                                         if p["repository"] == repo),
             ), timeout=45)
     except (PreflightError, TimeoutError, OSError, ValueError):
         connection.send_error(msg["id"], "source_choices_failed", "Git-Quellen konnten nicht geladen werden")
