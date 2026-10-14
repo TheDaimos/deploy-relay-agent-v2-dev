@@ -1434,3 +1434,58 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   assert.doesNotMatch(p.shadowRoot.innerHTML,/class="dra-deploy-action stage-2\s+up-to-date/);
   console.log("DRA V2 no-op preview gives neutral current state and never unlocks install PASS");
 })().catch(error=>{console.error(error);process.exitCode=1;});
+
+(async () => {
+  // Post-install lifecycle comes from the verified HA server receipt, not
+  // from the repository name or an arbitrary UI preview.
+  const project={repository:"TheDaimos/gewitterradar",project_id:"gewitterradar",name:"Gewitterradar",active:true};
+  const createPanel=(flags) => {
+    const p=new Panel();
+    p._view="main";p._serverVersion="0.1.86";
+    p._projects=[project];p._selectedMainRepo=project.repository;
+    const job={operation_id:"7".repeat(32),project_key:project.project_id,
+      source_commit:"8".repeat(40),status:"success",phase:"complete",...flags};
+    p._installJob=job;p._installJobs=[job];
+    return p;
+  };
+  const frontend=createPanel({restart_required:false,frontend_reload_possible:true});
+  frontend._render();
+  assert.match(frontend.shadowRoot.innerHTML,/id="dra-frontend-refresh"/);
+  assert.doesNotMatch(frontend.shadowRoot.innerHTML,/id="dra-ha-restart-open"/);
+  let reloads=0;
+  mockWindow.location.reload=()=>{reloads++};
+  frontend._refreshFrontendAfterInstallation();
+  assert.equal(reloads,1);
+  frontend._installJob.restart_required=true;
+  frontend._refreshFrontendAfterInstallation();
+  assert.equal(reloads,1,"backend changes must never be treated as frontend-only");
+
+  const restart=createPanel({restart_required:true,frontend_reload_possible:false});
+  const req=[];
+  restart._hass={async callWS(payload) {
+    req.push(payload);
+    assert.equal(payload.type,"deploy_relay_v2_dev/deployment/restart");
+    assert.equal(payload.confirm,true);
+    return {schema:"dra-v2-restart-request.v1",
+      operation_id:payload.operation_id,restart_requested:true};
+  }};
+  restart._render();
+  assert.match(restart.shadowRoot.innerHTML,/id="dra-ha-restart-open"/);
+  assert.doesNotMatch(restart.shadowRoot.innerHTML,/id="dra-frontend-refresh"/);
+  assert.doesNotMatch(restart.shadowRoot.innerHTML,/id="dra-ha-restart-confirm"/);
+  await restart._requestHomeAssistantRestart();
+  assert.equal(req.length,0,"a single click may only open confirmation, never restart");
+  restart._restartDialogOpen=true;
+  restart._render();
+  assert.match(restart.shadowRoot.innerHTML,/Home Assistant wirklich neu starten/);
+  assert.match(restart.shadowRoot.innerHTML,/id="dra-ha-restart-cancel"/);
+  assert.match(restart.shadowRoot.innerHTML,/id="dra-ha-restart-confirm"/);
+  await restart._requestHomeAssistantRestart();
+  assert.equal(req.length,1);
+  assert.equal(req[0].operation_id,"7".repeat(32));
+  assert.match(restart._restartMessage,/Neustart angefordert/);
+  await restart._requestHomeAssistantRestart();
+  assert.equal(req.length,1,"no duplicate restart after confirmation");
+  delete mockWindow.location.reload;
+  console.log("DRA V2 frontend refresh vs admin confirmed restart lifecycle PASS");
+})().catch(error=>{console.error(error);process.exitCode=1;});
