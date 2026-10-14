@@ -66,6 +66,9 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._installBusy = false;
     this._installSubmissionActive = false;
     this._installMessage = "";
+    this._restartDialogOpen = false;
+    this._restartBusy = false;
+    this._restartMessage = "";
     this._installTimer = null;
     this._installPolling = false;
     this._sourceJobId = null;
@@ -430,6 +433,48 @@ class DRAV2DevLabPanel extends HTMLElement {
     }
   }
 
+  _refreshFrontendAfterInstallation() {
+    const job = this._installJob;
+    if (!job || job.status !== "success" || job.phase !== "complete" ||
+        job.restart_required || job.frontend_reload_possible !== true ||
+        this._serverVersion !== DRA_V2_UI_VERSION ||
+        this._supersededCompletionIds.has(job.operation_id)) return;
+    // A normal browser reload re-fetches frontend resources without restarting HA.
+    // The V2 panel itself is registered without static cache headers.
+    window.location.reload();
+  }
+
+  async _requestHomeAssistantRestart() {
+    const job = this._installJob;
+    if (!this._hass || this._restartBusy || !this._restartDialogOpen ||
+        this._serverVersion !== DRA_V2_UI_VERSION ||
+        !job || job.status !== "success" || job.phase !== "complete" ||
+        job.restart_required !== true ||
+        this._supersededCompletionIds.has(job.operation_id)) return;
+    this._restartBusy = true;
+    this._restartMessage = "Home-Assistant-Neustart wird angefordert …";
+    this._render();
+    try {
+      const receipt = await this._hass.callWS({
+        type:"deploy_relay_v2_dev/deployment/restart",
+        operation_id:job.operation_id,confirm:true,
+      });
+      if (receipt?.schema !== "dra-v2-restart-request.v1" ||
+          receipt.operation_id !== job.operation_id ||
+          receipt.restart_requested !== true) throw Error("invalid restart receipt");
+      this._restartDialogOpen = false;
+      this._restartMessage = "Home-Assistant-Neustart angefordert. Verbindung wird vorübergehend unterbrochen.";
+    } catch (_error) {
+      // The connection may be interrupted during the actual restart.
+      // Do not silently send a second request or claim it definitely failed.
+      this._restartMessage = "Keine Bestätigung erhalten. Möglicherweise startet Home Assistant bereits. Bitte Status abwarten; nicht erneut bestätigen.";
+      this._restartDialogOpen = false;
+    } finally {
+      this._restartBusy = false;
+      if (this.isConnected) this._render();
+    }
+  }
+
   async _pollInstallation() {
     if (!this._hass || this._installPolling ||
         this._serverVersion !== DRA_V2_UI_VERSION) return;
@@ -455,7 +500,9 @@ class DRAV2DevLabPanel extends HTMLElement {
         if (job.status === "success") {
           this._installMessage = job.restart_required ?
             "Update erfolgreich. Home-Assistant-Neustart erforderlich." :
-            "Update erfolgreich installiert und geprüft.";
+            job.frontend_reload_possible ?
+              "Update erfolgreich. Die Oberfläche kann jetzt aktualisiert werden." :
+              "Update erfolgreich installiert und geprüft. Keine weitere Aktion erforderlich.";
         } else if (job.status === "recovery_required") {
           this._installMessage = "Wiederherstellung erforderlich. Keine weiteren Updates starten.";
         } else if (job.status === "failed" || job.status === "interrupted") {
@@ -2036,6 +2083,8 @@ class DRAV2DevLabPanel extends HTMLElement {
     const upToDate = previewNoChanges && !installActive && !this._installBusy &&
       !this._installSubmissionActive;
     const displayFinished = !upToDate && (installFinished || archivedFinish);
+    const postInstallJob = !upToDate && installFinished && !this._mainBatchMode &&
+      this._serverVersion === DRA_V2_UI_VERSION ? this._installJob : null;
     const installFailed = jobBelongsToProject &&
       ["failed","recovery_required","interrupted","cancelled"].includes(this._installJob?.status);
     const preparedInstall = this._installPreparation &&
@@ -2653,6 +2702,21 @@ class DRAV2DevLabPanel extends HTMLElement {
         .dra-deployment-result {margin-top:12px;padding:12px;border:1px solid #426f63;
           background:rgba(24,88,65,.13);border-radius:10px;display:flex;flex-direction:column;gap:5px;font-size:13px;}
         .dra-deployment-hint {font-size:12px;margin:15px 0 0;}
+        .dra-post-install {margin:12px 0;padding:15px;border:1px solid #536c76;
+          border-radius:11px;background:linear-gradient(145deg,#1d3039,#1b2831);}
+        .dra-post-install>strong {display:block;color:#ccece1;margin-bottom:7px;}
+        .dra-post-install .note {display:block;margin:6px 0 12px;}
+        .dra-post-install button {min-height:42px;padding:9px 15px;border-radius:8px;}
+        .dra-post-install .dra-frontend-refresh {border:1px solid #42a8bd;color:#ddf9ff;
+          background:linear-gradient(145deg,#187995,#18546b);}
+        .dra-post-install .dra-ha-restart {border:1px solid #c88f36;color:#ffe2b3;
+          background:linear-gradient(145deg,#795122,#5e3f21);}
+        .dra-restart-confirm {margin-top:12px;border:1px solid #bd914f;
+          border-radius:9px;background:#392c22;padding:13px;}
+        .dra-restart-confirm p {color:#ffe6c7;margin:5px 0 12px;}
+        .dra-restart-buttons {display:flex;flex-wrap:wrap;gap:9px;}
+        .dra-restart-confirm .dra-restart-cancel {border:1px solid #67818e;background:#273943;color:#e5eff3;}
+        .dra-restart-message {margin:10px 0 0;color:#d4e9f1;font-size:13px;}
         @media(max-width:600px){
           .dra-deploy-steps {grid-template-columns:repeat(2,minmax(0,1fr));}
           .dra-source-meta {grid-template-columns:repeat(2,minmax(0,1fr));}
@@ -3624,6 +3688,35 @@ class DRAV2DevLabPanel extends HTMLElement {
               <span>Auftragskennung: ${this._escapeProject(this._installJob.operation_id)}</span>
               <span>${this._escapeProject(this._installMessage)}</span>
             </div>` : ""}
+            ${postInstallJob ? `<section class="dra-post-install" aria-label="Aktion nach erfolgreichem Update">
+              <strong>Update erfolgreich installiert und geprüft</strong>
+              ${postInstallJob.restart_required === true ? `
+                <span class="note">Python- oder andere Backenddateien wurden aktualisiert.
+                  Die Änderungen werden erst nach einem Home-Assistant-Neustart wirksam.</span>
+                <button type="button" id="dra-ha-restart-open" class="dra-ha-restart"
+                  ${this._restartBusy || runningJobs.length ? "disabled" : ""}>
+                  Home Assistant neu starten</button>
+                ${this._restartDialogOpen ? `<div class="dra-restart-confirm" role="group"
+                  aria-label="Sicherheitsabfrage für Home-Assistant-Neustart">
+                  <strong>Home Assistant wirklich neu starten?</strong>
+                  <p>Home Assistant ist während des Neustarts vorübergehend nicht erreichbar.
+                    Noch laufende Installationsaufträge verhindern den Neustart.</p>
+                  <div class="dra-restart-buttons">
+                    <button type="button" id="dra-ha-restart-cancel" class="dra-restart-cancel"
+                      ${this._restartBusy ? "disabled" : ""}>Abbrechen</button>
+                    <button type="button" id="dra-ha-restart-confirm" class="dra-ha-restart"
+                      ${this._restartBusy ? "disabled" : ""}>Ja, Home Assistant neu starten</button>
+                  </div>
+                </div>` : ""}`
+                : postInstallJob.frontend_reload_possible === true ? `
+                <span class="note">Nur Frontenddateien wurden aktualisiert.
+                  Home Assistant muss nicht neu gestartet werden.</span>
+                <button type="button" id="dra-frontend-refresh" class="dra-frontend-refresh">
+                  Oberfläche aktualisieren</button>`
+                : `<span class="note">Keine weitere Aktion erforderlich.</span>`}
+              ${this._restartMessage ? `<p class="dra-restart-message" role="status">
+                ${this._escapeProject(this._restartMessage)}</p>` : ""}
+            </section>` : ""}
             <div class="dra-deploy-progress ${upToDate ? "up-to-date" : displayFinished ? "completed" : installFailed ? "failed" : deploymentBusy || installActive ? "running" : mainPreviewVerified ? "verified" : "idle"}"
               role="progressbar" aria-label="Deployment-Fortschritt"
               aria-valuemin="0" aria-valuemax="4"
@@ -4255,6 +4348,26 @@ class DRAV2DevLabPanel extends HTMLElement {
       if (deploymentBusy || this._mainBatchMode || !mainProject ||
           this._serverVersion !== G2_TEST_PYTHON_VERSION) return;
       this._sourceCheck({dataset:{repo:mainProject.repository}}, true);
+    });
+    s.querySelector("#dra-frontend-refresh")?.addEventListener("click",()=>{
+      if (postInstallJob?.frontend_reload_possible === true &&
+          postInstallJob?.restart_required !== true) this._refreshFrontendAfterInstallation();
+    });
+    s.querySelector("#dra-ha-restart-open")?.addEventListener("click",()=>{
+      if (!postInstallJob || postInstallJob.restart_required !== true || this._restartBusy ||
+          runningJobs.length) return;
+      this._restartDialogOpen = true;
+      this._restartMessage = "";
+      this._render();
+    });
+    s.querySelector("#dra-ha-restart-cancel")?.addEventListener("click",()=>{
+      if (this._restartBusy) return;
+      this._restartDialogOpen = false;
+      this._render();
+    });
+    s.querySelector("#dra-ha-restart-confirm")?.addEventListener("click",()=>{
+      if (postInstallJob?.restart_required === true && !runningJobs.length)
+        this._requestHomeAssistantRestart();
     });
     s.querySelector("#dra-up-to-date-recheck")?.addEventListener("click",()=>{
       if (mainProject && !deploymentBusy) this._sourceCheck({dataset:{repo:mainProject.repository}});
