@@ -363,6 +363,8 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._dismissedHistoricalProject = project.project_id;
     this._installPreparation = null;
     this._installMessage = "";
+    this._restartDialogOpen = false;
+    this._restartMessage = "";
   }
 
   async _increaseTestVersion() {
@@ -409,6 +411,8 @@ class DRAV2DevLabPanel extends HTMLElement {
         this._sourcePreview?.source_commit !== prepared.source_commit ||
         this._deploymentPreviewRef !== this._mainSourceRef.trim()) return;
     this._installPreparation = null;
+    this._restartDialogOpen = false;
+    this._restartMessage = "";
     this._installBusy = true;
     this._installSubmissionActive = true;
     this._installMessage = "Der Auftrag wird an Home Assistant übergeben …";
