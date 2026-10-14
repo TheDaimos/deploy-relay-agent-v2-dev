@@ -21,6 +21,16 @@ class SourceChoicesContract(unittest.TestCase):
         self.assertIn("runtime.project_auth.token(repo) or runtime.source_auth.token", socket)
         self.assertIn("runtime.source_scan_lock", socket)
 
+    def test_unmanaged_artwork_does_not_break_tree(self):
+        source = (ROOT / "source_preflight.py").read_text(encoding="utf-8")
+        tree = ast.parse(source)
+        fn = next(node for node in tree.body if isinstance(node, ast.FunctionDef)
+                  and node.name == "inspect_tree")
+        self.assertIn('managed = any(raw_path.startswith(group["source"] + "/")', source)
+        self.assertIn('path = safe_path(raw_path)', source)
+        # The actual data-tree case: unrelated artwork contains spaces/Umlauts.
+        self.assertIn("if not managed:", source)
+
     def test_version_guard_reuses_v1_semantics(self):
         remote = (ROOT / "remote_source.py").read_text(encoding="utf-8")
         tree = ast.parse(remote)
