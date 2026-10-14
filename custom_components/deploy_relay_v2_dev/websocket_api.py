@@ -1207,6 +1207,9 @@ async def async_install_start(hass, connection, msg):
     if runtime is None:
         connection.send_error(msg["id"], "not_ready", "Auftragsverwaltung nicht bereit")
         return
+    if runtime.restart_pending:
+        connection.send_error(msg["id"], "restart_pending", "HA-Neustart bereits angefordert")
+        return
     repository = msg["repository"]
     permitted = any(
         p["repository"].casefold() == repository.casefold()
@@ -1258,6 +1261,65 @@ async def async_install_status(hass, connection, msg):
 
 
 @websocket_api.websocket_command({
+    probatio.Required("type"): "deploy_relay_v2_dev/deployment/restart",
+    probatio.Required("operation_id"): str,
+    probatio.Required("confirm"): bool,
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def async_deployment_restart(hass, connection, msg):
+    """Restart HA only after a distinct administrator confirmation and verified V1 success.
+
+    Browser UI status, an old audit receipt or an arbitrary project ID never
+    authorize a restart. A pending/running installation always blocks it.
+    """
+    runtime = _runtime(hass)
+    if runtime is None or msg["confirm"] is not True:
+        connection.send_error(msg["id"], "not_confirmed", "Neustart nicht bestätigt")
+        return
+    operation_id = msg["operation_id"]
+    if (len(operation_id) != 32 or
+        any(ch not in "0123456789abcdef" for ch in operation_id)):
+        connection.send_error(msg["id"], "invalid_operation", "Ungültige Auftragskennung")
+        return
+    async with runtime.restart_lock:
+        if runtime.restart_pending:
+            connection.send_error(msg["id"], "restart_pending", "Neustart bereits angefordert")
+            return
+        try:
+            job = await runtime.deployment.get(operation_id)
+            jobs = await runtime.deployment.list()
+        except (OperationContractError, ValueError):
+            connection.send_error(msg["id"], "invalid_operation", "Auftrag nicht verfügbar")
+            return
+        if (job is None or job.get("status") != "success" or
+            job.get("phase") != "complete" or job.get("restart_required") is not True):
+            connection.send_error(msg["id"], "not_permitted",
+                                  "Kein erfolgreiches Update mit Neustartbedarf")
+            return
+        active = {"queued", "running", "waiting_for_resource", "cancel_requested"}
+        if any(row.get("status") in active for row in jobs):
+            connection.send_error(msg["id"], "deployment_active",
+                                  "Es laufen noch Installationsaufträge")
+            return
+        runtime.restart_pending = True
+        try:
+            # Standard HA core service; never call hass.async_stop directly.
+            # The service request is queued without blocking its own restart.
+            await hass.services.async_call("homeassistant", "restart", {}, blocking=False)
+        except Exception:
+            runtime.restart_pending = False
+            connection.send_error(msg["id"], "restart_failed",
+                                  "Home-Assistant-Neustart konnte nicht angefordert werden")
+            return
+        connection.send_result(msg["id"], {
+            "schema": "dra-v2-restart-request.v1",
+            "operation_id": operation_id,
+            "restart_requested": True,
+        })
+
+
+@websocket_api.websocket_command({
     probatio.Required("type"): "deploy_relay_v2_dev/test/version/increment",
     probatio.Required("confirm"): bool,
 })
@@ -1306,6 +1368,7 @@ def async_register_commands(hass: HomeAssistant) -> None:
                     async_archive_repository_check,
                     async_test_version_increment,
                     async_install_prepare, async_install_start, async_install_status,
+                    async_deployment_restart,
                     async_download_json):
         websocket_api.async_register_command(hass, handler)
     state["commands_registered"] = True
