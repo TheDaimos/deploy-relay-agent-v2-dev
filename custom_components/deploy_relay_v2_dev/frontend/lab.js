@@ -1639,7 +1639,6 @@ class DRAV2DevLabPanel extends HTMLElement {
     if (!this._projectPickerOpen) return;
     if (!this._projects.some(p => p.repository === repository && p.active !== false)) return;
     this._selectedMainRepo = repository;
-    this._mainSourceRef = "";
     this._sourceChoices = null;
     this._sourceChoicesMessage = "";
     this._deploymentPreviewRef = null;
