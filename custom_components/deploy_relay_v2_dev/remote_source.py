@@ -431,8 +431,8 @@ def _version_order(source: str, local: str) -> str:
     """Preserve V1's conservative numeric marker comparison."""
     if source == local:
         return "same"
-    a = tuple(int(x) for x in re.findall(r"\\d+", source)[:8])
-    b = tuple(int(x) for x in re.findall(r"\\d+", local)[:8])
+    a = tuple(int(x) for x in re.findall(r"\d+", source)[:8])
+    b = tuple(int(x) for x in re.findall(r"\d+", local)[:8])
     if not a or not b:
         return "unknown"
     n = max(len(a), len(b))
