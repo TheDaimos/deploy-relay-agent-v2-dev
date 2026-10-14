@@ -3478,13 +3478,13 @@ class DRAV2DevLabPanel extends HTMLElement {
                     : "Noch nicht geprüft"}</strong></div>
                 </div>
               </div>
-              <details class="dra-source-extra" id="dra-source-advanced" ${this._sourceChoicesBusy || this._sourceChoices?.repository === mainProject?.repository || this._sourceChoicesMessage ? "open" : ""}>
+              <details class="dra-source-extra" id="dra-source-advanced" ${this._sourceChoicesBusy || this._sourceChoices && this._sourceChoices.repository === mainProject?.repository || this._sourceChoicesMessage ? "open" : ""}>
                 <summary>Erweiterte Quellenauswahl</summary>
                 <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin:10px 0">
                   <label for="dra-main-choice" style="flex:1;min-width:220px">Git-Zweig oder Tag
-                    <select id="dra-main-choice" class="project-text" ${this._sourceChoices?.repository === mainProject?.repository ? "" : "disabled"}>
+                    <select id="dra-main-choice" class="project-text" ${this._sourceChoices && this._sourceChoices.repository === mainProject?.repository ? "" : "disabled"}>
                       <option value="">${this._sourceChoices ? "Quelle auswählen …" : "Zuerst Zweige laden"}</option>
-                      ${(this._sourceChoices?.repository === mainProject?.repository ? this._sourceChoices.choices : []).map(choice =>
+                      ${(this._sourceChoices && this._sourceChoices.repository === mainProject?.repository ? this._sourceChoices.choices : []).map(choice =>
                         `<option value="${this._escapeProject(choice.ref)}" ${this._mainSourceRef === choice.ref ? "selected" : ""}>
                           ${choice.kind === "branch" ? "Zweig" : "Tag"} · ${this._escapeProject(choice.ref)}
                           ${choice.ref === this._sourceChoices.default_ref ? "(Standard)" : ""} · ${choice.commit.slice(0,12)}
