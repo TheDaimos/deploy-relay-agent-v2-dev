@@ -7,7 +7,7 @@ project installation, backup writes or restore commands.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import asyncio
 
 from homeassistant.config_entries import ConfigEntry
@@ -53,6 +53,9 @@ class LabRuntime:
     source_job_history: SourceJobHistory
     deployment: DeploymentCoordinator
     deployment_audit: DeploymentAudit
+    # A single confirmed restart request is accepted per HA runtime.
+    restart_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+    restart_pending: bool = False
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
