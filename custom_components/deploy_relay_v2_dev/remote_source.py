@@ -342,7 +342,8 @@ async def _get(session, url: str, *, token: str | None = None, allow_list: bool 
 
 
 
-async def inspect_source_choices(session, repository: str, *, token: str | None = None) -> dict:
+async def inspect_source_choices(session, repository: str, *, token: str | None = None,
+                                 expected_project_id: str | None = None) -> dict:
     """Bounded, read-only GitHub branches/tags for the UI; never install authorization."""
     try:
         repository = normalize_repo(repository)
@@ -369,8 +370,53 @@ async def inspect_source_choices(session, repository: str, *, token: str | None 
             if not ref or type(sha) is not str or len(sha) != 40 or any(c not in "0123456789abcdef" for c in sha):
                 raise PreflightError("invalid source entry")
             choices.append({"kind": kind, "ref": ref, "commit": sha})
+    # Same project-owned recommendation file as DRA V1; never borrow V1 state.
+    recommended = {"kind": "branch", "ref": default, "channel": "default",
+                   "explicit": False, "commit": None}
+    try:
+        policy_obj = await _get(session, base + "/contents/deploy-relay-channel.json?ref=" +
+                                quote(default, safe=""), token=token)
+    except PreflightError as exc:
+        if str(exc) != "github_http_not_found":
+            raise
+    else:
+        if (policy_obj.get("encoding") != "base64" or
+                type(policy_obj.get("content")) is not str or
+                type(policy_obj.get("size")) is not int or
+                policy_obj["size"] > 8192):
+            raise PreflightError("invalid deployment recommendation")
+        try:
+            raw = base64.b64decode(policy_obj["content"], validate=False)
+            if len(raw) != policy_obj["size"] or git_blob_sha(raw) != policy_obj.get("sha"):
+                raise PreflightError("invalid recommendation blob")
+            policy = json.loads(raw.decode("utf-8"))
+        except (UnicodeError, binascii.Error, ValueError):
+            raise PreflightError("invalid recommendation format") from None
+        if (type(policy) is not dict or
+                set(policy) != {"schema", "project_id", "recommended"} or
+                policy.get("schema") != "deploy-relay.channel.v1" or
+                (expected_project_id is not None and policy.get("project_id") != expected_project_id) or
+                type(policy.get("recommended")) is not dict or
+                set(policy["recommended"]) != {"channel", "kind", "ref"} or
+                policy["recommended"].get("kind") not in ("branch", "tag") or
+                type(policy["recommended"].get("channel")) is not str or
+                not policy["recommended"]["channel"].strip()):
+            raise PreflightError("invalid deployment recommendation")
+        preferred_ref = source_ref(policy["recommended"].get("ref"))
+        if not preferred_ref:
+            raise PreflightError("invalid recommended reference")
+        recommended = {"kind": policy["recommended"]["kind"], "ref": preferred_ref,
+                       "channel": policy["recommended"]["channel"],
+                       "explicit": True, "commit": None}
+    for item in choices:
+        if item["kind"] == recommended["kind"] and item["ref"] == recommended["ref"]:
+            recommended["commit"] = item["commit"]
+            break
+    if recommended["commit"] is None:
+        resolved = await inspect_source_head(session, repository, recommended["ref"], token=token)
+        recommended["commit"] = resolved["commit"]
     return {"schema": "dra-v2-source-choices.v1", "repository": repository,
-            "default_ref": default, "choices": choices,
+            "default_ref": default, "choices": choices, "recommended": recommended,
             "limited": sum(c["kind"] == "branch" for c in choices) == 100 or
                        sum(c["kind"] == "tag" for c in choices) == 100}
 
