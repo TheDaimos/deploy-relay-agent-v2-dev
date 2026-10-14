@@ -3818,8 +3818,25 @@ class DRAV2DevLabPanel extends HTMLElement {
             </p>
             ${mainPreviewVerified ? `<div class="dra-deployment-result">
               <strong>Schreibgeschützte Vorschau</strong>
-              <span>Hinzugefügt: ${this._sourcePreview.add?.length ?? 0} · Geändert: ${this._sourcePreview.change?.length ?? 0} ·
-                Entfernt: ${this._sourcePreview.remove?.length ?? 0} · Unverändert: ${this._sourcePreview.unchanged_count ?? 0}</span>
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,270px),1fr));gap:12px;margin:10px 0">
+                <div style="border:1px solid var(--divider-color,#52636b);border-radius:9px;padding:12px">
+                  <strong>Dateivergleich</strong>
+                  <div>Hinzugefügt: ${this._sourcePreview.add?.length ?? 0} · Geändert: ${this._sourcePreview.change?.length ?? 0} ·
+                    Entfernt: ${this._sourcePreview.remove?.length ?? 0} · Unverändert: ${this._sourcePreview.unchanged_count ?? 0}</div>
+                </div>
+                <div style="border:1px solid ${this._sourcePreview.version_guard?.warning ? "#ae792b" : "var(--divider-color,#52636b)"};border-radius:9px;padding:12px">
+                  <strong>Versions- und Regressionsprüfung</strong>
+                  <div>Git-Quelle: <b>${this._escapeProject(this._sourcePreview.version_guard?.source_version || "Nicht ermittelt")}</b></div>
+                  <div>Lokal installiert: <b>${this._escapeProject(this._sourcePreview.version_guard?.local_version || "Nicht ermittelt")}</b></div>
+                  <div class="note">Erkannt über: ${this._escapeProject(this._sourcePreview.version_guard?.marker || "Kein gemeinsamer Versionsmarker")}</div>
+                  <div role="status">${this._sourcePreview.version_guard?.regression ? "⚠ Rückschritt erkannt – ältere Git-Version" :
+                    this._sourcePreview.version_guard?.reason === "same_version_with_file_changes" ? "⚠ Gleiche Version, aber geänderte Dateien" :
+                    this._sourcePreview.version_guard?.reason === "no_common_version_marker_with_removals" ? "⚠ Versionsvergleich nicht möglich; Löschungen vorhanden" :
+                    this._sourcePreview.version_guard?.status === "upgrade" ? "Aktualisierung erkannt" :
+                    this._sourcePreview.version_guard?.status === "same" ? "Versionsstand identisch" :
+                    "Versionsreihenfolge nicht ermittelbar"}</div>
+                </div>
+              </div>
               <span class="note">Keine Schreib- oder Installationsfreigabe.</span>
               <details id="dra-preview-details" ${this._previewDetailsOpen ? "open" : ""}>
                 <summary>Details der Vorschau · Dateiliste, Filter und Suche</summary>
