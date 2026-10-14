@@ -3478,7 +3478,7 @@ class DRAV2DevLabPanel extends HTMLElement {
                     : "Noch nicht geprüft"}</strong></div>
                 </div>
               </div>
-              <details class="dra-source-extra" id="dra-source-advanced">
+              <details class="dra-source-extra" id="dra-source-advanced" ${this._sourceChoicesBusy || this._sourceChoices?.repository === mainProject?.repository || this._sourceChoicesMessage ? "open" : ""}>
                 <summary>Erweiterte Quellenauswahl</summary>
                 <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin:10px 0">
                   <label for="dra-main-choice" style="flex:1;min-width:220px">Git-Zweig oder Tag
