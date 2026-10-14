@@ -63,7 +63,12 @@ class JournalIsolationContracts(unittest.TestCase):
         self.assertNotIn('and p.get("access_mode") == "read_write"', source)
         self.assertIn('await runtime.journal.get(msg["operation_id"])', source)
         self.assertNotIn('deploy_relay/panel/', source)
-        for word in ('"install"', '"restore"', '"restart"', '"delete"'):
+        # Restart is now one explicit post-install command, never a generic
+        # write operation or an unconfirmed diagnostics side effect.
+        self.assertEqual(source.count('hass.services.async_call("homeassistant", "restart"'), 1)
+        self.assertIn('job.get("restart_required") is not True', source)
+        self.assertIn('msg["confirm"] is not True', source)
+        for word in ('"install"', '"restore"', '"delete"'):
             self.assertNotIn(word, source)
 
 
