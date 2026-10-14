@@ -1329,12 +1329,21 @@ class DRAV2DevLabPanel extends HTMLElement {
       if (result?.schema !== "dra-v2-source-choices.v1" ||
           result.repository !== repository || !Array.isArray(result.choices) ||
           result.choices.length > 200 || typeof result.default_ref !== "string" ||
+          !result.recommended || typeof result.recommended.ref !== "string" ||
+          !/^[a-f0-9]{40}$/.test(result.recommended.commit || "") ||
           result.choices.some(choice => !["branch","tag"].includes(choice.kind) ||
             typeof choice.ref !== "string" || !/^[a-f0-9]{40}$/.test(choice.commit))) {
         throw new Error("invalid source choices");
       }
       if (this._selectedMainRepo !== repository) return;
       this._sourceChoices = result;
+      if (!this._mainSourceRef.trim() && result.recommended.explicit) {
+        this._mainSourceRef = result.recommended.ref;
+        this._sourcePreview = null;
+        this._sourceHead = null;
+        this._deploymentPreviewRef = null;
+        this._sourceMessage = "Empfohlener Entwicklungszweig übernommen. Vorschau erneut berechnen.";
+      }
       this._sourceChoicesMessage = result.limited
         ? "GitHub zeigt maximal 100 Zweige und 100 Tags. Weitere Referenzen manuell eingeben."
         : "Git-Zweige und Tags geladen. Auswahl verändert noch keine Dateien.";
@@ -3479,6 +3488,12 @@ class DRAV2DevLabPanel extends HTMLElement {
               </div>
               <details class="dra-source-extra" id="dra-source-advanced" ${this._sourceChoicesBusy || this._sourceChoices && this._sourceChoices.repository === mainProject?.repository || this._sourceChoicesMessage ? "open" : ""}>
                 <summary>Erweiterte Quellenauswahl</summary>
+                ${this._sourceChoices?.recommended ? `<p class="note"><strong>Empfohlene Quelle:
+                  ${this._escapeProject(this._sourceChoices.recommended.channel)} ·
+                  ${this._escapeProject(this._sourceChoices.recommended.ref)} ·
+                  ${this._sourceChoices.recommended.commit.slice(0,12)}</strong>
+                  ${this._sourceChoices.recommended.explicit ? "(Projektvorgabe)" : "(Standardzweig, keine Projektvorgabe)"}
+                  <button type="button" id="dra-use-recommended">Empfehlung übernehmen</button></p>` : ""}
                 <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin:10px 0">
                   <label for="dra-main-choice" style="flex:1;min-width:220px">Git-Zweig oder Tag
                     <select id="dra-main-choice" class="project-text" ${this._sourceChoices && this._sourceChoices.repository === mainProject?.repository ? "" : "disabled"}>
@@ -4380,6 +4395,10 @@ class DRAV2DevLabPanel extends HTMLElement {
       button.addEventListener("click",()=>this._chooseMainProject(button.dataset.repo)));
     s.querySelector("#dra-picker-batch")?.addEventListener("click",()=>this._openPickerBatch());
     s.querySelector("#dra-load-source-choices")?.addEventListener("click",()=>this._loadSourceChoices());
+    s.querySelector("#dra-use-recommended")?.addEventListener("click",()=>{
+      const ref=this._sourceChoices?.recommended?.ref;
+      if (ref) this._applySourceChoice(ref);
+    });
     s.querySelector("#dra-main-choice")?.addEventListener("change",e=>{
       if (e.target.value) this._applySourceChoice(e.target.value);
     });
