@@ -96,7 +96,7 @@ class LabIsolationContracts(unittest.TestCase):
         sockets = (LAB_ROOT / "websocket_api.py").read_text(encoding="utf-8")
         self.assertEqual(sockets.count("@websocket_api.async_response"), 44)
         self.assertEqual(sockets.count("@websocket_api.require_admin"), 44)
-        self.assertEqual(sockets.count("@websocket_api.websocket_command("), 43)
+        self.assertEqual(sockets.count("@websocket_api.websocket_command("), 44)
         self.assertIn("import probatio", sockets)
         self.assertNotIn("import voluptuous", sockets)
         for handler in ("async_state", "async_measure", "async_multicore",
