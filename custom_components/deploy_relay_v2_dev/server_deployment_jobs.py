@@ -159,11 +159,15 @@ class ServerDeploymentJobs:
                     # journal before returning successfully.
                     if result.state != engine.TransactionState.SUCCESS:
                         raise engine.DeploymentError("V1 engine did not finish")
+                    # An explicit integration_reload cannot be safely executed
+                    # generically; a full HA restart is the conservative
+                    # supported post-action for changed backend integrations.
+                    post_restart = result.restart_required or result.lifecycle == "integration_reload"
                     await self._registry.post_action(
-                        identifier, restart_required=result.restart_required,
+                        identifier, restart_required=post_restart,
                         frontend_reload_possible=(
                             result.lifecycle == "frontend_reload"
-                            and not result.restart_required
+                            and not post_restart
                         ),
                     )
                     await self._registry.transition(identifier, OperationStatus.SUCCESS)
