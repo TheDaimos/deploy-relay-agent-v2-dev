@@ -88,6 +88,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._sourceJobTimer = null;
     this._sourceJobPolling = false;
     this._sourceJobRestored = false;
+    this._sourceSyncTick = 0;
     this._sourceJobRetryMs = 1200;
     this._sourceJobHistory = [];
     this._sourceJobHistoryStatus = "";
@@ -573,8 +574,9 @@ class DRAV2DevLabPanel extends HTMLElement {
       this._error = "";
       // Reconcile the latest HA-owned read job on every state refresh.
       // A second device must see jobs started or completed elsewhere.
+      const sourceSyncDue = !this._sourceJobRestored || (++this._sourceSyncTick % 4 === 0);
       this._sourceJobRestored = true;
-      if (!this._sourceJobPolling) await this._pollSourceJob(true);
+      if (sourceSyncDue && !this._sourceJobPolling) await this._pollSourceJob(true);
     } catch (_error) {
       // Never continue presenting a previously verified HA version as current
       // when the actual server cannot be reached.
