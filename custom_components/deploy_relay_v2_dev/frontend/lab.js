@@ -653,6 +653,24 @@ class DRAV2DevLabPanel extends HTMLElement {
         this._archiveCheckState = "stored";
       }
       this._gitReadConfigured = data.git_read_configured === true;
+      // On a freshly opened device, prefer the single HA-held prepared session
+      // over an arbitrary first project; never silently override user selection.
+      if (!this._selectedMainRepo && this._serverVersion === DRA_V2_UI_VERSION) {
+        try {
+          const active = await this._hass.callWS({
+            type:"deploy_relay_v2_dev/deployment/sessions",
+          });
+          if (active?.schema === "dra-v2-sessions.v1" &&
+              Array.isArray(active.sessions) && active.sessions.length <= 32) {
+            const prepared = active.sessions.filter(item=>item.prepared === true &&
+              this._projects.some(project => project.active !== false &&
+                project.repository === item.repository));
+            if (prepared.length === 1) this._selectedMainRepo = prepared[0].repository;
+          }
+        } catch (_error) {
+          // A transient session discovery error does not break ordinary V2.
+        }
+      }
       if (this._serverVersion === DRA_V2_UI_VERSION) {
         await this._pollInstallation();
         // Completed V2 audit records persist across HA restarts; load only as history.
