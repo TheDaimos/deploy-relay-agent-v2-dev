@@ -366,7 +366,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
       running--;
       if (repository==="TheDaimos/private")
         return {repository,connected:false,reason:"Access denied"};
-      return {repository,connected:true,private:false,authenticated:true,
+      return {repository,connected:true,read_verified:true,access_level:"RO",private:false,authenticated:true,
               advertised_push:null,write_tested:false};
     },
   };
