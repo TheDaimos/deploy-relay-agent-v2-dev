@@ -46,7 +46,7 @@ def safe_path(path: object) -> str:
     return "/".join(parts)
 
 
-def target_path(path: object) -> str:
+def target_path(path: object, *, readonly_self: bool = False) -> str:
     text = safe_path(path)
     parts = text.split("/")
     # Protected HA and V1/V2 integration paths are never eligible even for preview.
@@ -56,6 +56,8 @@ def target_path(path: object) -> str:
         return text
     if len(parts) != 2 or parts[0] != "custom_components":
         raise PreflightError("deployment target not approved for V2")
+    if readonly_self and text == "custom_components/deploy_relay_v2_dev":
+        return text
     if parts[1].casefold() in DENIED_TARGETS or parts[1].startswith("."):
         raise PreflightError("protected deployment target")
     return text
@@ -73,7 +75,7 @@ def _positive_int(value: object, maximum: int) -> int:
     return value
 
 
-def parse_manifest(raw: bytes, *, repository: str) -> dict:
+def parse_manifest(raw: bytes, *, repository: str, readonly_self: bool = False) -> dict:
     if type(raw) is not bytes or not 0 < len(raw) <= MAX_MANIFEST_BYTES:
         raise PreflightError("invalid manifest size")
     try:
@@ -117,7 +119,7 @@ def parse_manifest(raw: bytes, *, repository: str) -> dict:
         if g.get("mode") != "replace_directory":
             raise PreflightError("deployment mode not approved")
         source_dir = safe_path(g.get("source"))
-        target_dir = target_path(g.get("target"))
+        target_dir = target_path(g.get("target"), readonly_self=readonly_self)
         if target_dir.casefold() in used:
             raise PreflightError("overlapping deployment targets")
         used.add(target_dir.casefold())
