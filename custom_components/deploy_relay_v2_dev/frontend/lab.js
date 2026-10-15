@@ -68,6 +68,7 @@ class DRAV2DevLabPanel extends HTMLElement {
       Math.floor(Math.random()*0x100000000).toString(16).padStart(8,"0")).join("");
     this._controllerStatus = null;
     this._controllerBusy = false;
+    this._controllerTimer = null;
     this._installJobId = null;
     this._installJob = null;
     this._installJobs = [];
@@ -186,6 +187,8 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._installTimer = null;
     if (this._sourceJobTimer !== null) clearTimeout(this._sourceJobTimer);
     this._sourceJobTimer = null;
+    if (this._controllerTimer !== null) clearTimeout(this._controllerTimer);
+    this._controllerTimer = null;
     if (typeof window !== "undefined") {
       window.removeEventListener("popstate", this._boundHistoryPop);
     }
@@ -324,6 +327,19 @@ class DRAV2DevLabPanel extends HTMLElement {
     }
   }
 
+  _scheduleControllerHeartbeat() {
+    if (this._controllerTimer !== null) clearTimeout(this._controllerTimer);
+    this._controllerTimer = null;
+    if (!this.isConnected || !this._selectedMainRepo) return;
+    this._controllerTimer = setTimeout(async () => {
+      const repository = this._selectedMainRepo;
+      if (this.isConnected && repository) {
+        await this._syncController(repository);
+        await this._restoreServerPreparation(repository);
+      }
+    }, 10000);
+  }
+
   async _syncController(repository = this._selectedMainRepo, takeOver = false) {
     if (!repository || !this._hass || this._controllerBusy ||
         this._serverVersion !== DRA_V2_UI_VERSION) return false;
@@ -343,6 +359,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     } finally {
       this._controllerBusy = false;
       if (this.isConnected) this._render();
+      this._scheduleControllerHeartbeat();
     }
   }
 
@@ -1761,6 +1778,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     if (!this._projectPickerOpen) return;
     if (!this._projects.some(p => p.repository === repository && p.active !== false)) return;
     this._selectedMainRepo = repository;
+    this._controllerStatus = null;
     this._mainSourceRef = "";
     this._sourceChoices = null;
     this._sourceChoicesLoadedFor = null;
