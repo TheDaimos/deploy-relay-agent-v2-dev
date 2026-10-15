@@ -113,6 +113,24 @@ class DeploymentCoordinator:
             return {"schema":"dra-v2-controller.v1", "project_id":project_id,
                     "controller":owner, "occupied":not owner, "lease_seconds":45}
 
+    async def active_sessions(self) -> list[dict[str, object]]:
+        """Public-to-HA-admin session metadata without challenges or tokens."""
+        async with self._lock:
+            now = monotonic()
+            for project_id, item in list(self._pending.items()):
+                if item.expires_at <= now:
+                    self._pending.pop(project_id, None)
+            for project_id, (client, expires) in list(self._controllers.items()):
+                if expires <= now:
+                    self._controllers.pop(project_id, None)
+            prepared = set(self._pending)
+            operator = set(self._controllers)
+            sessions = [{"project_id":project_id,
+                         "prepared":project_id in prepared,
+                         "controller_active":project_id in operator}
+                        for project_id in sorted(prepared | operator)]
+        return sessions
+
     async def require_controller(self, project_id: str, client_id: str) -> None:
         if not isinstance(client_id, str) or len(client_id) != 32:
             raise OperationContractError("controller required")
