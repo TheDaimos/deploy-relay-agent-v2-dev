@@ -58,6 +58,22 @@ class SourceChoicesContract(unittest.TestCase):
         self.assertIn("!latest && this._sourceJobId", frontend)
         self.assertIn("if (!this._sourceJobId) this._sourceJobId = job.operation_id", frontend)
 
+    def test_cross_device_prepared_plan_is_server_owned(self):
+        coordinator = (ROOT / "deployment_coordinator.py").read_text(encoding="utf-8")
+        socket = (ROOT / "websocket_api.py").read_text(encoding="utf-8")
+        frontend = (ROOT / "frontend/lab.js").read_text(encoding="utf-8")
+        ast.parse(coordinator)
+        ast.parse(socket)
+        self.assertIn("async def pending_status(self, project_id:", coordinator)
+        self.assertIn("candidate.expires_at - monotonic()", coordinator)
+        self.assertIn('"confirmation_required": True', coordinator)
+        self.assertIn("async_install_prepared_status,", socket)
+        self.assertIn('"deploy_relay_v2_dev/deployment/prepared_status"', socket)
+        self.assertIn("@websocket_api.require_admin", socket)
+        self.assertIn("await this._restoreServerPreparation(repository)", frontend)
+        self.assertIn("await this._pollSourceJob(true)", frontend)
+        self.assertIn("challenge:prepared.challenge", frontend)
+
     def test_version_guard_reuses_v1_semantics(self):
         remote = (ROOT / "remote_source.py").read_text(encoding="utf-8")
         tree = ast.parse(remote)
