@@ -1185,10 +1185,40 @@ async def async_git_read_clear(hass, connection, msg):
 
 
 @websocket_api.websocket_command({
+    probatio.Required("type"): "deploy_relay_v2_dev/deployment/control",
+    probatio.Required("repository"): str,
+    probatio.Required("client_id"): str,
+    probatio.Optional("take_over", default=False): bool,
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def async_install_control(hass, connection, msg):
+    """Exclusive display-side operator with explicit cross-device takeover."""
+    runtime = _runtime(hass)
+    if runtime is None:
+        connection.send_error(msg["id"], "not_ready", "Sitzungsverwaltung nicht bereit")
+        return
+    projects = [p for p in runtime.projects.list()
+                if p["repository"].casefold() == msg["repository"].casefold()
+                and p.get("active") is True]
+    if len(projects) != 1:
+        connection.send_error(msg["id"], "not_permitted", "Projekt nicht aktiv")
+        return
+    try:
+        result = await runtime.deployment.control(
+            projects[0]["project_id"], msg["client_id"], take_over=msg["take_over"])
+    except OperationContractError:
+        connection.send_error(msg["id"], "invalid_controller", "Bedienungssitzung ungültig")
+        return
+    connection.send_result(msg["id"], result)
+
+
+@websocket_api.websocket_command({
     probatio.Required("type"): "deploy_relay_v2_dev/deployment/prepare",
     probatio.Required("repository"): str,
     probatio.Required("ref"): str,
     probatio.Required("commit"): str,
+    probatio.Required("client_id"): str,
 })
 @websocket_api.require_admin
 @websocket_api.async_response
@@ -1208,6 +1238,11 @@ async def async_install_prepare(hass, connection, msg):
     project = projects[0]
     if project["project_id"] in {"deploy_relay", "deploy_relay_v2_dev", "deploy_relay_agent_v2_dev"}:
         connection.send_error(msg["id"], "self_update_blocked", "Selbstupdate nicht verfügbar")
+        return
+    try:
+        await runtime.deployment.require_controller(project["project_id"], msg["client_id"])
+    except OperationContractError:
+        connection.send_error(msg["id"], "controller_required", "Bedienung auf anderem Gerät aktiv")
         return
     if runtime.source_scan_lock.locked():
         connection.send_error(msg["id"], "busy", "Eine Quellprüfung läuft bereits")
@@ -1291,6 +1326,13 @@ async def async_install_start(hass, connection, msg):
     if not permitted or msg["confirm"] is not True:
         connection.send_error(msg["id"], "not_permitted", "Installationsfreigabe fehlt")
         return
+    project = next(p for p in runtime.projects.list()
+                   if p["repository"].casefold() == repository.casefold())
+    try:
+        await runtime.deployment.require_controller(project["project_id"], msg["client_id"])
+    except OperationContractError:
+        connection.send_error(msg["id"], "controller_required", "Bedienung auf anderem Gerät aktiv")
+        return
     try:
         snapshot = await runtime.deployment.confirm(
             challenge=msg["challenge"], repository=repository,
@@ -1335,6 +1377,7 @@ async def async_install_status(hass, connection, msg):
     probatio.Required("type"): "deploy_relay_v2_dev/deployment/restart",
     probatio.Required("operation_id"): str,
     probatio.Required("confirm"): bool,
+    probatio.Required("client_id"): str,
 })
 @websocket_api.require_admin
 @websocket_api.async_response
@@ -1438,7 +1481,7 @@ def async_register_commands(hass: HomeAssistant) -> None:
                     async_archive_repository_configure,
                     async_archive_repository_check,
                     async_test_version_increment,
-                    async_install_prepare, async_install_prepared_status, async_install_start, async_install_status,
+                    async_install_control, async_install_prepare, async_install_prepared_status, async_install_start, async_install_status,
                     async_deployment_restart,
                     async_download_json):
         websocket_api.async_register_command(hass, handler)
