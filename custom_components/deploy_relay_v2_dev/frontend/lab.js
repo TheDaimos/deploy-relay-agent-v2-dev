@@ -1299,6 +1299,13 @@ class DRAV2DevLabPanel extends HTMLElement {
             job.result?.installation_enabled === false &&
             job.result?.repository?.toLowerCase() === job.repository.toLowerCase()) {
           this._sourcePreview = job.result;
+          if (this._view === "main") {
+            const changed = ["add","change","remove"].reduce((n,k)=>
+              n + (Array.isArray(job.result[k]) ? job.result[k].length : 0),0);
+            this._sourceHeadMessage = changed === 0
+              ? "Aktuell · Keine relevanten Dateiänderungen"
+              : "Änderungen vorhanden · " + changed + " betroffene Dateien";
+          }
           this._deploymentPreviewRef = this._view === "main" ? job.ref : null;
           this._sourceMessage = (this._sourceConnectionTest
             ? "G2-Verbindungstest abgeschlossen · Auftrag "
@@ -1307,7 +1314,8 @@ class DRAV2DevLabPanel extends HTMLElement {
         } else {
           this._sourcePreview = null;
           this._deploymentPreviewRef = null;
-          this._sourceMessage = "Quellprüfung konnte nicht abgeschlossen werden · Auftrag " +
+          this._sourceHeadMessage = "Prüfung unvollständig · Dateistand nicht bestätigt";
+          this._sourceMessage = "Quellprüfung konnte nicht abgeschlossen werden · Auftrag "
             identity + ". Details unter Logs.";
         }
       }
@@ -1355,7 +1363,8 @@ class DRAV2DevLabPanel extends HTMLElement {
       }
       if (this._selectedMainRepo === repository && this._automaticSourceCheckFor !== repository) {
         this._automaticSourceCheckFor = repository;
-        void this._refreshSourceHead();
+        // Full read-only inventory comparison, not merely a commit check.
+        void this._sourceCheck({dataset:{repo:repository}}, false, true);
       }
       this._sourceChoicesMessage = result.limited
         ? "GitHub zeigt maximal 100 Zweige und 100 Tags. Weitere Referenzen manuell eingeben."
@@ -1431,7 +1440,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     }
   }
 
-  async _sourceCheck(button, connectionTest = false) {
+  async _sourceCheck(button, connectionTest = false, automatic = false) {
     if (!button || !this._hass || this._sourceBusy) return;
     if (connectionTest && this._serverVersion !== G2_TEST_PYTHON_VERSION) {
       this._sourceMessage = "G2-Test nicht startbar: Python-Laufzeit " +
@@ -1442,7 +1451,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     }
     const repository = button.dataset.repo;
     // A new ordinary preview explicitly begins the next cycle; G2 never does.
-    if (!connectionTest && this._view === "main") {
+    if (!connectionTest && !automatic && this._view === "main") {
       const selected = this._projects.find(p=>p.repository===repository);
       this._releaseCompletedDeployment(selected);
     }
