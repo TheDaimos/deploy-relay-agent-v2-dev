@@ -321,7 +321,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   ];
   testPanel._projects = original;
   testPanel._projectDialogOpen = true;
-  testPanel._sourceChecks.set("TheDaimos/bravo", {status:"success",message:"Online"});
+  testPanel._sourceChecks.set("TheDaimos/bravo", {status:"success",access_level:"RW",message:"Lesezugriff bestätigt"});
   testPanel._hass = {
     async callWS({type,action,repository,direction}) {
       assert.equal(type,"deploy_relay_v2_dev/projects/manage");
@@ -337,8 +337,8 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   assert.equal(testPanel._projectDialogOpen,true);
   assert.equal(testPanel._sourceChecks.get("TheDaimos/bravo").status,"success");
   assert.match(testPanel.shadowRoot.innerHTML,/class="project-row connection-success recently-moved"/);
-  assert.match(testPanel.shadowRoot.innerHTML,/>Online<\/span>/);
-  assert.match(testPanel.shadowRoot.innerHTML,/>Prüfen<\/span>/);
+  assert.match(testPanel.shadowRoot.innerHTML,/>RW<\/span>/);
+  assert.match(testPanel.shadowRoot.innerHTML,/>\?<\/span>/);
   assert.match(testPanel.shadowRoot.innerHTML, /class="project-status-label"/);
   console.log("DRA V2 project priority selection and connection statuses PASS");
 })().catch(error => {
