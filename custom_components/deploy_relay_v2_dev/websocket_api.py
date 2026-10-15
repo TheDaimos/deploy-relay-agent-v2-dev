@@ -831,7 +831,18 @@ async def _inspect_source_preview(hass, runtime, repo: str, ref: str) -> dict:
                 timeout=45,
             )
             runtime.source_diagnostics.stage(trace, "target_claims")
-            report["target_claims"] = assess_target_claims([report])
+            if report.get("self_preview_readonly") is True:
+                # The ownership/installer paths must continue rejecting self-targets.
+                # An informational preview is NOT a target claim or authorization.
+                report["target_claims"] = {
+                    "schema": "dra-v2-dev-target-claims.v1",
+                    "installation_enabled": False,
+                    "exclusive_ownership_verified": False,
+                    "handover_required": True,
+                    "self_target_protected": True,
+                }
+            else:
+                report["target_claims"] = assess_target_claims([report])
     except asyncio.CancelledError:
         # ConfigEntry unloading cancels the task; no success and no mutation.
         runtime.source_diagnostics.finish(
