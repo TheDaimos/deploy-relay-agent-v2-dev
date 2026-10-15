@@ -383,6 +383,7 @@ class DRAV2DevLabPanel extends HTMLElement {
           !/^[a-f0-9]{32}$/.test(prepared.challenge || "") ||
           !/^[a-f0-9]{40}$/.test(prepared.source_commit || "")) return;
       this._installPreparation = prepared;
+      this._sourceRepository = repository;
       this._mainSourceRef = prepared.source_ref;
       this._installMessage = "Vorbereitung auf Home Assistant vorhanden · auf diesem Gerät fortsetzbar.";
       // Recover the read-only report separately. Never manufacture verified data.
@@ -496,8 +497,8 @@ class DRAV2DevLabPanel extends HTMLElement {
     if (!this._hass || !prepared || !project || this._installBusy ||
         project.active === false ||
         this._sourceRepository !== prepared.repository ||
-        this._sourcePreview?.source_commit !== prepared.source_commit ||
-        this._deploymentPreviewRef !== this._mainSourceRef.trim()) return;
+        prepared.source_ref !== this._mainSourceRef.trim() ||
+        (this._sourcePreview && this._sourcePreview.source_commit !== prepared.source_commit)) return;
     if (!await this._syncController(project.repository)) {
       this._installMessage = "Bedienung auf einem anderen Gerät aktiv. Sitzung erst übernehmen.";
       this._render();
@@ -2285,14 +2286,19 @@ class DRAV2DevLabPanel extends HTMLElement {
       this._serverVersion === DRA_V2_UI_VERSION ? this._installJob : null;
     const installFailed = jobBelongsToProject &&
       ["failed","recovery_required","interrupted","cancelled"].includes(this._installJob?.status);
-    const preparedInstall = this._installPreparation &&
-      mainPreviewVerified && !previewNoChanges &&
+    // A freshly opened device may not hold the preview in browser memory.
+    // The HA-held, time-limited V1 preparation is the authoritative plan.
+    const preparedInstall = this._installPreparation && !previewNoChanges &&
+      !this._mainBatchMode &&
       this._installPreparation.repository === mainProject?.repository &&
-      this._installPreparation.source_commit === this._sourcePreview?.source_commit &&
-      this._installPreparation.source_ref === this._sourcePreview?.source_ref
+      this._installPreparation.source_ref === this._mainSourceRef.trim() &&
+      /^[a-f0-9]{32}$/.test(this._installPreparation.challenge || "") &&
+      (this._sourcePreview?.source_commit == null ||
+        this._installPreparation.source_commit === this._sourcePreview.source_commit)
         ? this._installPreparation : null;
     const deploymentStage = upToDate ? 1 : displayFinished ? 4 :
-      (this._installSubmissionActive || installActive || installFailed) ? 3 : mainPreviewVerified ? 2 : 1;
+      (this._installSubmissionActive || installActive || installFailed) ? 3 :
+      (preparedInstall || mainPreviewVerified) ? 2 : 1;
     const deploymentCanPreview = this._mainBatchMode
       ? mainBatchProjects.length > 0 && !!this._hass
       : !!mainProject && !!this._hass;
