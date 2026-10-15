@@ -1438,7 +1438,7 @@ def async_register_commands(hass: HomeAssistant) -> None:
                     async_archive_repository_configure,
                     async_archive_repository_check,
                     async_test_version_increment,
-                    async_install_prepare, async_install_start, async_install_status,
+                    async_install_prepare, async_install_prepared_status, async_install_start, async_install_status,
                     async_deployment_restart,
                     async_download_json):
         websocket_api.async_register_command(hass, handler)
