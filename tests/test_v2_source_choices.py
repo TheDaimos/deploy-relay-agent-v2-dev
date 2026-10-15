@@ -56,7 +56,7 @@ class SourceChoicesContract(unittest.TestCase):
         self.assertIn("await this._pollSourceJob(true)", frontend)
         self.assertIn("async _pollSourceJob(latest = false)", frontend)
         self.assertIn("!latest && this._sourceJobId", frontend)
-        self.assertIn("if (!latest && !this._sourceJobId)", frontend)
+        self.assertIn("if (!this._sourceJobId) this._sourceJobId = job.operation_id", frontend)
 
     def test_version_guard_reuses_v1_semantics(self):
         remote = (ROOT / "remote_source.py").read_text(encoding="utf-8")
