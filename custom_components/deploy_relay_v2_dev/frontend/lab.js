@@ -30,6 +30,8 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._sourceChoices = null;
     this._sourceChoicesBusy = false;
     this._sourceChoicesMessage = "";
+    this._sourceChoicesLoadedFor = null;
+    this._automaticSourceCheckFor = null;
     this._settingsMessage = "";
     this._cpuStatus = {available_cores:null,warning:null};
     this._cpuBusy = false;
@@ -580,6 +582,12 @@ class DRAV2DevLabPanel extends HTMLElement {
     } finally {
       this._busy = false;
       if (this.isConnected) this._render();
+      const current = this._selectedMainRepo || this._projects.find(p=>p.active !== false)?.repository;
+      if (current && this._serverVersion === DRA_V2_UI_VERSION &&
+          this._sourceChoicesLoadedFor !== current && !this._sourceChoicesBusy) {
+        this._selectedMainRepo = current;
+        void this._loadSourceChoices();
+      }
       this._schedule();
     }
   }
@@ -1337,6 +1345,7 @@ class DRAV2DevLabPanel extends HTMLElement {
       }
       if (this._selectedMainRepo !== repository) return;
       this._sourceChoices = result;
+      this._sourceChoicesLoadedFor = repository;
       if (!this._mainSourceRef.trim() && result.recommended.explicit) {
         this._mainSourceRef = result.recommended.ref;
         this._sourcePreview = null;
@@ -1344,12 +1353,17 @@ class DRAV2DevLabPanel extends HTMLElement {
         this._deploymentPreviewRef = null;
         this._sourceMessage = "Empfohlener Entwicklungszweig übernommen. Vorschau erneut berechnen.";
       }
+      if (this._selectedMainRepo === repository && this._automaticSourceCheckFor !== repository) {
+        this._automaticSourceCheckFor = repository;
+        void this._refreshSourceHead();
+      }
       this._sourceChoicesMessage = result.limited
         ? "GitHub zeigt maximal 100 Zweige und 100 Tags. Weitere Referenzen manuell eingeben."
         : "Git-Zweige und Tags geladen. Auswahl verändert noch keine Dateien.";
     } catch (_error) {
       if (this._selectedMainRepo !== repository) return;
       this._sourceChoices = null;
+      this._sourceChoicesLoadedFor = repository;
       this._sourceChoicesMessage = "Quellenauswahl nicht verfügbar. Manuelle Eingabe bleibt möglich.";
     } finally {
       this._sourceChoicesBusy = false;
@@ -1587,13 +1601,13 @@ class DRAV2DevLabPanel extends HTMLElement {
       if (!report || report.repository?.toLowerCase() !== repository.toLowerCase()) {
         throw new Error("invalid response");
       }
-      if (report.connected === true) {
+      if (report.connected === true && report.read_verified === true) {
         const visibility = report.private ? "Privates Repository" : "Öffentliches Repository";
         const auth = report.authenticated ? "mit Token" : "ohne Token";
         const rights = report.advertised_push === true ? " · GitHub meldet Schreibberechtigung (nicht getestet)" :
           report.advertised_push === false ? " · GitHub meldet nur Lesezugriff" : "";
-        this._sourceChecks.set(repository, {status:"success",
-          message:"Verbindung erfolgreich · " + visibility + " · " + auth + rights});
+        this._sourceChecks.set(repository, {status:"success",access_level:report.access_level === "RW" ? "RW" : "RO",
+          message:"Lesezugriff bestätigt · " + visibility + " · " + auth + rights});
       } else {
         this._sourceChecks.set(repository, {status:"failure",
           message:"Verbindung fehlgeschlagen · " + (report.reason || "Repository oder Token prüfen.")});
@@ -1624,10 +1638,10 @@ class DRAV2DevLabPanel extends HTMLElement {
         if (status === "success") online++;
         else offline++;
         checked++;
-        this._checkAllProgress = `Verbindungsprüfung: ${checked} von ${repositories.length} · ${online} online, ${offline} offline.`;
+        this._checkAllProgress = `Verbindungsprüfung: ${checked} von ${repositories.length} · ${online} geprüft, ${offline} fehlgeschlagen.`;
         if (this.isConnected) this._render();
       }
-      this._checkAllProgress = `Prüfung abgeschlossen: ${online} online, ${offline} offline.`;
+      this._checkAllProgress = `Prüfung abgeschlossen: ${online} mit Lesezugriff, ${offline} fehlgeschlagen.`;
     } finally {
       this._checkAllBusy = false;
       if (this.isConnected) this._render();
@@ -1642,13 +1656,17 @@ class DRAV2DevLabPanel extends HTMLElement {
   _closeProjectPicker() {
     this._projectPickerOpen = false;
     this._render();
+    void this._loadSourceChoices();
     this.shadowRoot?.querySelector("#dra-project-picker-open")?.focus();
   }
   _chooseMainProject(repository) {
     if (!this._projectPickerOpen) return;
     if (!this._projects.some(p => p.repository === repository && p.active !== false)) return;
     this._selectedMainRepo = repository;
+    this._mainSourceRef = "";
     this._sourceChoices = null;
+    this._sourceChoicesLoadedFor = null;
+    this._automaticSourceCheckFor = null;
     this._sourceChoicesMessage = "";
     this._deploymentPreviewRef = null;
     this._mainBatchMode = false;
@@ -2234,8 +2252,8 @@ class DRAV2DevLabPanel extends HTMLElement {
       const p = entry.project;
       const test = this._sourceChecks.get(p.repository);
       const state = test?.status || "unverified";
-      const label = state === "success" ? "Online" : state === "failure" ? "Offline" :
-        state === "checking" ? "Prüft …" : "Prüfen";
+      const label = state === "success" ? (test.access_level === "RW" ? "RW" : "RO") : state === "failure" ? "X" :
+        state === "checking" ? "…" : "?";
       const icon = state === "success" ? onlineIcon : state === "failure" ? failureIcon : pendingIcon;
       const selected = this._highlightMovedRepo?.toLowerCase() === p.repository.toLowerCase();
       return `<tr class="project-row connection-${state}${selected ? " recently-moved" : ""}" data-project-repo="${this._escapeProject(p.repository)}" tabindex="0" aria-current="${selected ? "true" : "false"}" aria-label="Projekt ${this._escapeProject(p.name)} markieren"><td>${i+1}</td>
@@ -3478,12 +3496,13 @@ class DRAV2DevLabPanel extends HTMLElement {
                 <strong>${mainPreviewVerified ? "Geprüfte GitHub-Quelle" : "Quellstand noch nicht geprüft"}</strong>
                 <div class="dra-source-meta">
                   <div><span class="note">Projekt</span><strong>${mainProject ? this._escapeProject(mainProject.name) : "Kein aktives Projekt"}</strong></div>
-                  <div><span class="note">Ref</span><strong>${mainPreviewVerified
+                  <div><span class="note">Ausgewählt · Art</span><strong>${this._sourceChoices?.choices?.find(x=>x.ref===this._mainSourceRef.trim())?.kind || "branch"}</strong></div>
+                  <div><span class="note">Ausgewählt · Ref</span><strong>${mainPreviewVerified
                     ? this._escapeProject(this._sourcePreview.source_ref || "Standardzweig")
                     : this._escapeProject(this._mainSourceRef.trim() || "Standardzweig")}</strong></div>
-                  <div><span class="note">Commit</span><strong>${mainPreviewVerified
+                  <div><span class="note">Ausgewählt · Commit</span><strong>${mainPreviewVerified
                     ? this._escapeProject(this._sourcePreview.source_commit?.slice(0,12) || "—")
-                    : "Noch nicht geprüft"}</strong></div>
+                    : this._sourceChoices?.choices?.find(x=>x.ref===this._mainSourceRef.trim())?.commit?.slice(0,12) || "Noch nicht geprüft"}</strong></div>
                 </div>
               </div>
               <details class="dra-source-extra" id="dra-source-advanced" ${this._sourceChoicesBusy || this._sourceChoices && this._sourceChoices.repository === mainProject?.repository || this._sourceChoicesMessage ? "open" : ""}>
@@ -4104,7 +4123,8 @@ class DRAV2DevLabPanel extends HTMLElement {
                   ${this._projectBusy || this._sourceBusy || this._gitReadBusy || this._checkAllBusy ? "disabled" : ""}>${closeIcon}</button>
               </header>
               <div class="project-management-scroll" id="project-management-scroll">
-              <p class="note">Reihenfolge: Anzeige, Standardprojekt und Priorität der späteren Sammelaktualisierung. Git-Status nur nach expliziter Prüfung.</p>
+              <p class="note">Reihenfolge: Anzeige, Standardprojekt und Priorität der späteren Sammelaktualisierung. GitHub-Zugriff nur nach Prüfung.</p>
+              <details class="dra-source-extra"><summary><span>GitHub-Zugriffsrechte ⓘ</span><span style="float:right">Legende ▾</span></summary><p class="note">RW = Lesezugriff bestätigt, Schreibrecht von GitHub gemeldet (nicht praktisch getestet). RO = Lesezugriff bestätigt. ? = ungeprüft. X = Zugriff fehlgeschlagen.</p></details>
           ${this._projects.length ? `<div class="table-wrap"><table class="project-management-table"><thead><tr><th>Nr.</th><th>Projekt</th><th>Git-Status</th><th>Einstellungen</th><th>Reihenfolge</th></tr></thead><tbody>${projectRows}</tbody></table></div>` : '<p class="note">Noch keine Projekte in V2 hinterlegt.</p>'}
           <div class="project-actions">
             <button id="project-add-open" class="project-action-primary" ${this._checkAllBusy ? "disabled" : ""}>${plusIcon}<span>Projekt hinzufügen</span></button>
