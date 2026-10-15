@@ -561,8 +561,8 @@ async def _preview_version_guard(session, config_root: Path, base: str, commit: 
                 continue
         except (OSError, ValueError, binascii.Error):
             continue
-        source_markers = extract_version_markers(group["id"], relative, remote_bytes)
-        local_markers = extract_version_markers(group["id"], relative, local_bytes)
+        source_markers = extract_version_markers(group["target"], relative, remote_bytes)
+        local_markers = extract_version_markers(group["target"], relative, local_bytes)
         for a in source_markers:
             for b in local_markers:
                 if a.name == b.name and a.relative_path == b.relative_path:
