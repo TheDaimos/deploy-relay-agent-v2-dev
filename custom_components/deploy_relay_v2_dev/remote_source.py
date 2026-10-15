@@ -467,7 +467,7 @@ async def inspect_repository_connection(session, repository: str, *, token: str 
         raise PreflightError("default branch not available")
     tree_endpoint = f"{API}/repos/{quote(owner, safe='')}/{quote(name, safe='')}/git/trees/{quote(default_branch, safe='')}"
     tree = await _get(session, tree_endpoint, token=token)
-    if type(tree.get("sha")) is not str or not SHA.fullmatch(tree["sha"]) or type(tree.get("tree")) is not list:
+    if type(tree.get("sha")) is not str or not re.fullmatch(r"[a-f0-9]{40}", tree["sha"]) or type(tree.get("tree")) is not list:
         raise PreflightError("repository content read not verified")
     permissions = meta.get("permissions")
     advertised_push = permissions.get("push") if type(permissions) is dict else None
