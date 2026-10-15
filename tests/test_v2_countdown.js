@@ -858,7 +858,9 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   assert.match(panel.shadowRoot.innerHTML,/data-stage="4"/);
   assert.match(panel.shadowRoot.innerHTML,/Home-Assistant-Neustart erforderlich/);
   assert.deepEqual(calls,[
+    "deploy_relay_v2_dev/deployment/control",
     "deploy_relay_v2_dev/deployment/prepare",
+    "deploy_relay_v2_dev/deployment/control",
     "deploy_relay_v2_dev/deployment/start",
     "deploy_relay_v2_dev/deployment/status",
   ]);
