@@ -1489,3 +1489,33 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   delete mockWindow.location.reload;
   console.log("DRA V2 frontend refresh vs admin confirmed restart lifecycle PASS");
 })().catch(error=>{console.error(error);process.exitCode=1;});
+
+(async () => {
+  // Git ref lookup, diagnostic messages and re-renders must NEVER expand the
+  // advanced source chooser. Only the user's own disclosure toggle may do so.
+  const p = new Panel();
+  const repository = "TheDaimos/gewitterradar";
+  p._view = "main";
+  p._serverVersion = "0.1.91";
+  p._projects = [{repository, project_id:"gewitterradar", name:"Gewitterradar", active:true}];
+  p._selectedMainRepo = repository;
+  p._sourceChoices = {repository, choices:[], recommended:null};
+  p._sourceChoicesMessage = "Git-Zweige und Tags geladen.";
+  p._sourceChoicesBusy = true;
+  p._render();
+  assert.match(p.shadowRoot.innerHTML,/id="dra-source-advanced" >/);
+  assert.doesNotMatch(p.shadowRoot.innerHTML,/id="dra-source-advanced" open>/);
+  p._sourceChoicesBusy = false;
+  p._render();
+  assert.doesNotMatch(p.shadowRoot.innerHTML,/id="dra-source-advanced" open>/);
+  p._sourceAdvancedOpen = true;
+  p._render();
+  assert.match(p.shadowRoot.innerHTML,/id="dra-source-advanced" open>/);
+  p._sourceChoicesMessage = "Prüfung abgeschlossen.";
+  p._render();
+  assert.match(p.shadowRoot.innerHTML,/id="dra-source-advanced" open>/);
+  p._sourceAdvancedOpen = false;
+  p._render();
+  assert.doesNotMatch(p.shadowRoot.innerHTML,/id="dra-source-advanced" open>/);
+  console.log("DRA V2 advanced source chooser respects explicit user disclosure across refreshes PASS");
+})().catch(error=>{console.error(error);process.exitCode=1;});
