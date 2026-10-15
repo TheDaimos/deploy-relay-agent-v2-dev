@@ -1,6 +1,6 @@
 /* Separate DRA V2 DEV read-only lab. No V1 custom element or URLs. */
 // Build identity of this actually loaded JavaScript, independent of the HA Python version.
-const DRA_V2_UI_VERSION = "0.1.89";
+const DRA_V2_UI_VERSION = "0.1.90";
 const G2_TEST_PYTHON_VERSION = DRA_V2_UI_VERSION;
 class DRAV2DevLabPanel extends HTMLElement {
   constructor() {
@@ -1374,6 +1374,7 @@ class DRAV2DevLabPanel extends HTMLElement {
       this._sourceChoices = null;
       this._sourceChoicesLoadedFor = repository;
       this._sourceChoicesMessage = "Quellenauswahl nicht verfügbar. Manuelle Eingabe bleibt möglich.";
+      this._sourceHeadMessage = "Automatische Prüfung nicht möglich · GitHub-Quelle konnte nicht geladen werden.";
     } finally {
       this._sourceChoicesBusy = false;
       if (this.isConnected) this._render();
@@ -1683,7 +1684,9 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._mainBatchMessage = "";
     this._sourcePreview = null;
     this._projectPickerOpen = false;
+    this._sourceHeadMessage = "Empfohlene Quelle wird automatisch geprüft …";
     this._render();
+    void this._loadSourceChoices();
     this.shadowRoot?.querySelector("#dra-project-picker-open")?.focus();
   }
   _pickerEntries() {
@@ -3449,14 +3452,30 @@ class DRAV2DevLabPanel extends HTMLElement {
         /* The access level itself is a compact badge; the button remains a usable test target. */
         .project-management-dialog .project-management-table button.source-check {
           width:56px !important; min-width:56px !important; max-width:56px !important;
-          height:42px !important; min-height:42px !important; padding:5px !important;
+          height:42px !important; min-height:42px !important; padding:0 !important;
+          display:flex !important; align-items:center !important; justify-content:center !important;
           border-radius:22px !important; gap:0 !important;
+          box-sizing:border-box; text-align:center !important;
+          background:linear-gradient(155deg,#487c68 0%,#274b42 32%,#122f30 54%,#315e50 100%) !important;
+          border:1px solid #6eaa94 !important;
+          box-shadow:inset 0 1px 0 rgba(230,255,247,.42),inset 0 -2px 4px rgba(0,0,0,.48),0 2px 5px rgba(0,0,0,.44) !important;
+          color:#e3fff3 !important;
+        }
+        .project-management-dialog .project-management-table button.source-check.failure {
+          background:linear-gradient(155deg,#854545,#47292d,#2a181f) !important;
+          border-color:#c37a80 !important;color:#fff1f1 !important;
+        }
+        .project-management-dialog .project-management-table button.source-check.unverified,
+        .project-management-dialog .project-management-table button.source-check.checking {
+          background:linear-gradient(155deg,#5e6975,#33404d,#1e2934) !important;
+          border-color:#8193a3 !important;color:#f2f6fc !important;
         }
         .project-management-dialog .project-management-table button.source-check .project-icon {
           display:none;
         }
         .project-management-dialog .project-management-table button.source-check .project-status-label {
-          font-size:13px; line-height:1.2; font-weight:750;
+          font-size:13px; line-height:1.2; font-weight:750; display:block; width:100%;
+          text-align:center !important; margin:0 !important; padding:0 !important;
         }
       </style>
       <main>
