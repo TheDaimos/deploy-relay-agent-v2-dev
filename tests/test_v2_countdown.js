@@ -381,7 +381,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   assert.equal(bulkPanel._sourceChecks.get("TheDaimos/private").status,"failure");
   assert.equal(bulkPanel._sourceChecks.get("TheDaimos/third").status,"success");
   assert.equal(bulkPanel._checkAllBusy,false);
-  assert.equal(bulkPanel._checkAllProgress,"Prüfung abgeschlossen: 2 online, 1 offline.");
+  assert.equal(bulkPanel._checkAllProgress,"Prüfung abgeschlossen: 2 mit Lesezugriff, 1 fehlgeschlagen.");
   assert.match(bulkPanel.shadowRoot.innerHTML, /Alle Projekte prüfen/);
   console.log("DRA V2 sequential all-project Git connection check PASS");
 })().catch(error => {
