@@ -1527,3 +1527,52 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   assert.doesNotMatch(p.shadowRoot.innerHTML,/id="dra-source-advanced" open>/);
   console.log("DRA V2 advanced source chooser respects explicit user disclosure across refreshes PASS");
 })().catch(error=>{console.error(error);process.exitCode=1;});
+
+(async () => {
+  // Device B starts with no browser-held source report but a server-restored
+  // V1 plan. This must show stage 2 and permit explicit, HA-authorized control.
+  const p=new Panel();
+  const repository="TheDaimos/example";
+  p._serverVersion="0.1.96";
+  p._selectedMainRepo=repository;
+  p._projects=[{repository,project_id:"example",name:"Example",active:true}];
+  p._sourceRepository=repository;
+  p._mainSourceRef="deploy/dev";
+  p._installPreparation={
+    schema:"dra-v2-install-preparation.v1",repository,
+    source_ref:"deploy/dev",source_commit:"a".repeat(40),
+    challenge:"b".repeat(32),confirmation_required:true,
+    add:1,change:0,remove:0,
+  };
+  p._controllerStatus={schema:"dra-v2-controller.v1",controller:true,occupied:false};
+  p._sourcePreview=null;
+  const calls=[];
+  p._hass={async callWS(req) {
+    calls.push(req.type);
+    if(req.type==="deploy_relay_v2_dev/deployment/control") return {
+      schema:"dra-v2-controller.v1",controller:true,occupied:false,
+    };
+    if(req.type==="deploy_relay_v2_dev/deployment/start") {
+      assert.equal(req.challenge,"b".repeat(32));
+      assert.equal(req.commit,"a".repeat(40));
+      assert.equal(req.confirm,true);
+      return {schema:"dra-v2-install-start.v1",job:{
+        operation_id:"c".repeat(32),project_key:"example",status:"running",
+      }};
+    }
+    if(req.type==="deploy_relay_v2_dev/deployment/status") return {
+      schema:"dra-v2-install-status.v1",jobs:[],job:null,
+    };
+    throw Error("unexpected route "+req.type);
+  }};
+  p._render();
+  assert.match(p.shadowRoot.innerHTML,/id="dra-install-confirm"/);
+  assert.match(p.shadowRoot.innerHTML,/data-stage="2"/);
+  await p._confirmInstallation();
+  assert.deepEqual(calls,[
+    "deploy_relay_v2_dev/deployment/control",
+    "deploy_relay_v2_dev/deployment/start",
+    "deploy_relay_v2_dev/deployment/status",
+  ]);
+  console.log("DRA V2 second-device handoff resumes HA plan without local source preview PASS");
+})().catch(error=>{console.error(error);process.exitCode=1;});
