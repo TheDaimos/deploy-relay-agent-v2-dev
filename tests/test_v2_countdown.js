@@ -1002,6 +1002,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   await versions._refresh();
   assert.deepEqual(requests,[
     "deploy_relay_v2_dev/test/state",
+    "deploy_relay_v2_dev/deployment/sessions",
     "deploy_relay_v2_dev/deployment/status",
     "deploy_relay_v2_dev/deployment/audit"
   ]);
