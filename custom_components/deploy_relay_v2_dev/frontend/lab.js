@@ -571,10 +571,10 @@ class DRAV2DevLabPanel extends HTMLElement {
       }
       this._gitAvailable = data.git_available === true;
       this._error = "";
-      if (!this._sourceJobRestored) {
-        this._sourceJobRestored = true;
-        await this._pollSourceJob();
-      }
+      // Reconcile the latest HA-owned read job on every state refresh.
+      // A second device must see jobs started or completed elsewhere.
+      this._sourceJobRestored = true;
+      if (!this._sourceJobPolling) await this._pollSourceJob(true);
     } catch (_error) {
       // Never continue presenting a previously verified HA version as current
       // when the actual server cannot be reached.
@@ -1237,13 +1237,13 @@ class DRAV2DevLabPanel extends HTMLElement {
     }
   }
 
-  async _pollSourceJob() {
+  async _pollSourceJob(latest = false) {
     if (!this._hass || this._sourceJobPolling) return;
     this._sourceJobPolling = true;
     try {
       const data = await this._hass.callWS({
         type:"deploy_relay_v2_dev/projects/source_job/status",
-        ...(this._sourceJobId ? {operation_id:this._sourceJobId} : {}),
+        ...(!latest && this._sourceJobId ? {operation_id:this._sourceJobId} : {}),
       });
       if (!data || data.schema !== "dra-v2-source-preview-job-status.v1" ||
           data.installation_enabled !== false) throw new Error("invalid source job status");
@@ -1268,8 +1268,10 @@ class DRAV2DevLabPanel extends HTMLElement {
           typeof job.repository !== "string" || typeof job.ref !== "string") {
         throw new Error("invalid source job");
       }
-      if (!this._sourceJobId) this._sourceJobId = job.operation_id;
-      if (this._sourceJobId !== job.operation_id) throw new Error("different source job");
+      // Only locally started jobs own this browser reference. Remote discovery
+      // must not pin future checks to an unrelated completed operation.
+      if (!latest && !this._sourceJobId) this._sourceJobId = job.operation_id;
+      if (!latest && this._sourceJobId !== job.operation_id) throw new Error("different source job");
       if (typeof job.connection_test !== "undefined" &&
           typeof job.connection_test !== "boolean") throw new Error("invalid test mode");
       this._sourceConnectionTest = job.connection_test === true;
@@ -1285,7 +1287,8 @@ class DRAV2DevLabPanel extends HTMLElement {
         (this.shadowRoot?.querySelector("#source-ref")?.value?.trim() || "");
       const matches = currentRepo?.toLowerCase() === job.repository.toLowerCase() &&
         currentRef === job.ref;
-      this._sourceBusy = job.status === "queued" || job.status === "running";
+      const serverRunning = job.status === "queued" || job.status === "running";
+      this._sourceBusy = serverRunning && (matches || (!latest && !!this._sourceJobId));
       if (matches) {
         this._sourceRepository = job.repository;
         const identity = job.operation_id.slice(0, 12);
@@ -1319,6 +1322,10 @@ class DRAV2DevLabPanel extends HTMLElement {
           this._sourceMessage = "Quellprüfung konnte nicht abgeschlossen werden · Auftrag "
             identity + ". Details unter Logs.";
         }
+      }
+      if (!matches && latest && serverRunning && this._view === "main") {
+        this._sourceMessage = "Ein anderes Projekt wird auf Home Assistant geprüft: " +
+          job.repository + ". Dieser Browser startet keinen zusätzlichen Prüfauftrag.";
       }
       if (!this._sourceBusy && this._deploymentLogsOpen) await this._refreshDeploymentLogs();
     } catch (_error) {
