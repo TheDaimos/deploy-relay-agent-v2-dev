@@ -1235,6 +1235,35 @@ async def async_install_prepare(hass, connection, msg):
 
 
 @websocket_api.websocket_command({
+    probatio.Required("type"): "deploy_relay_v2_dev/deployment/prepared_status",
+    probatio.Required("repository"): str,
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def async_install_prepared_status(hass, connection, msg):
+    """Read one project's pending V1-backed plan from any authenticated device."""
+    runtime = _runtime(hass)
+    if runtime is None:
+        connection.send_error(msg["id"], "not_ready", "Auftragsverwaltung nicht bereit")
+        return
+    repository = msg["repository"]
+    projects = [p for p in runtime.projects.list()
+                if p["repository"].casefold() == repository.casefold()
+                and p.get("active") is True]
+    if len(projects) != 1:
+        connection.send_error(msg["id"], "not_permitted", "Projekt nicht aktiv")
+        return
+    project = projects[0]
+    if project["project_id"] in {"deploy_relay", "deploy_relay_v2_dev", "deploy_relay_agent_v2_dev"}:
+        connection.send_result(msg["id"], {"schema": "dra-v2-prepared-status.v1", "preparation": None})
+        return
+    prepared = await runtime.deployment.pending_status(project["project_id"])
+    connection.send_result(msg["id"], {
+        "schema": "dra-v2-prepared-status.v1", "preparation": prepared,
+    })
+
+
+@websocket_api.websocket_command({
     probatio.Required("type"): "deploy_relay_v2_dev/deployment/start",
     probatio.Required("challenge"): str,
     probatio.Required("repository"): str,
