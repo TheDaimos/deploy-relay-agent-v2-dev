@@ -31,6 +31,12 @@ class SourceChoicesContract(unittest.TestCase):
         # The actual data-tree case: unrelated artwork contains spaces/Umlauts.
         self.assertIn("if not managed:", source)
 
+    def test_version_guard_uses_parsed_group_fields(self):
+        source = (ROOT / "remote_source.py").read_text(encoding="utf-8")
+        self.assertIn('extract_version_markers(group["target"], relative, remote_bytes)', source)
+        self.assertIn('extract_version_markers(group["target"], relative, local_bytes)', source)
+        self.assertNotIn('extract_version_markers(group["id"]', source)
+
     def test_version_guard_reuses_v1_semantics(self):
         remote = (ROOT / "remote_source.py").read_text(encoding="utf-8")
         tree = ast.parse(remote)
