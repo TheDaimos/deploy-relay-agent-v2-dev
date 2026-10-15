@@ -3872,6 +3872,18 @@ class DRAV2DevLabPanel extends HTMLElement {
                   </div>
                 </details>
               </section>` : ""}
+            ${mainProject ? `<div class="dra-deployment-result" role="status" aria-live="polite">
+              <strong>Geräteübergreifende Bedienung</strong>
+              <span>${this._controllerStatus?.controller === true
+                ? "Dieses Gerät steuert den Vorgang."
+                : this._controllerStatus?.occupied === true
+                  ? "Ein anderes Gerät steuert. Hier ist Beobachtung möglich."
+                  : "Bedienungsstatus wird ermittelt."}</span>
+              ${this._controllerStatus?.occupied === true
+                ? `<button type="button" id="dra-take-control"
+                     ${this._controllerBusy ? "disabled" : ""}>Bedienung auf diesem Gerät übernehmen</button>`
+                : ""}
+            </div>` : ""}
             <button id="dra-preview" class="dra-deploy-action stage-${deploymentStage}
               ${upToDate ? "up-to-date" : ""} ${deploymentBusy ? "is-busy" : ""} ${installFailed ? "has-error" : ""}"
               data-stage="${deploymentStage}"
@@ -4647,6 +4659,15 @@ class DRAV2DevLabPanel extends HTMLElement {
     s.querySelector("#dra-next-deployment-preview")?.addEventListener("click",()=>{
       if (!mainProject || deploymentBusy) return;
       this._sourceCheck({dataset:{repo:mainProject.repository}});
+    });
+    s.querySelector("#dra-take-control")?.addEventListener("click",async ()=>{
+      if (!mainProject || this._controllerBusy ||
+          !window.confirm("Bedienung dieses Projekts auf diesem Gerät übernehmen? Eine laufende Installation bleibt unverändert.")) return;
+      if (await this._syncController(mainProject.repository, true)) {
+        await this._restoreServerPreparation(mainProject.repository);
+        this._installMessage = "Bedienung übernommen. Installation nur nach ausdrücklicher Bestätigung.";
+      }
+      this._render();
     });
     s.querySelector("#dra-preview")?.addEventListener("click",()=>{
       if (deploymentBusy) return;
