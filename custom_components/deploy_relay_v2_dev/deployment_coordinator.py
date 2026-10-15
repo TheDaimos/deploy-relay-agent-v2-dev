@@ -134,6 +134,37 @@ class DeploymentCoordinator:
                 "installation_started": False,
             }
 
+    async def pending_status(self, project_id: str) -> dict[str, object] | None:
+        """Read HA-owned prepared transaction from any administrator session.
+
+        The challenge remains server-owned, single-use, and time-limited.
+        Returned metadata is never authorization without an explicit confirm.
+        """
+        async with self._lock:
+            candidate = self._pending.get(project_id)
+            if candidate is None:
+                return None
+            remaining = candidate.expires_at - monotonic()
+            if self._closed or remaining <= 0:
+                self._pending.pop(project_id, None)
+                return None
+            preview = candidate.prepared.preview
+            return {
+                "schema": "dra-v2-install-preparation.v1",
+                "challenge": candidate.challenge,
+                "repository": candidate.repository,
+                "source_ref": candidate.source_ref,
+                "source_commit": candidate.commit,
+                "project_id": candidate.project_id,
+                "add": preview.add_count,
+                "change": preview.change_count,
+                "remove": preview.remove_count,
+                "unchanged": preview.unchanged_count,
+                "confirmation_required": True,
+                "expires_in_seconds": int(remaining),
+                "installation_started": False,
+            }
+
     async def confirm(
         self, *, challenge: str, repository: str, commit: str,
         confirm: bool, session: Any, config_root: Path,
