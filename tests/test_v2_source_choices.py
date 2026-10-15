@@ -37,6 +37,20 @@ class SourceChoicesContract(unittest.TestCase):
         self.assertIn('extract_version_markers(group["target"], relative, local_bytes)', source)
         self.assertNotIn('extract_version_markers(group["id"]', source)
 
+    def test_self_inventory_is_readonly_and_installer_target_still_denied(self):
+        preflight = (ROOT / "source_preflight.py").read_text(encoding="utf-8")
+        remote = (ROOT / "remote_source.py").read_text(encoding="utf-8")
+        socket = (ROOT / "websocket_api.py").read_text(encoding="utf-8")
+        self.assertIn('readonly_self and text == "custom_components/deploy_relay_v2_dev"', preflight)
+        self.assertIn('target_path(g.get("target"), readonly_self=readonly_self)', preflight)
+        self.assertIn('manifest["project_id"] != "deploy_relay_agent_v2_dev"', remote)
+        self.assertIn('report["self_preview_readonly"] = True', remote)
+        self.assertIn('"self_target_protected": True', socket)
+        self.assertIn('"installation_enabled": False', socket)
+        self.assertIn('assess_target_claims([report])', socket)
+        # All ordinary deployment validation paths keep readonly_self=False.
+        self.assertIn('def target_path(path: object, *, readonly_self: bool = False)', preflight)
+
     def test_version_guard_reuses_v1_semantics(self):
         remote = (ROOT / "remote_source.py").read_text(encoding="utf-8")
         tree = ast.parse(remote)
