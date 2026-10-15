@@ -979,9 +979,9 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   // At initial load no HA version may be claimed before the admin state reply.
   assert.match(versions.shadowRoot.innerHTML,/id="dra-version" class="dra-version pending"/);
   assert.match(versions.shadowRoot.innerHTML,/Oberfläche/);
-  assert.match(versions.shadowRoot.innerHTML,/V0\.1\.88 DEV/);
+  assert.match(versions.shadowRoot.innerHTML,/V0\.1\.89 DEV/);
   assert.match(versions.shadowRoot.innerHTML,/HA-Laufzeit: Noch nicht ermittelt/);
-  assert.doesNotMatch(versions.shadowRoot.innerHTML,/HA-Laufzeit: V0\.1\.88 DEV/);
+  assert.doesNotMatch(versions.shadowRoot.innerHTML,/HA-Laufzeit: V0\.1\.89 DEV/);
 
   const requests = [];
   versions._hass = {async callWS(request) {
@@ -998,14 +998,14 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
     "deploy_relay_v2_dev/deployment/audit"
   ]);
   assert.match(versions.shadowRoot.innerHTML,/id="dra-version" class="dra-version matched"/);
-  assert.match(versions.shadowRoot.innerHTML,/HA-Laufzeit: V0\.1\.88 DEV/);
+  assert.match(versions.shadowRoot.innerHTML,/HA-Laufzeit: V0\.1\.89 DEV/);
   assert.doesNotMatch(versions.shadowRoot.innerHTML,/Abweichung ·/);
 
   versions._hass = {async callWS() {return {version:"0.1.71",operations:[],projects:[]};}};
   await versions._refresh();
   assert.match(versions.shadowRoot.innerHTML,/id="dra-version" class="dra-version mismatch"/);
   assert.match(versions.shadowRoot.innerHTML,/Abweichung · HA-Laufzeit: V0\.1\.71 DEV/);
-  assert.match(versions.shadowRoot.innerHTML,/class="dra-version-number">V0\.1\.88 DEV/);
+  assert.match(versions.shadowRoot.innerHTML,/class="dra-version-number">V0\.1\.89 DEV/);
   assert.match(versions.shadowRoot.innerHTML,/aria-label="Versionsübersicht:/);
 
   versions._hass = {async callWS() {throw new Error("backend offline");}};
