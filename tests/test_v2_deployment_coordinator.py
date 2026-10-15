@@ -71,6 +71,24 @@ class ConfirmationTests(unittest.IsolatedAsyncioTestCase):
                  "source_ref":"deploy/dev","source_commit":"a"*40,
                  "expected_project_id":"safeapp","config_root":self.root}
 
+    async def test_controller_takeover_lease_and_observer_cannot_confirm(self):
+        desktop = "a"*32
+        android = "b"*32
+        self.assertTrue((await self.owner.control("safeapp", desktop))["controller"])
+        self.assertFalse((await self.owner.control("safeapp", android))["controller"])
+        await self.owner.require_controller("safeapp", desktop)
+        with self.assertRaises(model.OperationContractError):
+            await self.owner.require_controller("safeapp", android)
+        self.assertTrue((await self.owner.control("safeapp", android, take_over=True))["controller"])
+        with self.assertRaises(model.OperationContractError):
+            await self.owner.require_controller("safeapp", desktop)
+        await self.owner.require_controller("safeapp", android)
+        # An expired lease is recovered, never inherited implicitly.
+        self.owner._controllers["safeapp"] = (android, coord.monotonic()-1)
+        self.assertTrue((await self.owner.control("safeapp", desktop))["controller"])
+        self.assertFalse((await self.owner.control("safeapp", android))["controller"])
+        await self.owner.close()
+
     async def test_one_challenge_and_only_one_confirmed_server_job(self):
         started=asyncio.Event()
         release=asyncio.Event()
