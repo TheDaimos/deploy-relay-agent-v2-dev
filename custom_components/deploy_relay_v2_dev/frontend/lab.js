@@ -2523,10 +2523,13 @@ class DRAV2DevLabPanel extends HTMLElement {
         .dra-source-badge {font-size:12px;font-weight:700;padding:6px 10px;border-radius:20px;
           border:1px solid #a37b35;background:rgba(148,105,33,.12);color:#e9cf93;}
         .dra-source-badge.verified {border-color:#44996a;background:rgba(26,120,70,.13);color:#a4edbd;}
+        .dra-source-badge.changed {border-color:#bb8d32;background:rgba(167,119,28,.18);color:#f5d18c;}
         .dra-source-info {border:1px solid #687c8a;border-radius:12px;padding:16px;
           margin-top:16px;background:linear-gradient(140deg,rgba(47,70,80,.16),rgba(17,28,37,.16));}
         .dra-source-info.verified {border-color:#4eac6e;
           background:linear-gradient(140deg,rgba(31,111,61,.18),rgba(17,30,24,.12));}
+        .dra-source-info.changed {border-color:#b58b31;
+          background:linear-gradient(140deg,rgba(132,87,20,.2),rgba(29,27,18,.12));}
         .dra-source-info > strong {display:block;font-size:17px;margin-bottom:12px;}
         .dra-source-meta {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;}
         .dra-source-meta > div {display:flex;flex-direction:column;gap:4px;min-width:0;}
@@ -3436,6 +3439,18 @@ class DRAV2DevLabPanel extends HTMLElement {
            .inner-panel { padding:10px; }
            .section-card h2 { font-size:17px; }
          }
+        /* The access level itself is a compact badge; the button remains a usable test target. */
+        .project-management-dialog .project-management-table button.source-check {
+          width:56px !important; min-width:56px !important; max-width:56px !important;
+          height:42px !important; min-height:42px !important; padding:5px !important;
+          border-radius:22px !important; gap:0 !important;
+        }
+        .project-management-dialog .project-management-table button.source-check .project-icon {
+          display:none;
+        }
+        .project-management-dialog .project-management-table button.source-check .project-status-label {
+          font-size:13px; line-height:1.2; font-weight:750;
+        }
       </style>
       <main>
         <header class="dra-head">
@@ -3484,8 +3499,8 @@ class DRAV2DevLabPanel extends HTMLElement {
                   this._serverVersion !== DRA_V2_UI_VERSION ? "disabled" : ""}>
                   ${this._sourceHeadBusy ? "Prüfe …" : "Aktualisieren"}
                 </button>
-              <span class="dra-source-badge ${mainPreviewVerified ? "verified" : "unverified"}">
-                ${mainPreviewVerified ? "Quelle geprüft" : this._mainBatchMode ? "Mehrere Projekte" : "Prüfung ausstehend"}
+              <span class="dra-source-badge ${mainPreviewVerified ? (previewNoChanges ? "verified" : "changed") : "unverified"}">
+                ${mainPreviewVerified ? (previewNoChanges ? "Aktuell" : "Änderungen vorhanden") : this._mainBatchMode ? "Mehrere Projekte" : "Prüfung ausstehend"}
               </span></div>
             </div>
             ${this._sourceHeadMessage ? `<p class="note" role="status">${this._escapeProject(this._sourceHeadMessage)}</p>` : ""}
@@ -3501,8 +3516,8 @@ class DRAV2DevLabPanel extends HTMLElement {
                     : '<p class="note">Keine aktivierten Projekte. Auswahl in der Projektverwaltung bearbeiten.</p>'}</div>
                 </details>
               </div>` : `
-              <div class="dra-source-info ${mainPreviewVerified ? "verified" : ""}">
-                <strong>${mainPreviewVerified ? "Geprüfte GitHub-Quelle" : "Quellstand noch nicht geprüft"}</strong>
+              <div class="dra-source-info ${mainPreviewVerified ? (previewNoChanges ? "verified" : "changed") : ""}">
+                <strong>${mainPreviewVerified ? (previewNoChanges ? "Aktueller Installationsstand" : "Änderungen zum installierten Stand") : "Quellstand noch nicht geprüft"}</strong>
                 <div class="dra-source-meta">
                   <div><span class="note">Projekt</span><strong>${mainProject ? this._escapeProject(mainProject.name) : "Kein aktives Projekt"}</strong></div>
                   <div><span class="note">Ausgewählt · Art</span><strong>${this._sourceChoices?.choices?.find(x=>x.ref===this._mainSourceRef.trim())?.kind || "branch"}</strong></div>
