@@ -207,14 +207,14 @@ def source_ref(value: object) -> str:
     return value
 
 
-def _local_inventory(config_root: Path, groups: list[dict], *, max_files: int, max_bytes: int) -> dict[str, str]:
+def _local_inventory(config_root: Path, groups: list[dict], *, max_files: int, max_bytes: int, readonly_self: bool = False) -> dict[str, str]:
     """Read limited regular files only in approved managed directories; no writes."""
     found: dict[str, str] = {}
     total = 0
     checked = set()
     root = config_root.resolve(strict=True)
     for group in groups:
-        relative = target_path(group["target"])
+        relative = target_path(group["target"], readonly_self=readonly_self)
         if relative in checked:
             raise PreflightError("duplicate local target")
         checked.add(relative)
@@ -631,7 +631,13 @@ async def inspect_public_repository(session, config_root: Path, repository: str,
             manifest_obj["size"] != len(manifest_bytes) or
             manifest_obj.get("sha") != git_blob_sha(manifest_bytes)):
         raise PreflightError("manifest content integrity failed")
-    manifest = parse_manifest(manifest_bytes, repository=repository)
+    readonly_self = repository.casefold() == "thedaimos/deploy-relay-agent-v2-dev"
+    manifest = parse_manifest(manifest_bytes, repository=repository, readonly_self=readonly_self)
+    if readonly_self and (manifest["project_id"] != "deploy_relay_agent_v2_dev" or
+                          len(manifest["groups"]) != 1 or
+                          manifest["groups"][0]["target"] != "custom_components/deploy_relay_v2_dev" or
+                          manifest["groups"][0]["source"] != "custom_components/deploy_relay_v2_dev"):
+        raise PreflightError("invalid self-preview manifest")
     if stage_hook is not None:
         stage_hook("tree")
     tree_obj = await _get(session, base + "/git/trees/" + tree_sha + "?recursive=1", token=token)
@@ -643,10 +649,13 @@ async def inspect_public_repository(session, config_root: Path, repository: str,
     local = await asyncio.to_thread(
         _local_inventory, config_root, manifest["groups"],
         max_files=manifest["max_files"], max_bytes=manifest["max_bytes"],
+        readonly_self=readonly_self,
     )
     if stage_hook is not None:
         stage_hook("comparison")
     report = compare_blobs(manifest, remote, local, source_commit=sha)
+    if readonly_self:
+        report["self_preview_readonly"] = True
     report["source_ref"] = selected
     report["source_name"] = "GitHub V2 read-only access" if token else "GitHub public (no V1 credentials)"
     report["total_local_files"] = len(local)
