@@ -63,6 +63,11 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._previewFileSearch = "";
     this._deploymentPreviewRef = null;
     this._installPreparation = null;
+    // Local, ephemeral display identity, not an authentication credential.
+    this._controllerId = Array.from({length:4},()=>
+      Math.floor(Math.random()*0x100000000).toString(16).padStart(8,"0")).join("");
+    this._controllerStatus = null;
+    this._controllerBusy = false;
     this._installJobId = null;
     this._installJob = null;
     this._installJobs = [];
@@ -319,6 +324,28 @@ class DRAV2DevLabPanel extends HTMLElement {
     }
   }
 
+  async _syncController(repository = this._selectedMainRepo, takeOver = false) {
+    if (!repository || !this._hass || this._controllerBusy ||
+        this._serverVersion !== DRA_V2_UI_VERSION) return false;
+    this._controllerBusy = true;
+    try {
+      const response = await this._hass.callWS({
+        type:"deploy_relay_v2_dev/deployment/control",
+        repository, client_id:this._controllerId, take_over:takeOver,
+      });
+      if (this._selectedMainRepo !== repository ||
+          response?.schema !== "dra-v2-controller.v1") return false;
+      this._controllerStatus = response;
+      return response.controller === true;
+    } catch (_error) {
+      this._controllerStatus = null;
+      return false;
+    } finally {
+      this._controllerBusy = false;
+      if (this.isConnected) this._render();
+    }
+  }
+
   async _restoreServerPreparation(repository = this._selectedMainRepo) {
     if (!repository || !this._hass || this._installBusy ||
         this._serverVersion !== DRA_V2_UI_VERSION) return;
@@ -361,6 +388,11 @@ class DRAV2DevLabPanel extends HTMLElement {
         Array.isArray(this._sourcePreview.remove) &&
         this._sourcePreview.add.length + this._sourcePreview.change.length +
         this._sourcePreview.remove.length === 0) return;
+    if (!await this._syncController(project.repository)) {
+      this._installMessage = "Bedienung auf einem anderen Gerät aktiv. Sitzung erst übernehmen.";
+      this._render();
+      return;
+    }
     this._installBusy = true;
     this._installPreparation = null;
     this._installMessage = "Die V1-Engine prüft die Dateien erneut …";
@@ -371,6 +403,7 @@ class DRAV2DevLabPanel extends HTMLElement {
         repository:project.repository,
         ref:this._sourcePreview.source_ref,
         commit:this._sourcePreview.source_commit,
+        client_id:this._controllerId,
       });
       if (result?.schema !== "dra-v2-install-preparation.v1" ||
           result?.confirmation_required !== true ||
@@ -448,6 +481,11 @@ class DRAV2DevLabPanel extends HTMLElement {
         this._sourceRepository !== prepared.repository ||
         this._sourcePreview?.source_commit !== prepared.source_commit ||
         this._deploymentPreviewRef !== this._mainSourceRef.trim()) return;
+    if (!await this._syncController(project.repository)) {
+      this._installMessage = "Bedienung auf einem anderen Gerät aktiv. Sitzung erst übernehmen.";
+      this._render();
+      return;
+    }
     this._installPreparation = null;
     this._restartDialogOpen = false;
     this._restartMessage = "";
@@ -460,6 +498,7 @@ class DRAV2DevLabPanel extends HTMLElement {
         type:"deploy_relay_v2_dev/deployment/start",
         challenge:prepared.challenge, repository:prepared.repository,
         commit:prepared.source_commit, confirm:true,
+        client_id:this._controllerId,
       });
       if (receipt?.schema !== "dra-v2-install-start.v1" ||
           !/^[a-f0-9]{32}$/.test(receipt.job?.operation_id || "")) throw Error("invalid receipt");
@@ -608,7 +647,10 @@ class DRAV2DevLabPanel extends HTMLElement {
       const sourceSyncDue = !this._sourceJobRestored || (++this._sourceSyncTick % 4 === 0);
       this._sourceJobRestored = true;
       if (sourceSyncDue && !this._sourceJobPolling) await this._pollSourceJob(true);
-      if (sourceSyncDue && this._selectedMainRepo) await this._restoreServerPreparation(this._selectedMainRepo);
+      if (sourceSyncDue && this._selectedMainRepo) {
+        await this._syncController(this._selectedMainRepo);
+        await this._restoreServerPreparation(this._selectedMainRepo);
+      }
     } catch (_error) {
       // Never continue presenting a previously verified HA version as current
       // when the actual server cannot be reached.
@@ -1405,6 +1447,7 @@ class DRAV2DevLabPanel extends HTMLElement {
           this._sourceMessage = "Empfohlener Entwicklungszweig übernommen. Vorschau erneut berechnen.";
         }
       }
+      await this._syncController(repository);
       await this._restoreServerPreparation(repository);
       if (this._selectedMainRepo === repository && !this._installPreparation && this._automaticSourceCheckFor !== repository) {
         this._automaticSourceCheckFor = repository;
