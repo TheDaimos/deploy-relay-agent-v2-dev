@@ -744,7 +744,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
 (async () => {
   const probe = new Panel();
   probe._view = "main";
-  probe._serverVersion = "0.1.88";
+  probe._serverVersion = "0.1.89";
   probe._projects = [{repository:"TheDaimos/gewitterradar",name:"Gewitterradar",active:true}];
   probe._mainSourceRef = "";
   const calls = [];
@@ -783,7 +783,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   await probe._sourceCheck({dataset:{repo:"TheDaimos/gewitterradar"}},true);
   assert.equal(calls.length,0);
   assert.match(probe._sourceMessage,/Python-Laufzeit 0.1.64/);
-  probe._serverVersion = "0.1.88";
+  probe._serverVersion = "0.1.89";
   probe._render();
   assert.match(probe.shadowRoot.innerHTML,/Oberfläche und Laufzeit stimmen überein/);
   await probe._sourceCheck({dataset:{repo:"TheDaimos/gewitterradar"}},true);
@@ -799,7 +799,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
 (async () => {
   const panel = new Panel();
   panel._view = "main";
-  panel._serverVersion = "0.1.88";
+  panel._serverVersion = "0.1.89";
   panel._projects = [{repository:"TheDaimos/example",project_id:"example",
                       name:"Example",active:true,access_mode:"read_write"}];
   panel._selectedMainRepo = "TheDaimos/example";
@@ -861,7 +861,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
 
 (async () => {
   const panel = new Panel();
-  panel._serverVersion = "0.1.88";
+  panel._serverVersion = "0.1.89";
   panel._projects = [
     {repository:"TheDaimos/alpha",name:"Alpha",project_id:"alpha",
      access_mode:"read_write",active:true},
@@ -989,7 +989,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
     if (request.type === "deploy_relay_v2_dev/deployment/status") {
       return {schema:"dra-v2-install-status.v1",job:null};
     }
-    return {version:"0.1.88",operations:[],projects:[]};
+    return {version:"0.1.89",operations:[],projects:[]};
   }};
   await versions._refresh();
   assert.deepEqual(requests,[
@@ -1311,7 +1311,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
 (async () => {
   // Regression: a successful 4/4 MUST NOT trap the next teststand at 4/4.
   const p=new Panel();
-  p._view="main";p._serverVersion="0.1.88";
+  p._view="main";p._serverVersion="0.1.89";
   const project={repository:"TheDaimos/Test-Repo-DRA-V2",project_id:"test_repo_dra_v2",name:"Test",active:true};
   p._projects=[project];p._selectedMainRepo=project.repository;
   p._mainSourceRef="main";p._deploymentPreviewRef="main";p._sourceRepository=project.repository;
@@ -1362,7 +1362,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
 (async () => {
   // Teststand +1 writes only Git; it also releases an otherwise stuck 4/4.
   const p=new Panel();
-  p._view="main";p._serverVersion="0.1.88";p._testVersionConfirm=true;
+  p._view="main";p._serverVersion="0.1.89";p._testVersionConfirm=true;
   const project={repository:"TheDaimos/Test-Repo-DRA-V2",project_id:"test_repo_dra_v2",
     name:"Test",active:true};
   p._projects=[project];p._selectedMainRepo=project.repository;
@@ -1389,7 +1389,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
 (async () => {
   // A verified zero-change inventory is informational, not step-2 authorisation.
   const p = new Panel();
-  p._view="main";p._serverVersion="0.1.88";
+  p._view="main";p._serverVersion="0.1.89";
   const project={repository:"TheDaimos/Test-Repo-DRA-V2",project_id:"test_repo_dra_v2",name:"Test",active:true};
   p._projects=[project];p._selectedMainRepo=project.repository;
   p._sourceRepository=project.repository;
@@ -1441,7 +1441,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   const project={repository:"TheDaimos/gewitterradar",project_id:"gewitterradar",name:"Gewitterradar",active:true};
   const createPanel=(flags) => {
     const p=new Panel();
-    p._view="main";p._serverVersion="0.1.88";
+    p._view="main";p._serverVersion="0.1.89";
     p._projects=[project];p._selectedMainRepo=project.repository;
     const job={operation_id:"7".repeat(32),project_key:project.project_id,
       source_commit:"8".repeat(40),status:"success",phase:"complete",...flags};
