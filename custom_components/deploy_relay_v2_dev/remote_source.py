@@ -461,15 +461,23 @@ async def inspect_repository_connection(session, repository: str, *, token: str 
         raise PreflightError("GitHub repository identity does not match")
     if type(meta.get("private")) is not bool:
         raise PreflightError("GitHub repository visibility not verified")
+    # Metadata alone is insufficient: actually read a Git tree using this credential.
+    default_branch = meta.get("default_branch")
+    if type(default_branch) is not str or not default_branch or len(default_branch) > 180:
+        raise PreflightError("default branch not available")
+    tree_endpoint = f"{API}/repos/{quote(owner, safe='')}/{quote(name, safe='')}/git/trees/{quote(default_branch, safe='')}"
+    tree = await _get(session, tree_endpoint, token=token)
+    if type(tree.get("sha")) is not str or not SHA.fullmatch(tree["sha"]) or type(tree.get("tree")) is not list:
+        raise PreflightError("repository content read not verified")
     permissions = meta.get("permissions")
     advertised_push = permissions.get("push") if type(permissions) is dict else None
     if type(advertised_push) is not bool:
         advertised_push = None
     return {
-        "connected": True, "repository": repository, "private": meta["private"],
-        "authenticated": token is not None,
-        "advertised_push": advertised_push,
-        "write_tested": False,
+        "connected": True, "read_verified": True, "repository": repository,
+        "private": meta["private"], "authenticated": token is not None,
+        "advertised_push": advertised_push, "write_tested": False,
+        "access_level": "RW" if advertised_push is True else "RO",
     }
 
 
