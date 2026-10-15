@@ -30,6 +30,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._sourceChoices = null;
     this._sourceChoicesBusy = false;
     this._sourceChoicesMessage = "";
+    this._sourceAdvancedOpen = false; // Only the user opens the advanced source section.
     this._sourceChoicesLoadedFor = null;
     this._automaticSourceCheckFor = null;
     this._settingsMessage = "";
@@ -1677,6 +1678,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._sourceChoices = null;
     this._sourceChoicesLoadedFor = null;
     this._automaticSourceCheckFor = null;
+    this._sourceAdvancedOpen = false;
     this._sourceChoicesMessage = "";
     this._deploymentPreviewRef = null;
     this._mainBatchMode = false;
@@ -3555,7 +3557,7 @@ class DRAV2DevLabPanel extends HTMLElement {
                     : this._sourceChoices?.choices?.find(x=>x.ref===this._mainSourceRef.trim())?.commit?.slice(0,12) || "Noch nicht geprüft"}</strong></div>
                 </div>
               </div>
-              <details class="dra-source-extra" id="dra-source-advanced" ${this._sourceChoicesBusy || this._sourceChoices && this._sourceChoices.repository === mainProject?.repository || this._sourceChoicesMessage ? "open" : ""}>
+              <details class="dra-source-extra" id="dra-source-advanced" ${this._sourceAdvancedOpen ? "open" : ""}>
                 <summary>Erweiterte Quellenauswahl</summary>
                 ${this._sourceChoices?.recommended ? `<p class="note"><strong>Empfohlene Quelle:
                   ${this._escapeProject(this._sourceChoices.recommended.channel)} ·
@@ -4465,6 +4467,11 @@ class DRAV2DevLabPanel extends HTMLElement {
       button.addEventListener("click",()=>this._chooseMainProject(button.dataset.repo)));
     s.querySelector("#dra-picker-batch")?.addEventListener("click",()=>this._openPickerBatch());
     s.querySelector("#dra-load-source-choices")?.addEventListener("click",()=>this._loadSourceChoices());
+    s.querySelector("#dra-source-advanced > summary")?.addEventListener("click",()=>{
+      // Update before native <details> activation so all later re-renders retain
+      // the user choice, rather than opening automatically after every scan.
+      this._sourceAdvancedOpen = !this.shadowRoot.querySelector("#dra-source-advanced").open;
+    });
     s.querySelector("#dra-use-recommended")?.addEventListener("click",()=>{
       const ref=this._sourceChoices?.recommended?.ref;
       if (ref) this._applySourceChoice(ref);
