@@ -319,6 +319,37 @@ class DRAV2DevLabPanel extends HTMLElement {
     }
   }
 
+  async _restoreServerPreparation(repository = this._selectedMainRepo) {
+    if (!repository || !this._hass || this._installBusy ||
+        this._serverVersion !== DRA_V2_UI_VERSION) return;
+    try {
+      const response = await this._hass.callWS({
+        type:"deploy_relay_v2_dev/deployment/prepared_status", repository,
+      });
+      if (this._selectedMainRepo !== repository ||
+          response?.schema !== "dra-v2-prepared-status.v1") return;
+      const prepared = response.preparation;
+      if (!prepared) {
+        if (this._installPreparation?.repository === repository) this._installPreparation = null;
+        return;
+      }
+      if (prepared.schema !== "dra-v2-install-preparation.v1" ||
+          prepared.repository !== repository ||
+          prepared.confirmation_required !== true ||
+          !/^[a-f0-9]{32}$/.test(prepared.challenge || "") ||
+          !/^[a-f0-9]{40}$/.test(prepared.source_commit || "")) return;
+      this._installPreparation = prepared;
+      this._mainSourceRef = prepared.source_ref;
+      this._installMessage = "Vorbereitung auf Home Assistant vorhanden · auf diesem Gerät fortsetzbar.";
+      // Recover the read-only report separately. Never manufacture verified data.
+      await this._pollSourceJob(true);
+    } catch (_error) {
+      // A disconnected client must not revoke an HA-owned preparation.
+    } finally {
+      if (this.isConnected) this._render();
+    }
+  }
+
   async _prepareInstallation(project) {
     if (!this._hass || !project || project.active === false ||
         !this._sourcePreview || this._installBusy ||
@@ -577,6 +608,7 @@ class DRAV2DevLabPanel extends HTMLElement {
       const sourceSyncDue = !this._sourceJobRestored || (++this._sourceSyncTick % 4 === 0);
       this._sourceJobRestored = true;
       if (sourceSyncDue && !this._sourceJobPolling) await this._pollSourceJob(true);
+      if (sourceSyncDue && this._selectedMainRepo) await this._restoreServerPreparation(this._selectedMainRepo);
     } catch (_error) {
       // Never continue presenting a previously verified HA version as current
       // when the actual server cannot be reached.
@@ -1366,12 +1398,15 @@ class DRAV2DevLabPanel extends HTMLElement {
       this._sourceChoicesLoadedFor = repository;
       if (!this._mainSourceRef.trim() && result.recommended.explicit) {
         this._mainSourceRef = result.recommended.ref;
-        this._sourcePreview = null;
-        this._sourceHead = null;
-        this._deploymentPreviewRef = null;
-        this._sourceMessage = "Empfohlener Entwicklungszweig übernommen. Vorschau erneut berechnen.";
+        if (!this._installPreparation) {
+          this._sourcePreview = null;
+          this._sourceHead = null;
+          this._deploymentPreviewRef = null;
+          this._sourceMessage = "Empfohlener Entwicklungszweig übernommen. Vorschau erneut berechnen.";
+        }
       }
-      if (this._selectedMainRepo === repository && this._automaticSourceCheckFor !== repository) {
+      await this._restoreServerPreparation(repository);
+      if (this._selectedMainRepo === repository && !this._installPreparation && this._automaticSourceCheckFor !== repository) {
         this._automaticSourceCheckFor = repository;
         // Full read-only inventory comparison, not merely a commit check.
         void this._sourceCheck({dataset:{repo:repository}}, false, true);
