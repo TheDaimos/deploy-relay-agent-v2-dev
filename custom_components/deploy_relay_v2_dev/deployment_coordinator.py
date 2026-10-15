@@ -84,7 +84,43 @@ class DeploymentCoordinator:
         self._jobs = jobs
         self._lock = asyncio.Lock()
         self._pending: dict[str, PendingInstallation] = {}
+        self._controllers: dict[str, tuple[str, float]] = {}
         self._closed = False
+
+    async def control(self, project_id: str, client_id: str, *, take_over: bool = False) -> dict[str, object]:
+        """Per-project exclusive UI controller; server jobs never depend on leases.
+
+        Any authenticated HA administrator can explicitly take control. A
+        disconnected controller expires; observers never obtain write authority.
+        This identifier is NOT a replacement for HA authentication.
+        """
+        if not isinstance(client_id, str) or len(client_id) != 32 or any(
+            ch not in "0123456789abcdef" for ch in client_id
+        ):
+            raise OperationContractError("invalid controller identity")
+        async with self._lock:
+            if self._closed:
+                raise OperationContractError("coordinator closed")
+            old = self._controllers.get(project_id)
+            if old and old[1] <= monotonic():
+                self._controllers.pop(project_id, None)
+                old = None
+            if not old or old[0] == client_id or take_over:
+                self._controllers[project_id] = (client_id, monotonic() + 45)
+                owner = True
+            else:
+                owner = False
+            return {"schema":"dra-v2-controller.v1", "project_id":project_id,
+                    "controller":owner, "occupied":not owner, "lease_seconds":45}
+
+    async def require_controller(self, project_id: str, client_id: str) -> None:
+        if not isinstance(client_id, str) or len(client_id) != 32:
+            raise OperationContractError("controller required")
+        async with self._lock:
+            current = self._controllers.get(project_id)
+            if not current or current[0] != client_id or current[1] <= monotonic():
+                raise OperationContractError("controller expired or elsewhere")
+            self._controllers[project_id] = (client_id, monotonic()+45)
 
     async def prepare(
         self, *, session: Any, repository: str, source_ref: str,
@@ -211,4 +247,5 @@ class DeploymentCoordinator:
         async with self._lock:
             self._closed = True
             self._pending.clear()
+            self._controllers.clear()
         await self._jobs.finish_before_unload()
