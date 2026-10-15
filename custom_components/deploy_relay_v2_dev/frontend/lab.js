@@ -3439,6 +3439,13 @@ class DRAV2DevLabPanel extends HTMLElement {
            .inner-panel { padding:10px; }
            .section-card h2 { font-size:17px; }
          }
+        .project-access-legend > summary {
+          list-style:none; display:flex; justify-content:space-between; align-items:center;
+          gap:12px; cursor:pointer; padding:8px 2px;
+        }
+        .project-access-legend > summary::-webkit-details-marker {display:none;}
+        .project-access-chevron {display:inline-block; transition:transform .15s ease;}
+        .project-access-legend[open] .project-access-chevron {transform:rotate(180deg);}
         /* The access level itself is a compact badge; the button remains a usable test target. */
         .project-management-dialog .project-management-table button.source-check {
           width:56px !important; min-width:56px !important; max-width:56px !important;
@@ -4148,7 +4155,7 @@ class DRAV2DevLabPanel extends HTMLElement {
               </header>
               <div class="project-management-scroll" id="project-management-scroll">
               <p class="note">Reihenfolge: Anzeige, Standardprojekt und Priorität der späteren Sammelaktualisierung. GitHub-Zugriff nur nach Prüfung.</p>
-              <details class="dra-source-extra"><summary><span>GitHub-Zugriffsrechte ⓘ</span><span style="float:right">Legende ▾</span></summary><p class="note">RW = Lesezugriff bestätigt, Schreibrecht von GitHub gemeldet (nicht praktisch getestet). RO = Lesezugriff bestätigt. ? = ungeprüft. X = Zugriff fehlgeschlagen.</p></details>
+              <details class="dra-source-extra project-access-legend"><summary><span>GitHub-Zugriffsrechte <span aria-hidden="true">ⓘ</span></span><span>Legende <span class="project-access-chevron" aria-hidden="true">⌄</span></span></summary><p class="note">RW = Lesezugriff bestätigt, Schreibrecht von GitHub gemeldet (nicht praktisch getestet). RO = Lesezugriff bestätigt. ? = ungeprüft. X = Zugriff fehlgeschlagen.</p></details>
           ${this._projects.length ? `<div class="table-wrap"><table class="project-management-table"><thead><tr><th>Nr.</th><th>Projekt</th><th>Git-Status</th><th>Einstellungen</th><th>Reihenfolge</th></tr></thead><tbody>${projectRows}</tbody></table></div>` : '<p class="note">Noch keine Projekte in V2 hinterlegt.</p>'}
           <div class="project-actions">
             <button id="project-add-open" class="project-action-primary" ${this._checkAllBusy ? "disabled" : ""}>${plusIcon}<span>Projekt hinzufügen</span></button>
