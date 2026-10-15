@@ -408,8 +408,8 @@ class LabIsolationContracts(unittest.TestCase):
         frontend = (LAB_ROOT / "frontend/lab.js").read_text(encoding="utf-8")
         for term in (
             '"unverified";',
-            '? "Online" : state === "failure" ? "Offline"',
-            ': "Prüfen";',
+            'test.access_level === "RW" ? "RW" : "RO"',
+            ': "?";',
             'class="project-row connection-',
             'recently-moved',
             'width:154px; max-width:100%; min-width:0; min-height:44px; height:44px;',
