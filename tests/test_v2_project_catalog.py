@@ -340,20 +340,24 @@ class V2ProjectCredentialsTests(unittest.IsolatedAsyncioTestCase):
 class V2GitConnectionTests(unittest.IsolatedAsyncioTestCase):
     async def test_connection_is_manifest_independent_and_never_writes(self):
         remote = importlib.import_module(f"{PKG}.remote_source")
-        get = AsyncMock(return_value={
-            "full_name":"TheDaimos/private-example", "private":True,
-            "permissions":{"pull":True,"push":False}
-        })
+        get = AsyncMock(side_effect=[
+            {"full_name":"TheDaimos/private-example", "private":True,
+             "default_branch":"main", "permissions":{"pull":True,"push":False}},
+            {"sha":"a"*40, "tree":[{"path":"README.md","type":"blob"}]},
+        ])
         with patch.object(remote, "_get", get):
             result = await remote.inspect_repository_connection(object(),
                 "TheDaimos/private-example", token="github_pat_1234567890123456")
         self.assertIs(result["connected"], True)
+        self.assertIs(result["read_verified"], True)
+        self.assertEqual(result["access_level"], "RO")
         self.assertIs(result["private"], True)
         self.assertIs(result["advertised_push"], False)
         self.assertIs(result["write_tested"], False)
-        self.assertEqual(get.await_count, 1)
-        self.assertIn("/repos/TheDaimos/private-example", get.await_args.args[1])
+        self.assertEqual(get.await_count, 2)
+        self.assertIn("/git/trees/main", get.await_args.args[1])
         self.assertNotIn("deploy-relay.json", str(get.await_args))
+
 
     async def test_connection_rejects_mismatched_repository(self):
         remote = importlib.import_module(f"{PKG}.remote_source")
