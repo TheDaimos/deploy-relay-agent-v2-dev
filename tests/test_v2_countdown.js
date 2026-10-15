@@ -815,6 +815,11 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   const calls = [];
   panel._hass = {async callWS(request) {
     calls.push(request.type);
+    if (request.type === "deploy_relay_v2_dev/deployment/control") {
+      assert.equal(request.repository,"TheDaimos/example");
+      assert.match(request.client_id,/^[0-9a-f]{32}$/);
+      return {schema:"dra-v2-controller.v1",controller:true,occupied:false};
+    }
     if (request.type === "deploy_relay_v2_dev/deployment/prepare") {
       assert.equal(request.commit,"a".repeat(40));
       return {schema:"dra-v2-install-preparation.v1",
@@ -844,7 +849,8 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   await panel._prepareInstallation(panel._projects[0]);
   panel._render();
   assert.match(panel.shadowRoot.innerHTML,/id="dra-install-confirm"/);
-  assert.deepEqual(calls,["deploy_relay_v2_dev/deployment/prepare"],
+  assert.deepEqual(calls,["deploy_relay_v2_dev/deployment/control",
+    "deploy_relay_v2_dev/deployment/prepare"],
     "preparing must never start a write");
   await panel._confirmInstallation();
   panel._render();
