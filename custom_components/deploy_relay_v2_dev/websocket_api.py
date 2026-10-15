@@ -1185,6 +1185,27 @@ async def async_git_read_clear(hass, connection, msg):
 
 
 @websocket_api.websocket_command({
+    probatio.Required("type"): "deploy_relay_v2_dev/deployment/sessions",
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def async_install_sessions(hass, connection, msg):
+    """Discover active HA-owned project sessions on a newly opened device."""
+    runtime = _runtime(hass)
+    if runtime is None:
+        connection.send_error(msg["id"], "not_ready", "Sitzungsverwaltung nicht bereit")
+        return
+    known = {p["project_id"]:p["repository"] for p in runtime.projects.list()
+             if p.get("active") is True}
+    sessions = await runtime.deployment.active_sessions()
+    summaries = [{**item, "repository":known[item["project_id"]]}
+                 for item in sessions if item["project_id"] in known]
+    connection.send_result(msg["id"], {
+        "schema":"dra-v2-sessions.v1", "sessions":summaries,
+    })
+
+
+@websocket_api.websocket_command({
     probatio.Required("type"): "deploy_relay_v2_dev/deployment/control",
     probatio.Required("repository"): str,
     probatio.Required("client_id"): str,
@@ -1481,7 +1502,7 @@ def async_register_commands(hass: HomeAssistant) -> None:
                     async_archive_repository_configure,
                     async_archive_repository_check,
                     async_test_version_increment,
-                    async_install_control, async_install_prepare, async_install_prepared_status, async_install_start, async_install_status,
+                    async_install_sessions, async_install_control, async_install_prepare, async_install_prepared_status, async_install_start, async_install_status,
                     async_deployment_restart,
                     async_download_json):
         websocket_api.async_register_command(hass, handler)
