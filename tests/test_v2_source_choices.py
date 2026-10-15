@@ -51,6 +51,13 @@ class SourceChoicesContract(unittest.TestCase):
         # All ordinary deployment validation paths keep readonly_self=False.
         self.assertIn('def target_path(path: object, *, readonly_self: bool = False)', preflight)
 
+    def test_second_browser_reconciles_server_side_preview(self):
+        frontend = (ROOT / "frontend/lab.js").read_text(encoding="utf-8")
+        self.assertIn("await this._pollSourceJob(true)", frontend)
+        self.assertIn("async _pollSourceJob(latest = false)", frontend)
+        self.assertIn("!latest && this._sourceJobId", frontend)
+        self.assertIn("if (!latest && !this._sourceJobId)", frontend)
+
     def test_version_guard_reuses_v1_semantics(self):
         remote = (ROOT / "remote_source.py").read_text(encoding="utf-8")
         tree = ast.parse(remote)
