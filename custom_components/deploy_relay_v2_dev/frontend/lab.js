@@ -1272,7 +1272,7 @@ class DRAV2DevLabPanel extends HTMLElement {
       }
       // Only locally started jobs own this browser reference. Remote discovery
       // must not pin future checks to an unrelated completed operation.
-      if (!latest && !this._sourceJobId) this._sourceJobId = job.operation_id;
+      if (!this._sourceJobId) this._sourceJobId = job.operation_id;
       if (!latest && this._sourceJobId !== job.operation_id) throw new Error("different source job");
       if (typeof job.connection_test !== "undefined" &&
           typeof job.connection_test !== "boolean") throw new Error("invalid test mode");
