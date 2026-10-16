@@ -21,6 +21,7 @@ from .server_deployment_jobs import ServerDeploymentJobs
 from .deployment_audit import DeploymentAudit
 from .deployment_coordinator import DeploymentCoordinator
 from .operation_journal import JournalError, OperationJournal
+from .batch_installation import BatchDeployment
 from .git_measurement_export import GitMeasurementError, MeasurementGitExport
 from .project_catalog import CatalogError, ProjectCatalog
 from .settings import SettingsError, V2Settings
@@ -52,6 +53,7 @@ class LabRuntime:
     source_preview_jobs: SourcePreviewJobs
     source_job_history: SourceJobHistory
     deployment: DeploymentCoordinator
+    batch: BatchDeployment
     deployment_audit: DeploymentAudit
     # A single confirmed restart request is accepted per HA runtime.
     restart_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
@@ -137,14 +139,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     async def _save_deployment_audit(_snapshot):
         await deployment_audit.save()
 
-    deployment = DeploymentCoordinator(ServerDeploymentJobs(
+    write_jobs = ServerDeploymentJobs(
         write_registry,
         lambda coroutine: hass.async_create_background_task(
             coroutine, "Deploy Relay V2 server deployment", eager_start=False,
         ),
         audit=deployment_audit,
         on_terminal=_save_deployment_audit,
-    ))
+    )
+    deployment = DeploymentCoordinator(write_jobs)
+    batch = BatchDeployment(write_jobs, lambda coroutine: hass.async_create_background_task(
+        coroutine, "Deploy Relay V2 batch", eager_start=False))
     runtime = LabRuntime(registry=registry, supervisor=supervisor, journal=journal,
                          measurement=measurement, suite=suite, git_export=git_export,
                          projects=projects, settings=settings,
@@ -154,13 +159,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                          source_preview_jobs=SourcePreviewJobs(
                              PreviewTaskFactory(hass, entry), history=source_job_history),
                          source_job_history=source_job_history,
-                         deployment=deployment,
+                         deployment=deployment, batch=batch,
                          deployment_audit=deployment_audit)
     store["runtime"] = runtime
     try:
         async_register_commands(hass)
         await async_register_panel(hass)
     except Exception:
+        await batch.close()
         await deployment.close()
         await runtime.source_preview_jobs.close()
         await supervisor.close()
@@ -176,6 +182,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     runtime = store.get("runtime") if isinstance(store, dict) else None
     if runtime is not None:
         # Mutations must finish their V1 journal/rollback before entry unload.
+        await runtime.batch.close()
         await runtime.deployment.close()
         await runtime.source_preview_jobs.close()
         await runtime.supervisor.close()
