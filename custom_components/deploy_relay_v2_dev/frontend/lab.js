@@ -498,7 +498,7 @@ class DRAV2DevLabPanel extends HTMLElement {
         project.active === false ||
         this._sourceRepository !== prepared.repository ||
         prepared.source_ref !== this._mainSourceRef.trim() ||
-        (this._sourcePreview && this._sourcePreview.source_commit !== prepared.source_commit)) return;
+        !/^[a-f0-9]{32}$/.test(prepared.challenge || "")) return;
     if (!await this._syncController(project.repository)) {
       this._installMessage = "Bedienung auf einem anderen Gerät aktiv. Sitzung erst übernehmen.";
       this._render();
@@ -2297,8 +2297,8 @@ class DRAV2DevLabPanel extends HTMLElement {
     const archivedFinish = !!lastStoredSuccess &&
       this._dismissedHistoricalProject !== mainProject?.project_id && !mainPreviewVerified &&
       !installActive && !this._installBusy;
-    const upToDate = previewNoChanges && !installActive && !this._installBusy &&
-      !this._installSubmissionActive;
+    const upToDate = previewNoChanges && !this._installPreparation &&
+      !installActive && !this._installBusy && !this._installSubmissionActive;
     const displayFinished = !upToDate && (installFinished || archivedFinish);
     const postInstallJob = !upToDate && installFinished && !this._mainBatchMode &&
       this._serverVersion === DRA_V2_UI_VERSION ? this._installJob : null;
@@ -2306,13 +2306,12 @@ class DRAV2DevLabPanel extends HTMLElement {
       ["failed","recovery_required","interrupted","cancelled"].includes(this._installJob?.status);
     // A freshly opened device may not hold the preview in browser memory.
     // The HA-held, time-limited V1 preparation is the authoritative plan.
-    const preparedInstall = this._installPreparation && !previewNoChanges &&
-      !this._mainBatchMode &&
+    // HA's exact-commit prepared plan is authoritative across browser sessions.
+    // A stale/new local read-only preview must not mask an existing valid plan.
+    const preparedInstall = this._installPreparation && !this._mainBatchMode &&
       this._installPreparation.repository === mainProject?.repository &&
       this._installPreparation.source_ref === this._mainSourceRef.trim() &&
-      /^[a-f0-9]{32}$/.test(this._installPreparation.challenge || "") &&
-      (this._sourcePreview?.source_commit == null ||
-        this._installPreparation.source_commit === this._sourcePreview.source_commit)
+      /^[a-f0-9]{32}$/.test(this._installPreparation.challenge || "")
         ? this._installPreparation : null;
     const deploymentStage = upToDate ? 1 : displayFinished ? 4 :
       (this._installSubmissionActive || installActive || installFailed) ? 3 :
@@ -2328,6 +2327,7 @@ class DRAV2DevLabPanel extends HTMLElement {
       this._installSubmissionActive ? "3/4 · Auftrag wird an Home Assistant übergeben …" :
       deploymentBusy
       ? "1/4 · " + (this._mainBatchMode ? "Projektauswahl wird geprüft …" : "Vorschau wird berechnet …")
+      : preparedInstall ? "2/4 · Installation vorbereitet"
       : mainPreviewVerified ? "2/4 · Installation vorbereiten"
       : this._mainBatchMode ? "1/4 · Projektauswahl prüfen"
       : "1/4 · Vorschau berechnen";
