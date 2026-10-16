@@ -72,6 +72,10 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._installJobId = null;
     this._installJob = null;
     this._installJobs = [];
+    this._installProjectNames = {};
+    this._installStatusKnown = false;
+    this._installStatusError = false;
+    this._observerLastJobId = null;
     this._dismissedHistoricalProject = null;
     // Old server receipts remain visible in Audit but must not lock a new deployment.
     this._supersededCompletionIds = new Set();
@@ -165,6 +169,8 @@ class DRAV2DevLabPanel extends HTMLElement {
     if (this.isConnected && !this._loaded) {
       this._loaded = true;
       this._refresh();
+      // Read HA write jobs independently from the project's initial state.
+      void this._pollInstallation();
     }
   }
 
@@ -176,10 +182,12 @@ class DRAV2DevLabPanel extends HTMLElement {
     if (this._hass && !this._loaded) {
       this._loaded = true;
       this._refresh();
+      void this._pollInstallation();
     } else if (this._hass && this._loaded) {
       // Reattached mobile panel: reload server job regardless of old browser timers.
       this._refresh();
       this._pollSourceJob();
+      void this._pollInstallation();
     }
   }
 
@@ -624,8 +632,9 @@ class DRAV2DevLabPanel extends HTMLElement {
   }
 
   async _pollInstallation() {
-    if (!this._hass || this._installPolling ||
-        this._serverVersion !== DRA_V2_UI_VERSION) return;
+    // Read-only observer channel must work even when project discovery or
+    // the general /test/state request has not yet completed on this device.
+    if (!this._hass || this._installPolling) return;
     this._installPolling = true;
     if (this._installTimer !== null) clearTimeout(this._installTimer);
     this._installTimer = null;
@@ -634,11 +643,19 @@ class DRAV2DevLabPanel extends HTMLElement {
         type:"deploy_relay_v2_dev/deployment/status",
       });
       if (response?.schema !== "dra-v2-install-status.v1") throw Error("bad job response");
+      this._installStatusKnown = true;
+      this._installStatusError = false;
+      this._installProjectNames = response.project_names &&
+        typeof response.project_names === "object" && !Array.isArray(response.project_names)
+          ? response.project_names : {};
       // The HA server owns all jobs. Browser changes or selecting another
       // project never hide the other projects' active installations.
       this._installJobs = Array.isArray(response.jobs)
         ? response.jobs.filter(j=>/^[a-f0-9]{32}$/.test(j?.operation_id || "")).slice(0,12)
         : response.job ? [response.job] : [];
+      const activeJobs = this._installJobs.filter(j=>
+        ["queued","running","waiting_for_resource","cancel_requested"].includes(j.status));
+      if (activeJobs.length) this._observerLastJobId = activeJobs[0].operation_id;
       const chosenProject = this._projects.find(p=>p.repository===this._selectedMainRepo)
         || this._projects.find(p=>p.active!==false);
       const job = this._installJobs.find(j=>j.project_key===chosenProject?.project_id) || null;
@@ -669,15 +686,18 @@ class DRAV2DevLabPanel extends HTMLElement {
         this._installJob = null;
         this._installJobId = null;
       }
-      if (this.isConnected && this._installJobs.some(j=>
-        ["queued","running","waiting_for_resource","cancel_requested"].includes(j.status))) {
-        this._installTimer = setTimeout(()=>this._pollInstallation(),1500);
-      }
     } catch (_error) {
+      this._installStatusError = true;
       this._installMessage = "Serverstatus nicht abrufbar; ein laufendes Update wird dadurch nicht abgebrochen.";
-      if (this._installJobId && this.isConnected) this._installTimer =
-        setTimeout(()=>this._pollInstallation(),5000);
     } finally {
+      // Poll independently of a selected project and independently of the
+      // HA state refresh loop. Never submit or repeat a write operation here.
+      if (this.isConnected) {
+        const busy = this._installJobs.some(j=>
+          ["queued","running","waiting_for_resource","cancel_requested"].includes(j.status));
+        this._installTimer = setTimeout(()=>this._pollInstallation(),
+          this._installStatusError ? 5000 : busy ? 1500 : 10000);
+      }
       this._installPolling = false;
       if (this.isConnected) this._render();
     }
