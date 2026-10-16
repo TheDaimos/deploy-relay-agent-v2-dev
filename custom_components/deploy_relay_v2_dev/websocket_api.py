@@ -1387,10 +1387,18 @@ async def async_install_status(hass, connection, msg):
     except (OperationContractError, ValueError):
         connection.send_error(msg["id"], "invalid_operation", "Auftragskennung ungültig")
         return
+    jobs = await runtime.deployment.list()
+    # Admin-only, bounded display names: observers can identify the project
+    # before /test/state or the project picker has loaded on another device.
+    keys = {job.get("project_key") for job in jobs
+            if isinstance(job, dict) and isinstance(job.get("project_key"), str)}
+    names = {p["project_id"]: str(p.get("name") or p["project_id"])[:100]
+             for p in runtime.projects.list() if p["project_id"] in keys}
     connection.send_result(msg["id"], {
         "schema": "dra-v2-install-status.v1",
         "job": snapshot,
-        "jobs": await runtime.deployment.list(),
+        "jobs": jobs,
+        "project_names": names,
     })
 
 
