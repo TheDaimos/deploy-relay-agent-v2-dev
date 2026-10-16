@@ -270,6 +270,9 @@ class DeploymentCoordinator:
     async def list(self) -> list[dict[str, object]]:
         return await self._jobs.list()
 
+    async def restart_summary(self) -> dict[str, object]:
+        return await self._jobs.restart_summary()
+
     async def close(self) -> None:
         async with self._lock:
             self._closed = True
