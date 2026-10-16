@@ -3862,7 +3862,7 @@ class DRAV2DevLabPanel extends HTMLElement {
             <button id="dra-project-manage">Projektverwaltung</button>
             <button disabled>Sicherungen</button>
           </article>
-          <div class="dra-warning"><strong>Gesperrter Betrieb</strong><div>Deployment-Schreibzugriffe sind deaktiviert. Vorschau und Diagnose bleiben verfügbar.</div></div>
+
           <article class="dra-source-card">
             <div class="dra-source-title">
               <h2>Quelle & Version</h2>
@@ -4366,7 +4366,7 @@ class DRAV2DevLabPanel extends HTMLElement {
         </section>
         <section id="dra-settings-view" ${this._view==="settings"?"":"hidden"}>
         <h1>DRA V2 DEV · Diagnose & Einstellungen</h1>
-        <p class="safe">Getrennt von DRA V1 · Nur schreibgeschützter Testbetrieb</p>
+        <p class="safe">Eigenständiger DRA-V2-Testbereich · Installationen nur nach ausdrücklicher Freigabe</p>
         <p>Dieser Test liest keine Projektdateien und führt keine Installation, Wiederherstellung oder Neustarts aus.</p>
         <div class="dashboard-grid">
         <article class="section-card test-card">
