@@ -51,6 +51,9 @@ class ServerDeploymentJobs:
         # Only transactions whose V1 engine actually reported their ID may
         # remain nonterminal during a second, independent project's preflight.
         self._reported_transactions: dict[str, str] = {}
+        # HA-runtime-owned deferral survives browser changes and later installs.
+        # A fresh HA process clears it; this is not a restart request.
+        self._restart_due: dict[str, str] = {}
         self._closed = False
 
     async def start_verified(
@@ -186,6 +189,8 @@ class ServerDeploymentJobs:
                         ),
                     )
                     await self._registry.transition(identifier, OperationStatus.SUCCESS)
+                    if post_restart:
+                        self._restart_due[identifier] = manifest.project_id
                     if self._audit is not None:
                         self._audit.record(operation_id=identifier, project_key=manifest.project_id,
                                            stage="success", status="success")
@@ -252,6 +257,20 @@ class ServerDeploymentJobs:
     async def list(self) -> list[dict[str, object]]:
         """Bounded, credential-free recent HA-owned write-job snapshots."""
         return await self._registry.list(limit=12)
+
+    async def restart_summary(self) -> dict[str, object]:
+        """Read-only HA-runtime restart backlog; never orders a restart.
+
+        A successfully verified backend change can be followed by other
+        independent installs. A failed job cannot create a restart obligation.
+        """
+        return {
+            "schema": "dra-v2-restart-summary.v1",
+            "required": bool(self._restart_due),
+            "count": len(self._restart_due),
+            "items": [{"operation_id": key, "project_key": project}
+                      for key, project in self._restart_due.items()],
+        }
 
     async def active(self) -> bool:
         return bool(await self._registry.list(active_only=True, limit=1))
