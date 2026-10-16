@@ -264,12 +264,16 @@ class ServerDeploymentJobs:
         A successfully verified backend change can be followed by other
         independent installs. A failed job cannot create a restart obligation.
         """
+        retained = {row["operation_id"] for row in await self._registry.list(limit=100)}
+        newest_confirmable = next((key for key in reversed(tuple(self._restart_due))
+                                   if key in retained), None)
         return {
             "schema": "dra-v2-restart-summary.v1",
             "required": bool(self._restart_due),
             "count": len(self._restart_due),
             "items": [{"operation_id": key, "project_key": project}
                       for key, project in self._restart_due.items()],
+            "operation_id": newest_confirmable,
         }
 
     async def active(self) -> bool:
