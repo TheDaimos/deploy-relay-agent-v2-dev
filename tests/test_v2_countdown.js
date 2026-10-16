@@ -1309,7 +1309,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
     };
   }};
   grouped._render();
-  assert.match(grouped.shadowRoot.innerHTML,/1\/4 · Projektauswahl prüfen/);
+  assert.match(grouped.shadowRoot.innerHTML,/Sammelupdate · Noch nicht installierbar/);
   await grouped._previewMainBatch();
   assert.match(grouped.shadowRoot.innerHTML,/Gruppenauswahl bestätigt/);
   assert.match(grouped.shadowRoot.innerHTML,/data-stage="1"/);
