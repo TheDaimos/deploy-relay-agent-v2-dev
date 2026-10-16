@@ -2608,6 +2608,17 @@ class DRAV2DevLabPanel extends HTMLElement {
     const label = op ? (states[op.status] || "Unbekannt") : "Noch kein Test gestartet";
     const progress = op && Number.isInteger(op.phase_percent) ? op.phase_percent + " % der Testschritte" : "Noch keine Messung";
     const safeId = op && /^[0-9a-f]{32}$/.test(op.operation_id) ? op.operation_id : "—";
+    // HA can scroll the panel through an ancestor outside shadow DOM.
+    // Replacing the entire shadow tree must not jump the viewport to the top.
+    const pageScrollPositions = [];
+    for (let node = this; node; node = node.parentNode || node.host) {
+      if (typeof node.scrollTop === "number" && node.scrollTop > 0)
+        pageScrollPositions.push([node, node.scrollTop, node.scrollLeft]);
+    }
+    const documentScroller = document.scrollingElement;
+    if (documentScroller && documentScroller.scrollTop > 0 &&
+        !pageScrollPositions.some(([node]) => node === documentScroller))
+      pageScrollPositions.push([documentScroller, documentScroller.scrollTop, documentScroller.scrollLeft]);
     const previousProjectScroll = s.querySelector("#project-management-scroll")?.scrollTop ?? 0;
     const previousV2SettingsScroll = s.querySelector(".project-v2-settings-scroll")?.scrollTop ?? 0;
     const pendingV2ReadToken = s.querySelector("#source-read-token")?.value || "";
@@ -5118,6 +5129,9 @@ class DRAV2DevLabPanel extends HTMLElement {
           .find(row => row.dataset.projectRepo === this._highlightMovedRepo);
         movedRow?.scrollIntoView({block:"nearest", behavior:"smooth"});
       }
+    }
+    for (const [node, top, left] of pageScrollPositions) {
+      if (node.isConnected) { node.scrollTop = top; node.scrollLeft = left; }
     }
     this._scrollToMovedProject = false;
     this._syncCountdownTimer();
