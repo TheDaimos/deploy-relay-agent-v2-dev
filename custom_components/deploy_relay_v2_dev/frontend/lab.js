@@ -73,6 +73,10 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._installJob = null;
     this._installJobs = [];
     this._installProjectNames = {};
+    this._restartSummary = null;
+    this._deferredRestartDialogOpen = false;
+    this._deferredRestartBusy = false;
+    this._deferredRestartMessage = "";
     this._installStatusKnown = false;
     this._installStatusError = false;
     this._observerLastJobId = null;
@@ -635,6 +639,37 @@ class DRAV2DevLabPanel extends HTMLElement {
     }
   }
 
+  async _confirmDeferredRestart() {
+    const summary = this._restartSummary;
+    const operationId = summary?.operation_id;
+    if (!this._deferredRestartDialogOpen || this._deferredRestartBusy ||
+        !this._hass || this._installStatusError ||
+        this._serverVersion !== DRA_V2_UI_VERSION ||
+        !summary?.required || summary.restart_requested ||
+        !/^[0-9a-f]{32}$/.test(operationId || "") ||
+        this._installJobs.some(job=>["queued","running","waiting_for_resource","cancel_requested"].includes(job.status))) return;
+    this._deferredRestartBusy = true;
+    this._deferredRestartMessage = "Gemeinsamer Home-Assistant-Neustart wird angefordert …";
+    this._render();
+    try {
+      const receipt = await this._hass.callWS({
+        type:"deploy_relay_v2_dev/deployment/restart",
+        operation_id:operationId,confirm:true,client_id:this._controllerId,
+      });
+      if (receipt?.schema !== "dra-v2-restart-request.v1" ||
+          receipt.operation_id !== operationId ||
+          receipt.restart_requested !== true) throw Error("invalid restart receipt");
+      this._deferredRestartDialogOpen = false;
+      this._deferredRestartMessage = "Neustart angefordert. Keine zweite Anfrage senden.";
+    } catch (_error) {
+      this._deferredRestartDialogOpen = false;
+      this._deferredRestartMessage = "Keine sichere Neustartbestätigung. Home-Assistant-Status abwarten, nicht erneut auslösen.";
+    } finally {
+      this._deferredRestartBusy = false;
+      if (this.isConnected) this._render();
+    }
+  }
+
   async _pollInstallation() {
     // Read-only observer channel must work even when project discovery or
     // the general /test/state request has not yet completed on this device.
@@ -649,6 +684,13 @@ class DRAV2DevLabPanel extends HTMLElement {
       if (response?.schema !== "dra-v2-install-status.v1") throw Error("bad job response");
       this._installStatusKnown = true;
       this._installStatusError = false;
+      this._restartSummary = response.restart_summary?.schema === "dra-v2-restart-summary.v1"
+        && Array.isArray(response.restart_summary.items)
+        && Number.isInteger(response.restart_summary.count)
+        && response.restart_summary.items.every(item=>
+          /^[0-9a-f]{32}$/.test(item?.operation_id || "") &&
+          typeof item.project_key === "string")
+          ? response.restart_summary : null;
       this._installProjectNames = response.project_names &&
         typeof response.project_names === "object" && !Array.isArray(response.project_names)
           ? response.project_names : {};
@@ -3842,6 +3884,28 @@ class DRAV2DevLabPanel extends HTMLElement {
             </div>`;
           }).join("")}
         </section>` : ""}
+        ${this._restartSummary?.required ? `<section class="dra-global-observer" role="status"
+          aria-label="Ausstehender Home-Assistant-Neustart">
+          <div class="dra-observer-top"><strong>HA-Neustart vorgemerkt · ${this._restartSummary.count} ${this._restartSummary.count===1?"Update":"Updates"}</strong>
+            <span class="dra-observer-note">Installationen abgeschlossen · gemeinsamer Neustart möglich</span>
+          </div>
+          <p class="dra-observer-note">${this._restartSummary.items.map(item=>
+            this._escapeProject(this._installProjectNames[item.project_key] || item.project_key)).join(" · ")}</p>
+          <p class="dra-observer-note">Weitere unabhängige Aktualisierungen dürfen vorher installiert werden.
+            Bei fachlichen Abhängigkeiten kann ein früherer Neustart erforderlich sein.</p>
+          ${this._restartSummary.restart_requested ? `<strong>Neustart wurde bereits angefordert.</strong>` :
+            this._deferredRestartDialogOpen ? `<div class="dra-restart-confirm">
+              <strong>Home Assistant jetzt einmalig neu starten?</strong>
+              <p>Alle aktiven Installationen müssen zuvor abgeschlossen sein.</p>
+              <button type="button" id="dra-deferred-restart-cancel"
+                ${this._deferredRestartBusy?"disabled":""}>Abbrechen</button>
+              <button type="button" id="dra-deferred-restart-confirm"
+                ${this._deferredRestartBusy || this._installStatusError || !this._restartSummary.operation_id || runningJobs.length?"disabled":""}>Ja, Home Assistant neu starten</button>
+            </div>` :
+            `<button type="button" id="dra-deferred-restart-open"
+              ${this._installStatusError || !this._restartSummary.operation_id || runningJobs.length?"disabled":""}>Gemeinsamen HA-Neustart ausführen</button>`}
+          ${this._deferredRestartMessage ? `<p role="status">${this._escapeProject(this._deferredRestartMessage)}</p>` : ""}
+        </section>` : ""}
         <section id="dra-main-view" ${this._view==="main"?"":"hidden"}>
           <article class="dra-projectbar">
             <div class="dra-project-picker-field">
@@ -4905,6 +4969,15 @@ class DRAV2DevLabPanel extends HTMLElement {
       if (postInstallJob?.frontend_reload_possible === true &&
           postInstallJob?.restart_required !== true) this._refreshFrontendAfterInstallation();
     });
+    s.querySelector("#dra-deferred-restart-open")?.addEventListener("click",()=>{
+      this._deferredRestartDialogOpen = true;
+      this._render();
+    });
+    s.querySelector("#dra-deferred-restart-cancel")?.addEventListener("click",()=>{
+      this._deferredRestartDialogOpen = false;
+      this._render();
+    });
+    s.querySelector("#dra-deferred-restart-confirm")?.addEventListener("click",()=>this._confirmDeferredRestart());
     s.querySelector("#dra-ha-restart-open")?.addEventListener("click",()=>{
       if (!postInstallJob || postInstallJob.restart_required !== true || this._restartBusy ||
           runningJobs.length) return;
