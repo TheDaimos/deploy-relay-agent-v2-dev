@@ -1650,3 +1650,25 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
     "deploy_relay_v2_dev/deployment/status"]);
   console.log("DRA V2 unconfirmed installation fails closed without second write PASS");
 })().catch(error=>{console.error(error);process.exitCode=1;});
+
+(async () => {
+  // An observer may inspect the exact server-held plan but cannot click
+  // installation until explicit active-operator takeover succeeds.
+  const panel=new Panel(),repo="TheDaimos/example";
+  panel._serverVersion="0.1.98";
+  panel._selectedMainRepo=repo;
+  panel._projects=[{repository:repo,project_id:"example",active:true}];
+  panel._sourceRepository=repo;
+  panel._mainSourceRef="deploy/dev";
+  panel._installPreparation={schema:"dra-v2-install-preparation.v1",
+    repository:repo,source_ref:"deploy/dev",source_commit:"a".repeat(40),
+    challenge:"b".repeat(32),confirmation_required:true,add:1,change:0,remove:0};
+  panel._controllerStatus={schema:"dra-v2-controller.v1",controller:false,occupied:true};
+  panel._render();
+  assert.match(panel.shadowRoot.innerHTML,/id="dra-install-confirm"[^>]*disabled/);
+  panel._controllerStatus={schema:"dra-v2-controller.v1",controller:true,occupied:false};
+  panel._render();
+  assert.match(panel.shadowRoot.innerHTML,/id="dra-install-confirm"/);
+  assert.doesNotMatch(panel.shadowRoot.innerHTML,/id="dra-install-confirm"[^>]*disabled/);
+  console.log("DRA V2 observer sees plan but cannot approve before session takeover PASS");
+})().catch(error=>{console.error(error);process.exitCode=1;});
