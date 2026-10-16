@@ -1575,6 +1575,11 @@ class DRAV2DevLabPanel extends HTMLElement {
         : "Git-Zweige und Tags geladen. Auswahl verändert noch keine Dateien.";
     } catch (_error) {
       if (this._selectedMainRepo !== repository) return;
+      if (_error?.code === "busy") {
+        this._sourceChoicesMessage = "Eine andere Quellprüfung läuft. Zweigauswahl danach erneut laden.";
+        this._sourceHeadMessage = "Quellenabfrage wartet auf eine laufende Prüfung; kein GitHub-Ausfall bestätigt.";
+        return;
+      }
       this._sourceChoices = null;
       this._sourceChoicesLoadedFor = repository;
       this._sourceChoicesMessage = "Quellenauswahl nicht verfügbar. Manuelle Eingabe bleibt möglich.";
