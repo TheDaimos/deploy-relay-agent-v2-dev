@@ -1582,3 +1582,71 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   ]);
   console.log("DRA V2 second-device handoff resumes HA plan without local source preview PASS");
 })().catch(error=>{console.error(error);process.exitCode=1;});
+
+(async () => {
+  // An accepted HA transaction can lose its WebSocket receipt. Never blindly
+  // resubmit the same installation: recover the newly admitted server job.
+  const panel=new Panel();
+  const repo="TheDaimos/example",commit="a".repeat(40),jobid="d".repeat(32);
+  panel._serverVersion="0.1.98";
+  panel._selectedMainRepo=repo;
+  panel._projects=[{repository:repo,project_id:"example",active:true}];
+  panel._sourceRepository=repo;
+  panel._mainSourceRef="deploy/dev";
+  panel._installPreparation={schema:"dra-v2-install-preparation.v1",
+    repository:repo,source_ref:"deploy/dev",source_commit:commit,
+    challenge:"b".repeat(32),confirmation_required:true,add:1,change:0,remove:0};
+  const calls=[];
+  panel._hass={async callWS(req) {
+    calls.push(req.type);
+    if(req.type==="deploy_relay_v2_dev/deployment/control")
+      return {schema:"dra-v2-controller.v1",controller:true,occupied:false};
+    if(req.type==="deploy_relay_v2_dev/deployment/start")
+      throw Error("simulated lost reply after server acceptance");
+    if(req.type==="deploy_relay_v2_dev/deployment/status")
+      return {schema:"dra-v2-install-status.v1",jobs:[{
+        operation_id:jobid,project_key:"example",source_commit:commit,
+        status:"running",phase:"staging",
+      }]};
+    throw Error("unexpected request "+req.type);
+  }};
+  await panel._confirmInstallation();
+  assert.deepEqual(calls,["deploy_relay_v2_dev/deployment/control",
+    "deploy_relay_v2_dev/deployment/start",
+    "deploy_relay_v2_dev/deployment/status"]);
+  assert.equal(panel._installJobId,jobid);
+  assert.equal(panel._installStartUncertain,null);
+  assert.equal(panel._installPreparation,null);
+  console.log("DRA V2 ambiguous receipt reconciles HA job without duplicate installation PASS");
+})().catch(error=>{console.error(error);process.exitCode=1;});
+
+(async () => {
+  // Without a verifiable server status, fail closed and block a second start.
+  const panel=new Panel(),repo="TheDaimos/example",commit="a".repeat(40);
+  panel._serverVersion="0.1.98";
+  panel._selectedMainRepo=repo;
+  panel._projects=[{repository:repo,project_id:"example",active:true}];
+  panel._sourceRepository=repo;
+  panel._mainSourceRef="deploy/dev";
+  panel._installPreparation={schema:"dra-v2-install-preparation.v1",
+    repository:repo,source_ref:"deploy/dev",source_commit:commit,
+    challenge:"b".repeat(32),confirmation_required:true,add:1,change:0,remove:0};
+  const calls=[];
+  panel._hass={async callWS(req) {
+    calls.push(req.type);
+    if(req.type==="deploy_relay_v2_dev/deployment/control")
+      return {schema:"dra-v2-controller.v1",controller:true,occupied:false};
+    throw Error("simulated unavailable install receipt and job status");
+  }};
+  await panel._confirmInstallation();
+  assert.equal(panel._installJob,null);
+  assert.equal(panel._installPreparation.challenge,"b".repeat(32));
+  assert.ok(panel._installStartUncertain);
+  panel._render();
+  assert.match(panel.shadowRoot.innerHTML,/id="dra-install-confirm"[^>]*disabled/);
+  await panel._confirmInstallation();
+  assert.deepEqual(calls,["deploy_relay_v2_dev/deployment/control",
+    "deploy_relay_v2_dev/deployment/start",
+    "deploy_relay_v2_dev/deployment/status"]);
+  console.log("DRA V2 unconfirmed installation fails closed without second write PASS");
+})().catch(error=>{console.error(error);process.exitCode=1;});
