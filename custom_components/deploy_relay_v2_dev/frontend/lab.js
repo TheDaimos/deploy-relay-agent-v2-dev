@@ -563,8 +563,15 @@ class DRAV2DevLabPanel extends HTMLElement {
       } else {
         // Re-checking the pending plan is read-only. Still inhibit retry:
         // server-side admission may have succeeded just before disconnect.
-        this._installMessage =
-          "Keine verlässliche Auftragsbestätigung. Serverstatus und Audit prüfen; Installation nicht erneut starten.";
+        const code = typeof _error?.code === "string" ? _error.code : "";
+        const reasons = {
+          controller_required:"Server hat die Bedienungsfreigabe abgelehnt.",
+          confirmation_failed:"Server hat die Installationsfreigabe als ungültig oder abgelaufen abgelehnt.",
+          not_permitted:"Server hat die Installationsberechtigung abgelehnt.",
+          restart_pending:"Ein Home-Assistant-Neustart steht bereits aus.",
+        };
+        this._installMessage = (reasons[code] || "Auftragsannahme nicht bestätigt.") +
+          " Serverstatus und Audit prüfen; Installation nicht erneut starten.";
       }
     } finally {
       this._installBusy = false;
