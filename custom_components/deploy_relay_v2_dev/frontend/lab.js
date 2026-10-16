@@ -696,7 +696,7 @@ class DRAV2DevLabPanel extends HTMLElement {
         const busy = this._installJobs.some(j=>
           ["queued","running","waiting_for_resource","cancel_requested"].includes(j.status));
         this._installTimer = setTimeout(()=>this._pollInstallation(),
-          this._installStatusError ? 5000 : busy ? 1500 : 10000);
+          this._installStatusError ? 4800 : busy ? 1500 : 10000);
       }
       this._installPolling = false;
       if (this.isConnected) this._render();
