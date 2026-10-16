@@ -4034,7 +4034,7 @@ class DRAV2DevLabPanel extends HTMLElement {
                 <span>Dateien: ${preparedInstall.add} hinzugefügt · ${preparedInstall.change} geändert · ${preparedInstall.remove} entfernt</span>
                 <span class="note">Sicherung, Installation, Prüfung und Rückfall erfolgen nach dem bewährten V1-Verfahren.</span>
                 ${this._installStartUncertain ? `<span class="note" role="alert">Auftragsstatus nicht bestätigt. Bitte Audit und Serverstatus prüfen; kein zweiter Installationsversuch.</span>` : ""}
-                <button type="button" id="dra-install-confirm" ${deploymentBusy || this._installStartUncertain ? "disabled" : ""}>Ja, Update installieren</button>
+                <button type="button" id="dra-install-confirm" ${deploymentBusy || this._installStartUncertain || this._controllerStatus?.controller !== true ? "disabled" : ""}>Ja, Update installieren</button>
                 <button type="button" id="dra-install-cancel" ${deploymentBusy ? "disabled" : ""}>Abbrechen</button>
               </div>` : ""}
             ${runningJobs.length ? `<div class="dra-deployment-result" role="status">
