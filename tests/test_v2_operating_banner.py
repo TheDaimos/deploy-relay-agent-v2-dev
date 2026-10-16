@@ -17,7 +17,6 @@ class OperatingModeBannerContract(unittest.TestCase):
         panel = (LAB / "frontend" / "lab.js").read_text(encoding="utf-8")
         api = (LAB / "websocket_api.py").read_text(encoding="utf-8")
         self.assertIn("Ja, Update installieren", panel)
-        self.assertIn("Installation nur nach", "Installation nur nach ausdrücklicher Freigabe")
         self.assertIn("Installationen nur nach ausdrücklicher Freigabe", panel)
         self.assertIn('probatio.Required("confirm"): bool', api)
         self.assertIn('await runtime.deployment.require_controller(project["project_id"], msg["client_id"])', api)
