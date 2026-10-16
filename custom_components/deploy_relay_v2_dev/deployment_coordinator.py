@@ -73,6 +73,7 @@ class PendingInstallation:
     source_ref: str
     commit: str
     prepared: PreparedV1Source
+    test_delay_seconds: int = 0
 
 
 class DeploymentCoordinator:
@@ -144,8 +145,12 @@ class DeploymentCoordinator:
         self, *, session: Any, repository: str, source_ref: str,
         source_commit: str, expected_project_id: str,
         config_root: Path, token: str | None = None,
+        test_delay_seconds: int = 0,
     ) -> dict[str, object]:
         """Prepare a new exact-commit V1 comparison, never mutate a target."""
+        if (type(test_delay_seconds) is not int or test_delay_seconds not in (0, 10, 20, 30, 60) or
+            test_delay_seconds and (repository != "TheDaimos/Test-Repo-DRA-V2" or expected_project_id != "test_repo_dra_v2")):
+            raise OperationContractError("invalid isolated test delay")
         async with self._lock:
             if self._closed:
                 raise OperationContractError("deployment coordinator closed")
@@ -171,6 +176,7 @@ class DeploymentCoordinator:
                 challenge=challenge, expires_at=monotonic()+PREPARATION_LIFETIME_SECONDS,
                 repository=repository, project_id=expected_project_id,
                 source_ref=source_ref, commit=source_commit, prepared=prepared,
+                test_delay_seconds=test_delay_seconds,
             )
             return {
                 "schema": "dra-v2-install-preparation.v1",
@@ -186,6 +192,7 @@ class DeploymentCoordinator:
                 "confirmation_required": True,
                 "expires_in_seconds": PREPARATION_LIFETIME_SECONDS,
                 "installation_started": False,
+                "test_delay_seconds": test_delay_seconds,
             }
 
     async def pending_status(self, project_id: str) -> dict[str, object] | None:
@@ -217,6 +224,7 @@ class DeploymentCoordinator:
                 "confirmation_required": True,
                 "expires_in_seconds": int(remaining),
                 "installation_started": False,
+                "test_delay_seconds": candidate.test_delay_seconds,
             }
 
     async def confirm(
@@ -250,6 +258,7 @@ class DeploymentCoordinator:
                 preview=obj.preview, session=session,
                 config_root=config_root, request_id=challenge,
                 token=token, blocking_executor=blocking_executor,
+                test_delay_seconds=candidate.test_delay_seconds,
             )
 
     async def get(self, operation_id: str) -> dict[str, object] | None:
