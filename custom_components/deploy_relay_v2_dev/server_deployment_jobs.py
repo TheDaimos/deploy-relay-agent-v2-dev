@@ -58,6 +58,7 @@ class ServerDeploymentJobs:
         inventory: SourceInventory, preview: PreviewResult,
         session: Any, config_root: Path, request_id: str,
         token: str | None = None, blocking_executor: Callable | None = None,
+        test_delay_seconds: int = 0,
     ) -> dict[str, object]:
         """Admit only trusted, fixed-commit V1 engine inputs, no browser payload.
 
@@ -65,6 +66,10 @@ class ServerDeploymentJobs:
         authorization. The caller will additionally need the authenticated
         admin/confirmation/target-exclusivity checks before it may be wired.
         """
+        if (type(test_delay_seconds) is not int or test_delay_seconds not in (0, 10, 20, 30, 60) or
+            test_delay_seconds and (manifest.project_id != "test_repo_dra_v2" or
+                                    manifest.repository != "TheDaimos/Test-Repo-DRA-V2")):
+            raise OperationContractError("invalid isolated test delay")
         if (
             type(manifest) is not DeploymentManifest
             or type(inventory) is not SourceInventory
@@ -150,6 +155,16 @@ class ServerDeploymentJobs:
                         if phase is not None:
                             await self._registry.progress(identifier, phase=phase,
                                                           current=0, total=1)
+                    if test_delay_seconds:
+                        # Synthetic per-file pacing runs ONLY in the isolated fixture.
+                        # No HA event-loop blocking, no file writes before V1 transaction.
+                        steps = inventory.total_files
+                        for step in range(steps):
+                            await self._registry.progress(identifier, phase=OperationPhase.STAGING,
+                                                          current=step, total=steps)
+                            await asyncio.sleep(test_delay_seconds)
+                        await self._registry.progress(identifier, phase=OperationPhase.STAGING,
+                                                      current=steps, total=steps)
                     result = await engine.async_execute_deployment(
                         session, manifest, inventory, preview,
                         token=token, config_root=config_root,
