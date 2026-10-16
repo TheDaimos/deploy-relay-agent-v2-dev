@@ -1581,6 +1581,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
     "deploy_relay_v2_dev/deployment/control",
     "deploy_relay_v2_dev/deployment/start",
     "deploy_relay_v2_dev/deployment/status",
+    "deploy_relay_v2_dev/batch/status",
   ]);
   console.log("DRA V2 second-device handoff resumes HA plan without local source preview PASS");
 })().catch(error=>{console.error(error);process.exitCode=1;});
