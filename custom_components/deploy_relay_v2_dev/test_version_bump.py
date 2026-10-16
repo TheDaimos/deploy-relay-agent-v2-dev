@@ -102,6 +102,13 @@ async def increase_test_version(session, token: str, *, file_count: int = 1) -> 
         base_tree = commit_info.get("tree", {}).get("sha")
         if not isinstance(base_tree, str) or len(base_tree) != 40:
             raise TestVersionError("Git-Baum ungültig")
+        # Delete only fixtures already present; GitHub rejects absent paths.
+        old_tree = await request("GET", api + "/git/trees/" + base_tree + "?recursive=1")
+        entries = old_tree.get("tree")
+        if old_tree.get("truncated") is True or not isinstance(entries, list):
+            raise TestVersionError("Testprojekt-Dateibaum unvollständig")
+        existing_paths = {item.get("path") for item in entries
+                          if isinstance(item, dict) and item.get("type") == "blob"}
         # Exactly one required status file and up to six numbered fixtures.
         tree = [{"path": FILE_PATH, "mode": "100644", "type": "blob",
                  "content": new_file.decode("utf-8")}]
@@ -112,7 +119,7 @@ async def increase_test_version(session, token: str, *, file_count: int = 1) -> 
                         "datei": index + 1, "gesamt": file_count}
                 tree.append({"path": path, "mode": "100644", "type": "blob",
                              "content": json.dumps(body, ensure_ascii=False) + "\n"})
-            else:
+            elif path in existing_paths:
                 tree.append({"path": path, "mode": "100644", "type": "blob", "sha": None})
         new_tree = await request("POST", api + "/git/trees",
                                  {"base_tree": base_tree, "tree": tree})
