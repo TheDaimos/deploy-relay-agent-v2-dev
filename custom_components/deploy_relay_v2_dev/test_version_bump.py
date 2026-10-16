@@ -52,8 +52,10 @@ async def _read_bounded(response, maximum: int) -> bytes:
             raise TestVersionError("GitHub-Antwort zu groß")
 
 
-async def increase_test_version(session, token: str) -> dict:
+async def increase_test_version(session, token: str, *, file_count: int = 1) -> dict:
     """GET exact fixed path, verify exact document, conditional PUT using blob SHA."""
+    if type(file_count) is not int or not 1 <= file_count <= 7:
+        raise TestVersionError("Nur 1 bis 7 isolierte Testdateien zulässig")
     if not isinstance(token, str) or not token or len(token) > 512:
         raise TestVersionError("Für das Test-Repository ist ein GitHub-Token erforderlich")
     headers = {
@@ -77,26 +79,58 @@ async def increase_test_version(session, token: str) -> dict:
             type(source.get("size")) is not int or source["size"] > 2048):
             raise TestVersionError("Unerwartete GitHub-Dateiangaben")
         before, after, new_file = next_test_status(base64.b64decode("".join(source["content"].split()), validate=True))
-        payload = {
-            "message": f"test(dra-v2): advance isolated teststand to {after}",
-            "content": base64.b64encode(new_file).decode("ascii"),
-            "sha": source["sha"], "branch": "main",
-        }
-        async with asyncio.timeout(16):
-            async with session.put(API_URL, headers=headers, json=payload,
-                                   allow_redirects=False) as response:
-                reply = await _read_bounded(response, 16384)
-                if response.status in (409, 422):
-                    raise TestVersionError("Git-Konflikt: Datei inzwischen geändert")
-                if response.status not in (200, 201) or len(reply) > 16384:
-                    raise TestVersionError("GitHub hat die Teständerung nicht bestätigt")
-        result = json.loads(reply)
-        commit = result.get("commit") if isinstance(result, dict) else None
-        sha = commit.get("sha") if isinstance(commit, dict) else None
-        if type(sha) is not str or len(sha) != 40 or any(ch not in "0123456789abcdef" for ch in sha):
+        # Git's immutable tree/commit API changes all selected files atomically.
+        # A concurrent branch movement rejects the ref update (never force push).
+        api = "https://api.github.com/repos/TheDaimos/Test-Repo-DRA-V2"
+        async def request(method, url, payload=None):
+            async with asyncio.timeout(16):
+                async with session.request(method, url, headers=headers, json=payload,
+                                           allow_redirects=False) as response:
+                    body = await _read_bounded(response, 65536)
+                    if response.status < 200 or response.status >= 300:
+                        raise TestVersionError("GitHub-Teständerung nicht bestätigt")
+                    value = json.loads(body)
+                    if type(value) is not dict:
+                        raise TestVersionError("Ungültige GitHub-Antwort")
+                    return value
+
+        ref = await request("GET", api + "/git/ref/heads/main")
+        old_commit = ref.get("object", {}).get("sha")
+        if not isinstance(old_commit, str) or len(old_commit) != 40:
+            raise TestVersionError("Git-Referenz ungültig")
+        commit_info = await request("GET", api + "/git/commits/" + old_commit)
+        base_tree = commit_info.get("tree", {}).get("sha")
+        if not isinstance(base_tree, str) or len(base_tree) != 40:
+            raise TestVersionError("Git-Baum ungültig")
+        # Exactly one required status file and up to six numbered fixtures.
+        tree = [{"path": FILE_PATH, "mode": "100644", "type": "blob",
+                 "content": new_file.decode("utf-8")}]
+        for index in range(1, 7):
+            path = f"payload/dra_test_{index:02d}.json"
+            if index < file_count:
+                body = {"schema": "dra-v2-fixture.v1", "teststand": after,
+                        "datei": index + 1, "gesamt": file_count}
+                tree.append({"path": path, "mode": "100644", "type": "blob",
+                             "content": json.dumps(body, ensure_ascii=False) + "\n"})
+            else:
+                tree.append({"path": path, "mode": "100644", "type": "blob", "sha": None})
+        new_tree = await request("POST", api + "/git/trees",
+                                 {"base_tree": base_tree, "tree": tree})
+        tree_sha = new_tree.get("sha")
+        if not isinstance(tree_sha, str) or len(tree_sha) != 40:
+            raise TestVersionError("Testdateibaum nicht bestätigt")
+        new_commit = await request("POST", api + "/git/commits", {
+            "message": f"test(dra-v2): advance isolated {file_count}-file fixture to {after}",
+            "tree": tree_sha, "parents": [old_commit],
+        })
+        sha = new_commit.get("sha")
+        if not isinstance(sha, str) or len(sha) != 40 or any(ch not in "0123456789abcdef" for ch in sha):
             raise TestVersionError("GitHub-Commit konnte nicht bestätigt werden")
+        await request("PATCH", api + "/git/refs/heads/main",
+                      {"sha": sha, "force": False})
         return {"schema": "dra-v2-test-version.v1", "before": before,
-                "after": after, "commit": sha, "repository": REPOSITORY}
+                "after": after, "commit": sha, "repository": REPOSITORY,
+                "file_count": file_count}
     except TestVersionError:
         raise
     except (OSError, ValueError, UnicodeError, binascii.Error, TypeError, asyncio.TimeoutError):
