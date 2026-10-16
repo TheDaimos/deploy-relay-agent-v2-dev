@@ -1466,6 +1466,7 @@ async def async_deployment_restart(hass, connection, msg):
 @websocket_api.websocket_command({
     probatio.Required("type"): "deploy_relay_v2_dev/test/version/increment",
     probatio.Required("confirm"): bool,
+    probatio.Optional("file_count", default=1): int,
 })
 @websocket_api.require_admin
 @websocket_api.async_response
@@ -1478,7 +1479,8 @@ async def async_test_version_increment(hass, connection, msg):
     # No repository, branch, file path, or content may come from the client.
     token = runtime.project_auth.token(TEST_REPO)
     try:
-        result = await increase_test_version(async_get_clientsession(hass), token)
+        result = await increase_test_version(async_get_clientsession(hass), token,
+                                             file_count=msg["file_count"])
     except TestVersionError:
         connection.send_error(msg["id"], "test_version_failed",
                               "Teststand konnte nicht erhöht werden. GitHub-Zugang und Datei prüfen.")
