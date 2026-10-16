@@ -3792,13 +3792,19 @@ class DRAV2DevLabPanel extends HTMLElement {
             const name = observerJobName(job);
             const phase = observerPhase[job.phase] || observerPhase[job.status] ||
               job.phase || job.status || "Unbekannt";
+            const testPacing = job.project_key==="test_repo_dra_v2" &&
+              job.phase==="preflight" && Number.isInteger(job.current_index) &&
+              Number.isInteger(job.total_count) && job.total_count > 0;
+            const testProgress = testPacing
+              ? " · Testdatei " + Math.min(job.current_index+1,job.total_count) +
+                " von " + job.total_count : "";
             const finished = job.status==="success" ? "Erfolgreich abgeschlossen" :
               ["failed","interrupted","recovery_required"].includes(job.status) ?
                 "Fehler / Prüfung erforderlich" : phase;
             return `<div class="dra-observer-item">
               <div class="dra-observer-line">
                 <strong>${this._escapeProject(name)}</strong>
-                <span>${this._escapeProject(finished)}${exact ? " · " + job.progress_percent + " %" : ""}</span>
+                <span>${this._escapeProject(finished)}${testProgress}${exact ? " · " + job.progress_percent + " %" : ""}</span>
               </div>
               <div class="dra-observer-meter" aria-hidden="true"><span style="width:${exact ? job.progress_percent : 0}%"></span></div>
               <div class="dra-observer-note">Auftrag ${this._escapeProject((job.operation_id || "").slice(0,12))}
