@@ -1537,6 +1537,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     if (!repository || this._sourceChoicesBusy || !this._hass) return;
     this._sourceChoicesBusy = true;
     this._sourceChoicesMessage = "Git-Zweige und Tags werden geladen …";
+    this._sourceChoicesRetryCount = this._sourceChoicesRetryCount || 0;
     this._render();
     try {
       const result = await this._hass.callWS({
@@ -1553,6 +1554,8 @@ class DRAV2DevLabPanel extends HTMLElement {
       }
       if (this._selectedMainRepo !== repository) return;
       this._sourceChoices = result;
+      this._sourceChoicesRetryCount = 0;
+      this._sourceHeadMessage = "";
       this._sourceChoicesLoadedFor = repository;
       if (!this._mainSourceRef.trim() && result.recommended.explicit) {
         this._mainSourceRef = result.recommended.ref;
@@ -1576,8 +1579,16 @@ class DRAV2DevLabPanel extends HTMLElement {
     } catch (_error) {
       if (this._selectedMainRepo !== repository) return;
       if (_error?.code === "busy") {
-        this._sourceChoicesMessage = "Eine andere Quellprüfung läuft. Zweigauswahl danach erneut laden.";
-        this._sourceHeadMessage = "Quellenabfrage wartet auf eine laufende Prüfung; kein GitHub-Ausfall bestätigt.";
+        this._sourceChoicesMessage = "Quellprüfung läuft; Zweige werden anschließend erneut abgefragt.";
+        this._sourceHeadMessage = "Quellenabruf momentan belegt – GitHub-Ausfall nicht bestätigt.";
+        const retries = this._sourceChoicesRetryCount || 0;
+        if (retries < 5 && this.isConnected) {
+          this._sourceChoicesRetryCount = retries + 1;
+          setTimeout(() => {
+            if (this.isConnected && this._selectedMainRepo === repository &&
+                !this._sourceChoicesBusy) void this._loadSourceChoices();
+          }, 2000 + retries * 1500);
+        }
         return;
       }
       this._sourceChoices = null;
