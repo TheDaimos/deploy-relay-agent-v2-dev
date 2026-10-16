@@ -2677,6 +2677,28 @@ class DRAV2DevLabPanel extends HTMLElement {
         .dra-deployment-heading {display:flex;align-items:center;justify-content:space-between;
           gap:12px;min-width:0;margin:0 0 14px;}
         .dra-deployment-heading h2 {margin:0;}
+        .dra-controller-chip {display:flex;align-items:center;gap:9px;min-width:0;max-width:100%;
+          padding:7px 12px;border:1px solid #947239;border-radius:12px;
+          background:linear-gradient(115deg,rgba(126,91,29,.15),rgba(52,43,29,.07));
+          color:#e8cc91;font-size:12px;line-height:1.35;}
+        .dra-controller-chip.is-controller {border-color:#4d967c;color:#b0efd2;
+          background:linear-gradient(115deg,rgba(35,115,83,.20),rgba(22,70,59,.08));}
+        .dra-controller-chip.is-observer {border-color:#4784aa;color:#b9e3ff;
+          background:linear-gradient(115deg,rgba(34,91,138,.19),rgba(19,61,93,.07));}
+        .dra-controller-dot {width:8px;height:8px;flex:none;border-radius:50%;
+          background:currentColor;box-shadow:0 0 0 3px rgba(255,255,255,.06);}
+        .dra-controller-copy {display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 10px;min-width:0;}
+        .dra-controller-copy strong {font-size:12px;font-weight:750;letter-spacing:.01em;}
+        .dra-controller-chip button {margin-left:auto;flex:none;border-radius:9px;padding:7px 11px;
+          border:1px solid currentColor;color:inherit;background:rgba(255,255,255,.04);
+          font:inherit;font-weight:700;cursor:pointer;}
+        .dra-deployment-heading {flex-wrap:wrap;}
+        .dra-deployment-heading .dra-controller-chip {margin-right:auto;}
+        @media (max-width:720px) {
+          .dra-deployment-heading {gap:9px;}
+          .dra-deployment-heading .dra-controller-chip {order:3;flex:1 1 100%;box-sizing:border-box;}
+          .dra-controller-copy {align-items:flex-start;flex-direction:column;gap:1px;}
+        }
         .dra-logs-heading-buttons {display:flex;align-items:center;gap:7px;flex:none;}
         .dra-logs-clear-pill {font:inherit;font-size:12px;font-weight:700;
           min-height:34px;border-radius:20px;padding:6px 10px;
@@ -3720,6 +3742,21 @@ class DRAV2DevLabPanel extends HTMLElement {
           <article class="dra-deployment-panel">
             <div class="dra-deployment-heading">
               <h2>Deployment</h2>
+              ${mainProject ? `<div class="dra-controller-chip ${this._controllerStatus?.controller === true ? "is-controller" :
+                this._controllerStatus?.occupied === true ? "is-observer" : "is-pending"}"
+                role="status" aria-live="polite" title="Geräteübergreifende Bedienung">
+                <span class="dra-controller-dot" aria-hidden="true"></span>
+                <span class="dra-controller-copy"><strong>Geräteübergreifende Bedienung</strong>
+                <span>${this._controllerStatus?.controller === true
+                  ? "Dieses Gerät steuert den Vorgang."
+                  : this._controllerStatus?.occupied === true
+                    ? "Anderes Gerät steuert · Beobachtung"
+                    : "Bedienungsstatus wird ermittelt"}</span></span>
+                ${this._controllerStatus?.occupied === true
+                  ? `<button type="button" id="dra-take-control"
+                       ${this._controllerBusy ? "disabled" : ""}>Übernehmen</button>`
+                  : ""}
+              </div>` : ""}
               <div class="dra-logs-heading-buttons">
                 ${this._deploymentLogCount > 0 ? `<button id="dra-deployment-logs-clear"
                   class="dra-logs-clear-pill" ${this._deploymentLogsBusy ? "disabled" : ""}
@@ -3914,18 +3951,6 @@ class DRAV2DevLabPanel extends HTMLElement {
                   </div>
                 </details>
               </section>` : ""}
-            ${mainProject ? `<div class="dra-deployment-result" role="status" aria-live="polite">
-              <strong>Geräteübergreifende Bedienung</strong>
-              <span>${this._controllerStatus?.controller === true
-                ? "Dieses Gerät steuert den Vorgang."
-                : this._controllerStatus?.occupied === true
-                  ? "Ein anderes Gerät steuert. Hier ist Beobachtung möglich."
-                  : "Bedienungsstatus wird ermittelt."}</span>
-              ${this._controllerStatus?.occupied === true
-                ? `<button type="button" id="dra-take-control"
-                     ${this._controllerBusy ? "disabled" : ""}>Bedienung auf diesem Gerät übernehmen</button>`
-                : ""}
-            </div>` : ""}
             <button id="dra-preview" class="dra-deploy-action stage-${deploymentStage}
               ${upToDate ? "up-to-date" : ""} ${deploymentBusy ? "is-busy" : ""} ${installFailed ? "has-error" : ""}"
               data-stage="${deploymentStage}"
