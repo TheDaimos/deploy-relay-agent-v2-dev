@@ -1403,6 +1403,7 @@ async def async_install_status(hass, connection, msg):
         "job": snapshot,
         "jobs": jobs,
         "project_names": names,
+        "restart_summary": restart_summary,
     })
 
 
