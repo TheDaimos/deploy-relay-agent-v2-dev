@@ -91,6 +91,8 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._sourceJobId = null;
     this._sourceConnectionTest = false;
     this._testsOpen = false;
+    this._testFileCount = 5;
+    this._testDelaySeconds = 20;
     this._testVersionBusy = false;
     this._testVersionConfirm = false;
     this._testVersionResult = "";
@@ -427,6 +429,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     try {
       const result = await this._hass.callWS({
         type:"deploy_relay_v2_dev/deployment/prepare",
+        test_delay_seconds:project.repository==="TheDaimos/Test-Repo-DRA-V2" ? this._testDelaySeconds : 0,
         repository:project.repository,
         ref:this._sourcePreview.source_ref,
         commit:this._sourcePreview.source_commit,
@@ -476,12 +479,13 @@ class DRAV2DevLabPanel extends HTMLElement {
     try {
       const result = await this._hass.callWS({
         type:"deploy_relay_v2_dev/test/version/increment",confirm:true,
+        file_count:this._testFileCount,
       });
       if (result?.schema !== "dra-v2-test-version.v1" ||
           result.repository !== "TheDaimos/Test-Repo-DRA-V2" ||
           !Number.isInteger(result.before) || result.after !== result.before + 1 ||
           !/^[a-f0-9]{40}$/.test(result.commit || "")) throw Error("invalid receipt");
-      this._testVersionResult = "Git-Teststand " + result.before + " → " + result.after +
+      this._testVersionResult = result.file_count + " Testdateien · Git-Teststand " + result.before + " → " + result.after +
         " · Commit " + result.commit.slice(0,12) + ". Neue Vorschau kann gestartet werden.";
       // The isolated test repository now has a new commit. A previous 4/4
       // result must never disable its next source inspection.
@@ -4302,20 +4306,23 @@ class DRAV2DevLabPanel extends HTMLElement {
                   </p>` : ""}
                 </div>
                 <div class="dra-test-item" style="margin-top:12px">
-                  <div class="dra-test-item-heading"><strong>Test 2 · Git-Teststand um +1 erhöhen</strong>
+                  <div class="dra-test-item-heading"><strong>Test 2 · Testdateien vorbereiten</strong>
                     <span class="note">Nur isoliertes Test-Repository</span></div>
-                  <p class="note">Ändert ausschließlich <code>teststand</code> in
+                  <p class="note">Erzeugt einen gemeinsamen Git-Commit mit der gewählten Anzahl synthetischer Dateien. Ändert <code>teststand</code> in
                     <code>TheDaimos/Test-Repo-DRA-V2 · main · payload/teststatus.json</code>.
                     Kein automatisches Deployment, kein HA-Neustart. Der GitHub-Token dieses Testprojekts
                     benötigt tatsächliche Schreibberechtigung; die hinterlegte Zugriffsart ist keine Freigabe.</p>
+                  <div class="dra-test-actions"><label>Testdateien <button type="button" id="dra-test-file-minus" ${this._testFileCount<=1 || this._testVersionBusy?"disabled":""}>−</button> <strong>${this._testFileCount}</strong> <button type="button" id="dra-test-file-plus" ${this._testFileCount>=7 || this._testVersionBusy?"disabled":""}>+</button></label>
+                    <label>Sekunden je Datei <select id="dra-test-delay" ${this._testVersionBusy?"disabled":""}>${[10,20,30,60].map(s=>`<option value="${s}" ${this._testDelaySeconds===s?"selected":""}>${s} Sekunden</option>`).join("")}</select></label></div>
+                  <p class="note">Geplante Testdauer: ${this._testFileCount * this._testDelaySeconds} Sekunden. Die künstliche Wartezeit läuft ausschließlich auf Home Assistant und ausschließlich bei diesem Testprojekt.</p>
                   <label class="dra-test-confirm"><input type="checkbox" id="dra-test-version-confirm"
                     ${this._testVersionConfirm ? "checked" : ""} ${this._testVersionBusy ? "disabled" : ""}/>
-                    Ich bestätige die Änderung ausschließlich in der festgelegten Git-Testdatei.</label>
+                    Ich bestätige die Änderung ausschließlich im isolierten Git-Testprojekt.</label>
                   <div class="dra-test-actions">
                     <button type="button" id="dra-test-version-increment"
                       ${!this._testVersionConfirm || this._testVersionBusy ||
                         this._serverVersion !== DRA_V2_UI_VERSION ? "disabled" : ""}>
-                      ${this._testVersionBusy ? "Git-Teststand wird erhöht …" : "Teststand um +1 erhöhen"}</button>
+                      ${this._testVersionBusy ? "Testdateien werden vorbereitet …" : "Testdateien vorbereiten"}</button>
                   </div>
                   <p class="dra-test-result note" role="status" aria-live="polite">
                     ${this._escapeProject(this._testVersionResult || "Bereit zur ausdrücklich bestätigten Git-Teständerung.")}</p>
@@ -4846,6 +4853,9 @@ class DRAV2DevLabPanel extends HTMLElement {
     s.querySelector("#dra-tests-expander")?.addEventListener("toggle",e=>{
       this._testsOpen = e.currentTarget.open;
     });
+    s.querySelector("#dra-test-file-minus")?.addEventListener("click",()=>{this._testFileCount=Math.max(1,this._testFileCount-1);this._render();});
+    s.querySelector("#dra-test-file-plus")?.addEventListener("click",()=>{this._testFileCount=Math.min(7,this._testFileCount+1);this._render();});
+    s.querySelector("#dra-test-delay")?.addEventListener("change",e=>{this._testDelaySeconds=Number(e.currentTarget.value);this._render();});
     s.querySelector("#dra-test-version-confirm")?.addEventListener("change",e=>{
       this._testVersionConfirm = e.currentTarget.checked;
       const submit = this.shadowRoot?.querySelector("#dra-test-version-increment");
