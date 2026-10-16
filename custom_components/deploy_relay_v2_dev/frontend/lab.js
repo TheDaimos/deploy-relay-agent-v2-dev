@@ -25,6 +25,11 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._mainBatchBusy = false;
     this._mainBatchPreview = null;
     this._mainBatchMessage = "";
+    this._batchPreparation = null;
+    this._batchChallenge = null;
+    this._batchStatus = null;
+    this._batchStartUncertain = false;
+    this._batchStatusError = false;
     this._pickerBatchMessage = "";
     this._mainSourceRef = "";
     this._sourceChoices = null;
@@ -684,6 +689,15 @@ class DRAV2DevLabPanel extends HTMLElement {
       if (response?.schema !== "dra-v2-install-status.v1") throw Error("bad job response");
       this._installStatusKnown = true;
       this._installStatusError = false;
+      try {
+        const batch=await this._hass.callWS({type:"deploy_relay_v2_dev/batch/status"});
+        if(batch?.schema==="dra-v2-batch-status.v1" && Array.isArray(batch.items)) {
+          this._batchStatus=batch; this._batchStatusError=false;
+          if(["queued","running","success","stopped","interrupted"].includes(batch.status)){
+            this._batchChallenge=null;this._batchStartUncertain=false;
+          }
+        } else this._batchStatusError=true;
+      } catch(_batchError){this._batchStatusError=true;}
       this._restartSummary = response.restart_summary?.schema === "dra-v2-restart-summary.v1"
         && Array.isArray(response.restart_summary.items)
         && Number.isInteger(response.restart_summary.count)
@@ -2030,6 +2044,80 @@ class DRAV2DevLabPanel extends HTMLElement {
       if (this.isConnected) this._render();
     }
   }
+  async _prepareMainBatch() {
+    if (!this._mainBatchMode || !this._hass || this._mainBatchBusy ||
+        this._serverVersion !== DRA_V2_UI_VERSION) return;
+    const repositories = this._mainBatchProjects().map(p=>p.repository);
+    if (!repositories.length || repositories.length>8) {
+      this._mainBatchMessage="Bitte 1 bis 8 aktive Projekte auswählen."; this._render(); return;
+    }
+    this._mainBatchBusy=true;
+    this._mainBatchMessage="Home Assistant überprüft alle festen Quellstände und Zielpfade …";
+    this._render();
+    try {
+      const result=await this._hass.callWS({
+        type:"deploy_relay_v2_dev/batch/prepare",repositories,client_id:this._controllerId,
+      });
+      if(result?.schema!=="dra-v2-batch-preparation.v1" ||
+         result.preparation?.schema!=="dra-v2-batch-status.v1" ||
+         !Array.isArray(result.preparation.items) ||
+         result.preparation.items.length!==repositories.length ||
+         result.preparation.items.some(x=>!repositories.includes(x.repository) ||
+           !/^[a-f0-9]{40}$/.test(x.source_commit||""))) throw Error("invalid batch");
+      this._batchPreparation=result.preparation;
+      this._batchStatus=result.preparation;
+      this._batchChallenge=/^[a-f0-9]{32}$/.test(result.challenge||"")?result.challenge:null;
+      this._batchStartUncertain=false;
+      this._mainBatchMessage=this._batchChallenge
+        ?"Feste Quellstände vorbereitet. Ausdrückliche Installationbestätigung erforderlich."
+        :"Alle ausgewählten Projekte bereits aktuell.";
+    } catch (_error) {
+      this._batchPreparation=null; this._batchChallenge=null;
+      this._mainBatchMessage="Sammelvorbereitung nicht bestätigt. Keine Installation gestartet.";
+    } finally { this._mainBatchBusy=false; if(this.isConnected)this._render(); }
+  }
+
+  async _takeOverMainBatch() {
+    if (!this._hass || this._mainBatchBusy ||
+        !window.confirm("Sammelvorbereitung auf dieses Gerät übernehmen? Noch keine Installation.")) return;
+    this._mainBatchBusy=true;
+    try {
+      const r=await this._hass.callWS({
+        type:"deploy_relay_v2_dev/batch/takeover",client_id:this._controllerId,confirm:true,
+      });
+      if(r?.schema!=="dra-v2-batch-preparation.v1" ||
+         !/^[a-f0-9]{32}$/.test(r.challenge||""))throw Error("invalid takeover");
+      this._batchChallenge=r.challenge;
+      this._batchPreparation=r.preparation;
+      this._mainBatchMessage="Sammelvorbereitung übernommen. Installation separat bestätigen.";
+    } catch(_error){this._mainBatchMessage="Übernahme nicht bestätigt. HA-Status prüfen.";}
+    finally {this._mainBatchBusy=false;if(this.isConnected)this._render();}
+  }
+
+  async _startMainBatch() {
+    if (!this._hass || !this._mainBatchMode || this._mainBatchBusy ||
+        this._batchStartUncertain || !/^[a-f0-9]{32}$/.test(this._batchChallenge||"") ||
+        !window.confirm("Sammelinstallation auf Home Assistant starten? Bei Fehler werden weitere Projekte angehalten. Jeder Teilauftrag nutzt V1-Sicherung und Rückfall."))return;
+    this._mainBatchBusy=true;
+    this._batchStartUncertain=true;
+    this._mainBatchMessage="Sammelauftrag wird Home Assistant zur einmaligen Annahme übermittelt …";
+    this._render();
+    try {
+      const receipt=await this._hass.callWS({
+        type:"deploy_relay_v2_dev/batch/start",challenge:this._batchChallenge,
+        client_id:this._controllerId,confirm:true,
+      });
+      if(receipt?.schema!=="dra-v2-batch-start.v1" ||
+         !/^[a-f0-9]{32}$/.test(receipt.batch_id||""))throw Error("invalid receipt");
+      this._batchChallenge=null;
+      this._batchStartUncertain=false;
+      this._mainBatchMessage="Sammelauftrag auf Home Assistant angenommen.";
+      await this._pollInstallation();
+    }catch(_error){
+      this._mainBatchMessage="Auftragsannahme unklar. Nicht erneut starten; Serverstatus/Audit prüfen.";
+    }finally{this._mainBatchBusy=false;if(this.isConnected)this._render();}
+  }
+
   _openV2Settings() {
     if (!this._projectDialogOpen || this._checkAllBusy || this._gitReadBusy) return;
     this._v2SettingsOpen = true;
