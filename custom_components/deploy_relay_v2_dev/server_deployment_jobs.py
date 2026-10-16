@@ -160,10 +160,10 @@ class ServerDeploymentJobs:
                         # No HA event-loop blocking, no file writes before V1 transaction.
                         steps = inventory.total_files
                         for step in range(steps):
-                            await self._registry.progress(identifier, phase=OperationPhase.STAGING,
+                            await self._registry.progress(identifier, phase=OperationPhase.PREFLIGHT,
                                                           current=step, total=steps)
                             await asyncio.sleep(test_delay_seconds)
-                        await self._registry.progress(identifier, phase=OperationPhase.STAGING,
+                        await self._registry.progress(identifier, phase=OperationPhase.PREFLIGHT,
                                                       current=steps, total=steps)
                     result = await engine.async_execute_deployment(
                         session, manifest, inventory, preview,
