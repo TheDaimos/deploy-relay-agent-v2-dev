@@ -2361,6 +2361,23 @@ class DRAV2DevLabPanel extends HTMLElement {
       ["queued","running","waiting_for_resource","cancel_requested"].includes(this._installJob.status);
     const runningJobs = this._installJobs.filter(j=>
       ["queued","running","waiting_for_resource","cancel_requested"].includes(j.status));
+    const observedJobs = runningJobs.length ? runningJobs :
+      this._observerLastJobId ? this._installJobs.filter(j=>
+        j.operation_id === this._observerLastJobId).slice(0,1) : [];
+    const observerPhase = {
+      queued:"In Warteschlange", waiting_for_resource:"Wartet auf Ressourcen",
+      running:"In Ausführung", staging:"Dateien bereitstellen", backup:"Sicherung",
+      apply:"Installation", verify:"Installationsprüfung",
+      rollback:"Wiederherstellung", complete:"Abgeschlossen",
+    };
+    const observerJobName = job => {
+      const configured = this._projects.find(p=>p.project_id===job.project_key);
+      return this._installProjectNames[job.project_key] || configured?.name ||
+        job.project_key || "Unbekanntes Projekt";
+    };
+    const observerVisible = observedJobs.length > 0 ||
+      !this._installStatusKnown || this._installStatusError;
+
     // The server's terminal receipt, not a mutable preview, determines completion.
     const jobBelongsToProject = !!mainProject &&
       this._installJob?.project_key === mainProject.project_id;
@@ -2748,6 +2765,30 @@ class DRAV2DevLabPanel extends HTMLElement {
         .dra-source-extra summary {cursor:pointer;font-weight:700;min-height:25px;}
         .dra-source-extra label {display:block;margin-top:13px;}
         .dra-source-extra input.project-text {box-sizing:border-box;width:100%;}
+        .dra-global-observer {margin:14px 0;border:1px solid #477a98;border-radius:13px;
+          padding:14px 17px;background:linear-gradient(110deg,rgba(28,72,98,.23),rgba(15,45,57,.10));
+          color:#d9f2ff;display:grid;gap:11px;}
+        .dra-global-observer.is-stale {border-color:#a48246;color:#f1dbaa;
+          background:linear-gradient(110deg,rgba(110,76,25,.19),rgba(58,43,24,.08));}
+        .dra-global-observer.is-complete {border-color:#43846c;color:#c0f1d9;
+          background:linear-gradient(110deg,rgba(23,93,63,.20),rgba(13,50,37,.08));}
+        .dra-global-observer.is-failed {border-color:#ab676a;color:#fbd1d0;}
+        .dra-observer-top {display:flex;gap:10px;align-items:baseline;justify-content:space-between;flex-wrap:wrap;}
+        .dra-observer-top strong {font-size:15px;font-weight:780;}
+        .dra-observer-note {font-size:12px;line-height:1.5;opacity:.84;}
+        .dra-observer-item {display:grid;gap:7px;padding:9px 12px;border-radius:9px;
+          background:rgba(9,19,27,.25);border:1px solid rgba(145,197,225,.15);}
+        .dra-observer-line {display:flex;align-items:baseline;justify-content:space-between;
+          gap:7px 16px;flex-wrap:wrap;}
+        .dra-observer-line strong {font-size:14px;}
+        .dra-observer-line span {font-size:12px;}
+        .dra-observer-meter {height:5px;background:rgba(128,172,198,.17);
+          border-radius:9px;overflow:hidden;}
+        .dra-observer-meter>span {height:100%;display:block;min-width:0;
+          border-radius:9px;background:linear-gradient(90deg,#389ac4,#7cdbc5);
+          transition:width .25s ease;}
+        @media (max-width:680px) {.dra-global-observer {padding:11px 12px;}
+          .dra-observer-top strong {font-size:14px;}}
         .dra-deployment-panel {border-color:#425968;}
         .dra-deployment-panel h2 {margin:0 0 14px;}
         .dra-deployment-heading {display:flex;align-items:center;justify-content:space-between;
@@ -3724,6 +3765,46 @@ class DRAV2DevLabPanel extends HTMLElement {
           <button id="dra-refresh">Aktualisieren</button>
           <button id="dra-toggle">${this._view === "main" ? "Diagnose & Einstellungen" : "Hauptmenü"}</button></div>
         </header>
+        ${observerVisible ? `<section class="dra-global-observer ${this._installStatusError ? "is-stale" :
+          observedJobs.length && observedJobs.every(j=>j.status==="success") ? "is-complete" :
+          observedJobs.some(j=>["failed","interrupted","recovery_required"].includes(j.status)) ? "is-failed" : ""}"
+          aria-label="Serverseitiger Installationsstatus" role="status" aria-live="polite">
+          <div class="dra-observer-top">
+            <strong>${this._installStatusError
+              ? "Installationsstatus · Verbindung unterbrochen"
+              : observedJobs.length
+                ? observedJobs.some(j=>["queued","running","waiting_for_resource","cancel_requested"].includes(j.status))
+                  ? "Installation auf Home Assistant läuft"
+                  : "Installationsauftrag abgeschlossen"
+                : "Installationsstatus wird abgerufen"}</strong>
+            <span class="dra-observer-note">${this._installStatusError
+              ? "Letzter bekannter Stand · nicht aktuell"
+              : observedJobs.length ? "Serverseitig bestätigt · unabhängig vom Bediengerät"
+              : "Verbindung mit der Auftragsverwaltung wird geprüft"}</span>
+          </div>
+          ${observedJobs.map(job=>{
+            const exact = job.progress_exact === true && Number.isInteger(job.progress_percent) &&
+              job.progress_percent >= 0 && job.progress_percent <= 100;
+            const name = observerJobName(job);
+            const phase = observerPhase[job.phase] || observerPhase[job.status] ||
+              job.phase || job.status || "Unbekannt";
+            const finished = job.status==="success" ? "Erfolgreich abgeschlossen" :
+              ["failed","interrupted","recovery_required"].includes(job.status) ?
+                "Fehler / Prüfung erforderlich" : phase;
+            return `<div class="dra-observer-item">
+              <div class="dra-observer-line">
+                <strong>${this._escapeProject(name)}</strong>
+                <span>${this._escapeProject(finished)}${exact ? " · " + job.progress_percent + " %" : ""}</span>
+              </div>
+              <div class="dra-observer-meter" aria-hidden="true"><span style="width:${exact ? job.progress_percent : 0}%"></span></div>
+              <div class="dra-observer-note">Auftrag ${this._escapeProject((job.operation_id || "").slice(0,12))}
+                · ${this._installStatusError ? "Verbindungsabbruch – Serverstatus offen" :
+                  job.status==="success" ? "Abschluss serverseitig bestätigt" :
+                  "Status wird automatisch aktualisiert"}${!exact && job.status!=="success" ?
+                  " · keine verlässliche Prozentangabe" : ""}</div>
+            </div>`;
+          }).join("")}
+        </section>` : ""}
         <section id="dra-main-view" ${this._view==="main"?"":"hidden"}>
           <article class="dra-projectbar">
             <div class="dra-project-picker-field">
