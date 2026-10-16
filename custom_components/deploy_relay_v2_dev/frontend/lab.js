@@ -2442,14 +2442,14 @@ class DRAV2DevLabPanel extends HTMLElement {
       ? "1/4 · " + (this._mainBatchMode ? "Projektauswahl wird geprüft …" : "Vorschau wird berechnet …")
       : preparedInstall ? "2/4 · Installation vorbereitet"
       : mainPreviewVerified ? "2/4 · Installation vorbereiten"
-      : this._mainBatchMode ? "1/4 · Projektauswahl prüfen"
+      : this._mainBatchMode ? "Sammelupdate · Noch nicht installierbar"
       : "1/4 · Vorschau berechnen";
     const deploymentStatus = upToDate
       ? "Dateivergleich abgeschlossen: 0 hinzugefügt · 0 geändert · 0 entfernt · " +
         this._sourcePreview.unchanged_count +
         " unverändert. Keine Installation erforderlich."
       : this._mainBatchMode
-      ? this._mainBatchMessage || "Die gemeinsame Auswahl kann gelesen, aber noch nicht installiert werden."
+      ? "Sammelupdate ist aktuell nur als schreibgeschützte Projektauswahl implementiert; es können damit KEINE Updates installiert werden. " + (this._mainBatchMessage || "")
       : mainPreviewVerified
         ? this._installMessage || "Quellprüfung abgeschlossen. Die V1-Engine kann das Update vorbereiten."
         : this._sourceRepository === mainProject?.repository && this._sourceMessage
