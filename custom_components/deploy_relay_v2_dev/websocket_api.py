@@ -1391,6 +1391,7 @@ async def async_install_status(hass, connection, msg):
         connection.send_error(msg["id"], "invalid_operation", "Auftragskennung ungültig")
         return
     jobs = await runtime.deployment.list()
+    restart_summary = await runtime.deployment.restart_summary()
     # Admin-only, bounded display names: observers can identify the project
     # before /test/state or the project picker has loaded on another device.
     keys = {job.get("project_key") for job in jobs
