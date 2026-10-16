@@ -1672,3 +1672,44 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   assert.doesNotMatch(panel.shadowRoot.innerHTML,/id="dra-install-confirm"[^>]*disabled/);
   console.log("DRA V2 observer sees plan but cannot approve before session takeover PASS");
 })().catch(error=>{console.error(error);process.exitCode=1;});
+
+(async () => {
+  // iPad joins with no selected project and no /test/state result while
+  // HA is already running a write job started from Android.
+  const panel=new Panel();
+  const active={
+    operation_id:"d".repeat(32),project_key:"gewitterradar",
+    status:"running",phase:"backup",progress_exact:true,progress_percent:35,
+  };
+  let available=true, job=active, calls=[];
+  panel._hass={async callWS(request) {
+    calls.push(request.type);
+    assert.equal(request.type,"deploy_relay_v2_dev/deployment/status");
+    if (!available) throw Error("simulated websocket dropout");
+    return {schema:"dra-v2-install-status.v1",jobs:[job],job,
+      project_names:{gewitterradar:"Gewitterradar"}};
+  }};
+  assert.equal(panel._serverVersion,null);
+  assert.equal(panel._selectedMainRepo,null);
+  await panel._pollInstallation();
+  panel._render();
+  assert.match(panel.shadowRoot.innerHTML,/Installation auf Home Assistant läuft/);
+  assert.match(panel.shadowRoot.innerHTML,/Gewitterradar/);
+  assert.match(panel.shadowRoot.innerHTML,/Sicherung · 35 %/);
+  assert.match(panel.shadowRoot.innerHTML,/Auftrag d{12}/);
+  assert.equal(panel._selectedMainRepo,null);
+  available=false;
+  await panel._pollInstallation();
+  panel._render();
+  assert.match(panel.shadowRoot.innerHTML,/Verbindung unterbrochen/);
+  assert.match(panel.shadowRoot.innerHTML,/Letzter bekannter Stand · nicht aktuell/);
+  available=true;
+  job={...active,status:"success",phase:"complete",
+    progress_percent:100,progress_exact:true};
+  await panel._pollInstallation();
+  panel._render();
+  assert.match(panel.shadowRoot.innerHTML,/Installationsauftrag abgeschlossen/);
+  assert.match(panel.shadowRoot.innerHTML,/Erfolgreich abgeschlossen · 100 %/);
+  assert.deepEqual(calls,Array(3).fill("deploy_relay_v2_dev/deployment/status"));
+  console.log("DRA V2 project-free iPad observer, staleness, and confirmed completion PASS");
+})().catch(error=>{console.error(error);process.exitCode=1;});
