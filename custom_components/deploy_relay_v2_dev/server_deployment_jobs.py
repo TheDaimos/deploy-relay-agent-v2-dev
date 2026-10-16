@@ -247,6 +247,16 @@ class ServerDeploymentJobs:
             task.add_done_callback(lambda finished, key=identifier: self._tasks.pop(key, None))
             return entry
 
+    async def wait_completion(self, operation_id: str) -> dict[str, object]:
+        """Wait for one already-admitted server job without cancelling it."""
+        task = self._tasks.get(operation_id)
+        if task is not None:
+            await asyncio.shield(task)
+        snapshot = await self._registry.get(operation_id)
+        if snapshot is None:
+            raise OperationContractError("completed server job was not retained")
+        return snapshot
+
     async def get(self, operation_id: str) -> dict[str, object] | None:
         return await self._registry.get(operation_id)
 
