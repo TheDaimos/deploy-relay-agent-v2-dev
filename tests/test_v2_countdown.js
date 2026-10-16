@@ -1546,7 +1546,12 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
     add:1,change:0,remove:0,
   };
   p._controllerStatus={schema:"dra-v2-controller.v1",controller:true,occupied:false};
-  p._sourcePreview=null;
+  // Android may hold a stale independent read-only preview, which must not
+  // eclipse a valid HA-owned exact-commit installation plan.
+  p._sourcePreview={repository,source_ref:"deploy/dev",
+    source_commit:"d".repeat(40),sources_verified:true,
+    installation_enabled:false,add:[],change:[],remove:[],
+    unchanged_count:7};
   const calls=[];
   p._hass={async callWS(req) {
     calls.push(req.type);
