@@ -20,7 +20,7 @@ from .operation_model import OperationContractError
 from .server_deployment_jobs import ServerDeploymentJobs
 from .v1_source_bridge import PreparedV1Source, prepare_frozen_v1_source
 
-PREPARATION_LIFETIME_SECONDS = 120
+PREPARATION_LIFETIME_SECONDS = 900
 
 def _require_resolved_v1_transactions(config_root: Path, active_ids: frozenset[str] = frozenset()) -> None:
     """Inspect only V2-owned V1-engine journals, never V1's data folder.
