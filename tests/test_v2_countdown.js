@@ -863,6 +863,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
     "deploy_relay_v2_dev/deployment/control",
     "deploy_relay_v2_dev/deployment/start",
     "deploy_relay_v2_dev/deployment/status",
+    "deploy_relay_v2_dev/batch/status",
   ]);
   console.log("DRA V2 stage-2 one-time confirmation and server result PASS");
 })().catch(error=>{console.error(error);process.exitCode=1;});
@@ -1004,6 +1005,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
     "deploy_relay_v2_dev/test/state",
     "deploy_relay_v2_dev/deployment/sessions",
     "deploy_relay_v2_dev/deployment/status",
+    "deploy_relay_v2_dev/batch/status",
     "deploy_relay_v2_dev/deployment/audit"
   ]);
   assert.match(versions.shadowRoot.innerHTML,/id="dra-version" class="dra-version matched"/);
@@ -1309,7 +1311,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
     };
   }};
   grouped._render();
-  assert.match(grouped.shadowRoot.innerHTML,/Sammelupdate · Noch nicht installierbar/);
+  assert.match(grouped.shadowRoot.innerHTML,/Sammelupdate · Quellenauswahl prüfen/);
   await grouped._previewMainBatch();
   assert.match(grouped.shadowRoot.innerHTML,/Gruppenauswahl bestätigt/);
   assert.match(grouped.shadowRoot.innerHTML,/data-stage="1"/);
@@ -1710,6 +1712,10 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   panel._render();
   assert.match(panel.shadowRoot.innerHTML,/Installationsauftrag abgeschlossen/);
   assert.match(panel.shadowRoot.innerHTML,/Erfolgreich abgeschlossen · 100 %/);
-  assert.deepEqual(calls,Array(3).fill("deploy_relay_v2_dev/deployment/status"));
+  assert.deepEqual(calls,[
+    "deploy_relay_v2_dev/deployment/status","deploy_relay_v2_dev/batch/status",
+    "deploy_relay_v2_dev/deployment/status",
+    "deploy_relay_v2_dev/deployment/status","deploy_relay_v2_dev/batch/status",
+  ]);
   console.log("DRA V2 project-free iPad observer, staleness, and confirmed completion PASS");
 })().catch(error=>{console.error(error);process.exitCode=1;});
