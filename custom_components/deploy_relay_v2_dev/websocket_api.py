@@ -1236,6 +1236,7 @@ async def async_install_control(hass, connection, msg):
 
 @websocket_api.websocket_command({
     probatio.Required("type"): "deploy_relay_v2_dev/deployment/prepare",
+    probatio.Optional("test_delay_seconds", default=0): int,
     probatio.Required("repository"): str,
     probatio.Required("ref"): str,
     probatio.Required("commit"): str,
@@ -1280,6 +1281,7 @@ async def async_install_prepare(hass, connection, msg):
                     expected_project_id=project["project_id"],
                     config_root=Path(hass.config.config_dir),
                     token=runtime.project_auth.token(repository) or runtime.source_auth.token,
+                    test_delay_seconds=msg["test_delay_seconds"],
                 ), timeout=120)
     except (OperationContractError, ValueError, TimeoutError, OSError):
         connection.send_error(msg["id"], "preparation_failed", "Installationsvorbereitung nicht möglich")
