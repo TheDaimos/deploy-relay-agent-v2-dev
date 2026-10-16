@@ -1,3 +1,5 @@
+> **AKTUELLE VERBINDLICHE CHATÜBERGABE – 16.10.2026 (vor allen historischen Angaben unten):** [HANDOFF_DRA_V2_0_1_99_GERAETEUEBERGREIFENDE_INSTALLATION_2026-10-16.md](HANDOFF_DRA_V2_0_1_99_GERAETEUEBERGREIFENDE_INSTALLATION_2026-10-16.md). GitHub-Featurezweig 0.1.99 DEV, vor Übergabe Commit 592684a6b261, CI 38875674715 SUCCESS; zuletzt auf HA bestätigte Version dagegen 0.1.97 DEV. Android zeigte die auf Desktop vorbereitete Gewitterradar-Installation korrekt und übernahm die Sitzung, aber der anschließende Installationsstart wurde nicht bestätigt; tatsächlicher Auftragsausgang nicht belegt. iPad-Beobachtung unzureichend. Der neuere 0.1.98-/0.1.99-Code enthält bereits Gegenmaßnahmen. Nächster Chat: zuerst diese Übergabe lesen und den neuen Git-HEAD prüfen. Nur den freigegebenen V2-Featurezweig verändern; V1, main, andere Repositories und private Exporte READ ONLY.
+
 # DRA V2 – aktueller Projekt-Einstiegspunkt
 
 **Stand:** 12.10.2026 – DRA V2 DEV **0.1.74** (isoliertes Home-Assistant-Testlabor, **keine V2-FINAL-/HACS-Freigabe**).
