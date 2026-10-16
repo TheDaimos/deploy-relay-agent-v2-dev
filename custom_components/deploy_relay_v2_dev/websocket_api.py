@@ -1321,6 +1321,7 @@ async def async_install_prepared_status(hass, connection, msg):
 
 @websocket_api.websocket_command({
     probatio.Required("type"): "deploy_relay_v2_dev/deployment/start",
+    probatio.Required("client_id"): str,
     probatio.Required("challenge"): str,
     probatio.Required("repository"): str,
     probatio.Required("commit"): str,
