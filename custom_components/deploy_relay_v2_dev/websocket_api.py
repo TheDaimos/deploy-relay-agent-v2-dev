@@ -686,6 +686,125 @@ async def async_batch_preview(hass, connection, msg):
 
 
 @websocket_api.websocket_command({
+    probatio.Required("type"): "deploy_relay_v2_dev/batch/prepare",
+    probatio.Required("repositories"): list,
+    probatio.Required("client_id"): str,
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def async_batch_install_prepare(hass, connection, msg):
+    """Resolve pinned source commits on HA; client cannot supply deployment plans."""
+    runtime = _runtime(hass)
+    if runtime is None:
+        connection.send_error(msg["id"], "not_ready", "Sammelupdate nicht bereit")
+        return
+    try:
+        chosen = runtime.projects.batch_preview(msg["repositories"])
+        projects = chosen["selected"]
+        if not 1 <= len(projects) <= 8 or any(
+            project["project_id"] in {"deploy_relay", "deploy_relay_v2_dev",
+                                      "deploy_relay_agent_v2_dev"}
+            for project in projects
+        ):
+            raise OperationContractError("invalid batch selection")
+    except (CatalogError, OperationContractError, ValueError, TypeError):
+        connection.send_error(msg["id"], "invalid_selection", "Projektauswahl für Installation ungültig")
+        return
+    if runtime.restart_pending or runtime.source_scan_lock.locked():
+        connection.send_error(msg["id"], "busy", "Ein anderer Auftrag oder HA-Neustart ist aktiv")
+        return
+    try:
+        async with runtime.source_scan_lock:
+            async def verify():
+                specs = []
+                for project in projects:
+                    repository = project["repository"]
+                    token = runtime.project_auth.token(repository) or runtime.source_auth.token
+                    choices = await inspect_source_choices(
+                        async_get_clientsession(hass), repository,
+                        token=token, expected_project_id=project["project_id"],
+                    )
+                    recommended = choices["recommended"]
+                    specs.append({"repository": repository, "project_id": project["project_id"],
+                                  "ref": recommended["ref"],
+                                  "commit": recommended["commit"], "token": token})
+                return await runtime.batch.prepare(
+                    specs, session=async_get_clientsession(hass),
+                    config_root=Path(hass.config.config_dir),
+                    client_id=msg["client_id"],
+                )
+            result = await asyncio.wait_for(verify(), timeout=240)
+    except Exception:
+        connection.send_error(msg["id"], "batch_preparation_failed",
+                              "Sammelvorbereitung nicht bestätigt. Keine Installation gestartet.")
+        return
+    connection.send_result(msg["id"], result)
+
+
+@websocket_api.websocket_command({
+    probatio.Required("type"): "deploy_relay_v2_dev/batch/start",
+    probatio.Required("challenge"): str,
+    probatio.Required("client_id"): str,
+    probatio.Required("confirm"): bool,
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def async_batch_install_start(hass, connection, msg):
+    """Exactly one administrator consent starts the HA-owned sequence."""
+    runtime = _runtime(hass)
+    if runtime is None or runtime.restart_pending:
+        connection.send_error(msg["id"], "not_ready", "Sammelauftrag nicht bereit")
+        return
+    try:
+        result = await runtime.batch.start(
+            challenge=msg["challenge"], client_id=msg["client_id"],
+            confirm=msg["confirm"], session=async_get_clientsession(hass),
+            config_root=Path(hass.config.config_dir),
+            token_for_repository=lambda repo: (
+                runtime.project_auth.token(repo) or runtime.source_auth.token),
+            blocking_executor=hass.async_add_executor_job,
+        )
+    except (OperationContractError, ValueError, OSError):
+        connection.send_error(msg["id"], "batch_not_confirmed",
+                              "Sammelauftrag nicht angenommen. Serverstatus prüfen, nicht erneut senden.")
+        return
+    connection.send_result(msg["id"], result)
+
+
+@websocket_api.websocket_command({
+    probatio.Required("type"): "deploy_relay_v2_dev/batch/status",
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def async_batch_install_status(hass, connection, msg):
+    runtime = _runtime(hass)
+    if runtime is None:
+        connection.send_error(msg["id"], "not_ready", "Sammelauftrag nicht bereit")
+        return
+    connection.send_result(msg["id"], await runtime.batch.status())
+
+
+@websocket_api.websocket_command({
+    probatio.Required("type"): "deploy_relay_v2_dev/batch/takeover",
+    probatio.Required("client_id"): str,
+    probatio.Required("confirm"): bool,
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def async_batch_install_takeover(hass, connection, msg):
+    runtime = _runtime(hass)
+    if runtime is None:
+        connection.send_error(msg["id"], "not_ready", "Sammelauftrag nicht bereit")
+        return
+    try:
+        snapshot = await runtime.batch.take_over(msg["client_id"], confirm=msg["confirm"])
+    except (OperationContractError, ValueError):
+        connection.send_error(msg["id"], "batch_expired", "Vorbereitung abgelaufen")
+        return
+    connection.send_result(msg["id"], snapshot)
+
+
+@websocket_api.websocket_command({
     probatio.Required("type"): "deploy_relay_v2_dev/projects/connection_check",
     probatio.Required("repository"): str,
     probatio.Optional("draft"): bool,
@@ -1504,7 +1623,9 @@ def async_register_commands(hass: HomeAssistant) -> None:
                     async_projects_token,
                     async_projects_retention, async_projects_preselect,
                     async_settings_get, async_settings_save, async_settings_ack_cpu_warning,
-                    async_batch_preview, async_projects_connection_check,
+                    async_batch_preview, async_batch_install_prepare, async_batch_install_start,
+                    async_batch_install_status, async_batch_install_takeover,
+                    async_projects_connection_check,
                     async_projects_source_choices, async_projects_source_head,
                     async_projects_source_preview,
                     async_source_job_start, async_source_job_status,
