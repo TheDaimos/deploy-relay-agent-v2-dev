@@ -1392,6 +1392,7 @@ async def async_install_status(hass, connection, msg):
         return
     jobs = await runtime.deployment.list()
     restart_summary = await runtime.deployment.restart_summary()
+    restart_summary["restart_requested"] = runtime.restart_pending
     # Admin-only, bounded display names: observers can identify the project
     # before /test/state or the project picker has loaded on another device.
     keys = {job.get("project_key") for job in jobs
