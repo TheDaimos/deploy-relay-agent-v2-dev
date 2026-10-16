@@ -2572,14 +2572,14 @@ class DRAV2DevLabPanel extends HTMLElement {
       ? "1/4 · " + (this._mainBatchMode ? "Projektauswahl wird geprüft …" : "Vorschau wird berechnet …")
       : preparedInstall ? "2/4 · Installation vorbereitet"
       : mainPreviewVerified ? "2/4 · Installation vorbereiten"
-      : this._mainBatchMode ? "Sammelupdate · Noch nicht installierbar"
+      : this._mainBatchMode ? "Sammelupdate · Quellenauswahl prüfen"
       : "1/4 · Vorschau berechnen";
     const deploymentStatus = upToDate
       ? "Dateivergleich abgeschlossen: 0 hinzugefügt · 0 geändert · 0 entfernt · " +
         this._sourcePreview.unchanged_count +
         " unverändert. Keine Installation erforderlich."
       : this._mainBatchMode
-      ? "Sammelupdate ist aktuell nur als schreibgeschützte Projektauswahl implementiert; es können damit KEINE Updates installiert werden. " + (this._mainBatchMessage || "")
+      ? this._mainBatchMessage || "Projektauswahl prüfen, dann feste Quellstände serverseitig vorbereiten."
       : mainPreviewVerified
         ? this._installMessage || "Quellprüfung abgeschlossen. Die V1-Engine kann das Update vorbereiten."
         : this._sourceRepository === mainProject?.repository && this._sourceMessage
@@ -3994,6 +3994,18 @@ class DRAV2DevLabPanel extends HTMLElement {
               ${this._installStatusError || !this._restartSummary.operation_id || runningJobs.length?"disabled":""}>Gemeinsamen HA-Neustart ausführen</button>`}
           ${this._deferredRestartMessage ? `<p role="status">${this._escapeProject(this._deferredRestartMessage)}</p>` : ""}
         </section>` : ""}
+        ${this._batchStatus && ["queued","running","success","stopped","interrupted"].includes(this._batchStatus.status) ?
+          `<section class="dra-global-observer" role="status" aria-label="Geräteübergreifender Sammelauftrag">
+            <div class="dra-observer-top"><strong>Sammelauftrag · ${this._escapeProject(this._batchStatus.status)}</strong>
+              <span class="dra-observer-note">${this._batchStatus.current} von ${this._batchStatus.total} Teilaufträgen abgeschlossen</span>
+            </div>
+            ${this._batchStatus.items.map(item => `<p class="dra-observer-note">
+              ${this._escapeProject(this._installProjectNames[item.project_key] || item.project_key)}:
+              ${this._escapeProject(item.status)}
+              ${item.operation_id ? " · Auftrag " + this._escapeProject(item.operation_id.slice(0,12)) : ""}
+            </p>`).join("")}
+            ${this._batchStatusError ? "<p>Statusabfrage unterbrochen – serverseitiger Auftrag bleibt bestehen.</p>" : ""}
+          </section>` : ""}
         <section id="dra-main-view" ${this._view==="main"?"":"hidden"}>
           <article class="dra-projectbar">
             <div class="dra-project-picker-field">
@@ -4464,9 +4476,38 @@ class DRAV2DevLabPanel extends HTMLElement {
               <strong>Gruppenauswahl bestätigt: ${this._mainBatchPreview.count} Projekte</strong>
               <span class="note">Die Quellstände sind noch nicht geprüft. Installation gesperrt.</span>
             </div>` : ""}
+            ${this._mainBatchMode ? `<section class="dra-deployment-result" role="group"
+              aria-label="Serverseitiges Sammelupdate">
+              <strong>Sammelupdate · serverseitige Installation</strong>
+              ${this._batchStatus?.status === "prepared" ? `<p>Feste Commits und Dateiänderungen sind vorbereitet.
+                Nur eine ausdrückliche Freigabe kann den Auftrag starten.</p>` : ""}
+              ${this._batchStatus?.items?.length ? this._batchStatus.items.map(item => `
+                <span>${this._escapeProject(this._projects.find(p=>p.project_id===item.project_key)?.name || item.project_key)}
+                  · ${this._escapeProject(item.source_ref)} · ${this._escapeProject(item.source_commit.slice(0,12))}
+                  · +${item.add} ~${item.change} −${item.remove}
+                  · ${this._escapeProject(item.status)}
+                </span>`).join("") : ""}
+              ${(!this._batchStatus || ["idle","success","stopped","interrupted","up_to_date"].includes(this._batchStatus.status)) ?
+                `<button type="button" id="dra-batch-install-prepare" ${this._mainBatchBusy ||
+                  this._serverVersion!==DRA_V2_UI_VERSION ? "disabled" : ""}>
+                  Sammelinstallation vorbereiten</button>` : ""}
+              ${this._batchStatus?.status==="prepared" && !this._batchChallenge ?
+                `<button type="button" id="dra-batch-install-takeover"
+                  ${this._mainBatchBusy?"disabled":""}>Vorbereitung auf diesem Gerät übernehmen</button>` : ""}
+              ${this._batchChallenge && this._batchStatus?.status==="prepared" ?
+                `<button type="button" id="dra-batch-install-confirm" ${this._mainBatchBusy ||
+                  this._batchStartUncertain || this._serverVersion!==DRA_V2_UI_VERSION ?"disabled":""}>
+                  Ja, Sammelinstallation starten</button>` : ""}
+              ${this._batchStartUncertain ? `<p role="alert">Auftragsannahme unklar.
+                Keine zweite Installationsanforderung senden; HA-Status/Audit prüfen.</p>` : ""}
+              <p class="note">Teilinstallationen erfolgen nacheinander durch Home Assistant.
+                Bei Fehlern stoppt die Reihenfolge. Bereits erfolgreiche Teilupdates
+                werden nicht automatisch zurückgesetzt. Bekannte Abhängigkeiten
+                müssen bei der Reihenfolge berücksichtigt werden.</p>
+            </section>` : ""}
             <p class="dra-deployment-hint note">
               Einzelupdates nutzen die V1-Installationsengine. Schreiben erfordert einen freigegebenen Projektzugang
-              und eine separate Bestätigung. Sammelupdates und Selbstupdate folgen später.
+              und eine separate Bestätigung. Sammelinstallationen nutzen ebenfalls die V1-Engine; Selbstupdates bleiben gesperrt.
             </p>
           </article>
           <article class="dra-tests-panel">
@@ -5098,6 +5139,9 @@ class DRAV2DevLabPanel extends HTMLElement {
       }
       this._render();
     });
+    s.querySelector("#dra-batch-install-prepare")?.addEventListener("click",()=>this._prepareMainBatch());
+    s.querySelector("#dra-batch-install-takeover")?.addEventListener("click",()=>this._takeOverMainBatch());
+    s.querySelector("#dra-batch-install-confirm")?.addEventListener("click",()=>this._startMainBatch());
     s.querySelector("#dra-preview")?.addEventListener("click",()=>{
       if (deploymentBusy) return;
       if (deploymentStage === 1) {
