@@ -77,6 +77,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._supersededCompletionIds = new Set();
     this._installBusy = false;
     this._installSubmissionActive = false;
+    this._installStartUncertain = null;
     this._installMessage = "";
     this._restartDialogOpen = false;
     this._restartBusy = false;
@@ -431,6 +432,7 @@ class DRAV2DevLabPanel extends HTMLElement {
         throw Error("unexpected preparation");
       }
       this._installPreparation = result;
+      this._installStartUncertain = null;
       this._installMessage = "Vorbereitung abgeschlossen. Noch wurden keine Dateien geändert.";
     } catch (_error) {
       this._installMessage = "Vorbereitung fehlgeschlagen. Keine Dateien wurden geändert.";
@@ -451,6 +453,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     }
     this._dismissedHistoricalProject = project.project_id;
     this._installPreparation = null;
+    this._installStartUncertain = null;
     this._installMessage = "";
     this._restartDialogOpen = false;
     this._restartMessage = "";
@@ -495,7 +498,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     const prepared = this._installPreparation;
     const project = this._projects.find(p=>p.repository===this._selectedMainRepo);
     if (!this._hass || !prepared || !project || this._installBusy ||
-        project.active === false ||
+        this._installStartUncertain || project.active === false ||
         this._sourceRepository !== prepared.repository ||
         prepared.source_ref !== this._mainSourceRef.trim() ||
         !/^[a-f0-9]{32}$/.test(prepared.challenge || "")) return;
@@ -504,7 +507,7 @@ class DRAV2DevLabPanel extends HTMLElement {
       this._render();
       return;
     }
-    this._installPreparation = null;
+    const seenJobIds = this._installJobs.map(job=>job.operation_id);
     this._restartDialogOpen = false;
     this._restartMessage = "";
     this._installBusy = true;
@@ -520,11 +523,49 @@ class DRAV2DevLabPanel extends HTMLElement {
       });
       if (receipt?.schema !== "dra-v2-install-start.v1" ||
           !/^[a-f0-9]{32}$/.test(receipt.job?.operation_id || "")) throw Error("invalid receipt");
+      this._installPreparation = null;
+      this._installStartUncertain = null;
       this._installJobId = receipt.job.operation_id;
       this._installJob = receipt.job;
       await this._pollInstallation();
     } catch (_error) {
-      this._installMessage = "Auftragsannahme nicht bestätigt. Bitte zuerst Serverstatus aktualisieren.";
+      // A lost WebSocket receipt does not mean HA rejected the write.
+      // Never send a second installation request to resolve uncertainty.
+      const attempt = {
+        project_key:project.project_id,
+        source_commit:prepared.source_commit,
+        seen_ids:seenJobIds,
+      };
+      this._installStartUncertain = attempt;
+      let recovered = null;
+      try {
+        const status = await this._hass.callWS({
+          type:"deploy_relay_v2_dev/deployment/status",
+        });
+        if (status?.schema === "dra-v2-install-status.v1" &&
+            Array.isArray(status.jobs)) {
+          this._installJobs = status.jobs;
+          recovered = status.jobs.find(job =>
+            /^[a-f0-9]{32}$/.test(job?.operation_id || "") &&
+            job.project_key === attempt.project_key &&
+            job.source_commit === attempt.source_commit &&
+            !attempt.seen_ids.includes(job.operation_id)) || null;
+        }
+      } catch (_statusError) {
+        // Unknown status: do not infer that the server rejected the write.
+      }
+      if (recovered) {
+        this._installPreparation = null;
+        this._installStartUncertain = null;
+        this._installJob = recovered;
+        this._installJobId = recovered.operation_id;
+        this._installMessage = "Auftrag auf Home Assistant gefunden. Installation wurde nicht erneut gestartet.";
+      } else {
+        // Re-checking the pending plan is read-only. Still inhibit retry:
+        // server-side admission may have succeeded just before disconnect.
+        this._installMessage =
+          "Keine verlässliche Auftragsbestätigung. Serverstatus und Audit prüfen; Installation nicht erneut starten.";
+      }
     } finally {
       this._installBusy = false;
       this._installSubmissionActive = false;
@@ -557,6 +598,7 @@ class DRAV2DevLabPanel extends HTMLElement {
       const receipt = await this._hass.callWS({
         type:"deploy_relay_v2_dev/deployment/restart",
         operation_id:job.operation_id,confirm:true,
+        client_id:this._controllerId,
       });
       if (receipt?.schema !== "dra-v2-restart-request.v1" ||
           receipt.operation_id !== job.operation_id ||
@@ -596,6 +638,13 @@ class DRAV2DevLabPanel extends HTMLElement {
       if (job && /^[a-f0-9]{32}$/.test(job.operation_id || "")) {
         this._installJobId = job.operation_id;
         this._installJob = job;
+        if (this._installStartUncertain &&
+            job.project_key === this._installStartUncertain.project_key &&
+            job.source_commit === this._installStartUncertain.source_commit &&
+            !this._installStartUncertain.seen_ids.includes(job.operation_id)) {
+          this._installPreparation = null;
+          this._installStartUncertain = null;
+        }
         if (job.status === "success") {
           this._installMessage = job.restart_required ?
             "Update erfolgreich. Home-Assistant-Neustart erforderlich." :
@@ -3977,7 +4026,8 @@ class DRAV2DevLabPanel extends HTMLElement {
                 <span>Commit: ${this._escapeProject(preparedInstall.source_commit)}</span>
                 <span>Dateien: ${preparedInstall.add} hinzugefügt · ${preparedInstall.change} geändert · ${preparedInstall.remove} entfernt</span>
                 <span class="note">Sicherung, Installation, Prüfung und Rückfall erfolgen nach dem bewährten V1-Verfahren.</span>
-                <button type="button" id="dra-install-confirm" ${deploymentBusy ? "disabled" : ""}>Ja, Update installieren</button>
+                ${this._installStartUncertain ? `<span class="note" role="alert">Auftragsstatus nicht bestätigt. Bitte Audit und Serverstatus prüfen; kein zweiter Installationsversuch.</span>` : ""}
+                <button type="button" id="dra-install-confirm" ${deploymentBusy || this._installStartUncertain ? "disabled" : ""}>Ja, Update installieren</button>
                 <button type="button" id="dra-install-cancel" ${deploymentBusy ? "disabled" : ""}>Abbrechen</button>
               </div>` : ""}
             ${runningJobs.length ? `<div class="dra-deployment-result" role="status">
