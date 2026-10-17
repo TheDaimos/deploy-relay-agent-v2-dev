@@ -53,7 +53,7 @@ def _verify_self_update_plan(item: dict[str, str], plan: Any, manifest: Any) -> 
     if repo != expected_repo:
         raise OperationContractError("self-update repository mismatch")
     targets = [g.target.casefold() for g in plan.groups]
-    if targets != [expected_target] or manifest.lifecycle.after_install != "home_assistant_restart":
+    if targets != [expected_target] or str(manifest.after_install.value) != "home_assistant_restart":
         raise OperationContractError("self-update target or restart policy invalid")
 
 
