@@ -16,7 +16,8 @@ class CompletionUiContract(unittest.TestCase):
         self.assertIn('this._installJob?.status === "success" && this._installJob?.phase === "complete"', js)
         self.assertIn('this._installJob?.project_key === mainProject.project_id', js)
         self.assertNotIn('mainPreviewVerified && this._installJob?.project_key', js)
-        self.assertIn('const deploymentStage = upToDate ? 1 : displayFinished ? 4', js)
+        self.assertIn('const deploymentStage = this._mainBatchMode', js)
+        self.assertIn('upToDate ? 1 : displayFinished ? 4', js)
         self.assertIn('"4/4 · Abschluss – erfolgreich installiert"', js)
 
     def test_progress_and_four_steps_reach_completion(self):
