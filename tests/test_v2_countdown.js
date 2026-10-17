@@ -118,14 +118,16 @@ const Panel = elements.get("dra-v2-dev-lab-panel");
     {project_id:"gewitterradar",name:"Gewitterradar",
       repository:"TheDaimos/gewitterradar",active:true,batch_preselect:true},
   ];
-  p._batchRunSelected=new Set(p._batchEligibleProjects().map(x=>x.repository));
-  assert.deepEqual(p._mainBatchProjects().map(x=>x.name),["WeatherRouter","Gewitterradar"]);
+  // V1 can be preselected, V2 self-update requires explicit opt-in.
+  p._batchRunSelected=new Set(p._batchEligibleProjects()
+    .filter(x=>!p._isOwnBatchUpdate(x)).map(x=>x.repository));
+  assert.deepEqual(p._mainBatchProjects().map(x=>x.name),["DRA V1","WeatherRouter","Gewitterradar"]);
   p._render();
   assert.match(p.shadowRoot.innerHTML,/id="dra-main-batch-selection"\s+open/);
-  assert.match(p.shadowRoot.innerHTML,/Selbstupdate ausgeschlossen/);
-  assert.match(p.shadowRoot.innerHTML,/Sammelupdate · 2 von 2 installierbaren Projekten/);
+  assert.match(p.shadowRoot.innerHTML,/Eigenaktualisierung · zuletzt/);
+  assert.match(p.shadowRoot.innerHTML,/Sammelupdate · 3 von 4 installierbaren Projekten/);
   p._toggleBatchRunProject("TheDaimos/weather-router-dev",false);
-  assert.deepEqual(p._mainBatchProjects().map(x=>x.name),["Gewitterradar"]);
+  assert.deepEqual(p._mainBatchProjects().map(x=>x.name),["DRA V1","Gewitterradar"]);
   assert.equal(p._projects[2].batch_preselect,true,"temporary choice must not change catalog");
   assert.match(p.shadowRoot.innerHTML,/id="dra-main-batch-selection"\s+open/);
   p._render();
@@ -133,12 +135,12 @@ const Panel = elements.get("dra-v2-dev-lab-panel");
   assert.match(p.shadowRoot.innerHTML,/id="dra-main-batch-selection"\s+open/);
   assert.equal(p._batchRunSelected.has("TheDaimos/weather-router-dev"),false);
   p._toggleBatchRunProject("TheDaimos/deploy-relay-agent-v2-dev",true);
-  assert.deepEqual(p._mainBatchProjects().map(x=>x.name),["Gewitterradar"]);
+  assert.deepEqual(p._mainBatchProjects().map(x=>x.name),["DRA V1","DRA V2","Gewitterradar"]);
   p._batchStatus={status:"prepared"};
   p._toggleBatchRunProject("TheDaimos/weather-router-dev",true);
   assert.equal(p._batchRunSelected.has("TheDaimos/weather-router-dev"),false,
     "prepared plan selection must be immutable");
-  console.log("DRA V2 temporary batch choices, protected self-update and persistent expansion PASS");
+  console.log("DRA V2 batch permits V1 and optional own update without losing per-run selection PASS");
 })();
 
 (async function testPreferredBranchOverridesAutomaticMainButNotManualChoice() {
