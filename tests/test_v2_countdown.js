@@ -699,7 +699,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   blank._openPickerBatch();
   assert.equal(blank._projectPickerOpen,true);
   assert.equal(blank._mainBatchMode,false);
-  assert.match(blank.shadowRoot.innerHTML,/Kein aktives Projekt für das Sammelupdate ausgewählt/);
+  assert.match(blank.shadowRoot.innerHTML,/Keine zulässigen Projekte aktiv/);
   console.log("DRA V2 empty batch set remains in picker PASS");
 })();
 
