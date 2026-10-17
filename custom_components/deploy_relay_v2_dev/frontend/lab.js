@@ -25,6 +25,9 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._mainBatchBusy = false;
     this._mainBatchPreview = null;
     this._mainBatchMessage = "";
+    this._mainBatchSelectionOpen = false;
+    this._batchRunSelected = null;
+    this._manualSourceRef = false;
     this._batchPreparation = null;
     this._batchChallenge = null;
     this._batchStatus = null;
@@ -1590,7 +1593,7 @@ class DRAV2DevLabPanel extends HTMLElement {
 
   async _loadSourceChoices() {
     const repository = this._selectedMainRepo;
-    if (!repository || this._sourceChoicesBusy || !this._hass) return;
+    if (this._mainBatchMode || !repository || this._sourceChoicesBusy || !this._hass) return;
     this._sourceChoicesBusy = true;
     this._sourceChoicesMessage = "Git-Zweige und Tags werden geladen …";
     this._sourceChoicesRetryCount = this._sourceChoicesRetryCount || 0;
@@ -1608,18 +1611,30 @@ class DRAV2DevLabPanel extends HTMLElement {
             typeof choice.ref !== "string" || !/^[a-f0-9]{40}$/.test(choice.commit))) {
         throw new Error("invalid source choices");
       }
-      if (this._selectedMainRepo !== repository) return;
+      if (this._selectedMainRepo !== repository || this._mainBatchMode) return;
       this._sourceChoices = result;
       this._sourceChoicesRetryCount = 0;
       this._sourceHeadMessage = "";
       this._sourceChoicesLoadedFor = repository;
-      if (!this._mainSourceRef.trim() && result.recommended.explicit) {
+      // Server jobs may have restored "main" before the project preference
+      // arrived. It is a default, not a manual selection. Never override a
+      // deliberate reference or a prepared/running installation.
+      const selectedIsDefault = !this._mainSourceRef.trim() ||
+        this._mainSourceRef.trim() === result.default_ref;
+      const activeInstall = this._installJobs.some(job=>
+        job.project_key === this._projects.find(p=>p.repository===repository)?.project_id &&
+        ["queued","running","waiting_for_resource","cancel_requested"].includes(job.status));
+      if (result.recommended.explicit && selectedIsDefault &&
+          !this._manualSourceRef && !this._installPreparation && !activeInstall) {
+        const refChanged = this._mainSourceRef.trim() !== result.recommended.ref;
         this._mainSourceRef = result.recommended.ref;
         if (!this._installPreparation) {
           this._sourcePreview = null;
           this._sourceHead = null;
           this._deploymentPreviewRef = null;
-          this._sourceMessage = "Empfohlener Entwicklungszweig übernommen. Vorschau erneut berechnen.";
+          this._sourceMessage = refChanged
+            ? "Empfohlener Entwicklungszweig " + result.recommended.ref + " übernommen. Vorschau erneut berechnen."
+            : "Empfohlener Entwicklungszweig bestätigt.";
         }
       }
       await this._syncController(repository);
@@ -1633,7 +1648,7 @@ class DRAV2DevLabPanel extends HTMLElement {
         ? "GitHub zeigt maximal 100 Zweige und 100 Tags. Weitere Referenzen manuell eingeben."
         : "Git-Zweige und Tags geladen. Auswahl verändert noch keine Dateien.";
     } catch (_error) {
-      if (this._selectedMainRepo !== repository) return;
+      if (this._selectedMainRepo !== repository || this._mainBatchMode) return;
       if (_error?.code === "busy") {
         this._sourceChoicesMessage = "Quellprüfung läuft; Zweige werden anschließend erneut abgefragt.";
         this._sourceHeadMessage = "Quellenabruf momentan belegt – GitHub-Ausfall nicht bestätigt.";
@@ -1659,6 +1674,7 @@ class DRAV2DevLabPanel extends HTMLElement {
 
   _applySourceChoice(ref) {
     if (typeof ref !== "string" || ref.length > 100) return;
+    this._manualSourceRef = true;
     this._mainSourceRef = ref;
     this._sourcePreview = null;
     this._sourceHead = null;
@@ -1942,7 +1958,7 @@ class DRAV2DevLabPanel extends HTMLElement {
   _closeProjectPicker() {
     this._projectPickerOpen = false;
     this._render();
-    void this._loadSourceChoices();
+    if (!this._mainBatchMode) void this._loadSourceChoices();
     this.shadowRoot?.querySelector("#dra-project-picker-open")?.focus();
   }
   _chooseMainProject(repository) {
@@ -1951,6 +1967,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._selectedMainRepo = repository;
     this._controllerStatus = null;
     this._mainSourceRef = "";
+    this._manualSourceRef = false;
     this._sourceChoices = null;
     this._sourceChoicesLoadedFor = null;
     this._automaticSourceCheckFor = null;
@@ -1988,19 +2005,56 @@ class DRAV2DevLabPanel extends HTMLElement {
       return this._manageProject("move_batch",{repository:"__batch_picker__",direction:-direction});
     return this._manageProject("move",{repository,direction});
   }
+  _isBatchSelfUpdate(project) {
+    const repo = String(project?.repository || "").toLowerCase();
+    const id = String(project?.project_id || "").toLowerCase();
+    return ["thedaimos/deploy-relay-agent-dev",
+            "thedaimos/deploy-relay-agent-v2-dev"].includes(repo) ||
+      ["deploy_relay","deploy_relay_v2_dev","deploy_relay_agent_v2_dev"].includes(id);
+  }
+  _batchEligibleProjects() {
+    return this._projects.filter(p=>p.active!==false && !this._isBatchSelfUpdate(p));
+  }
   _mainBatchProjects() {
-    // Catalog ordering and active/preselected flags remain authoritative.
-    return this._projects.filter(p => p.active !== false && p.batch_preselect !== false);
+    // Per-run selection never writes catalog batch_preselect flags.
+    return this._batchEligibleProjects().filter(p=>this._batchRunSelected instanceof Set
+      ? this._batchRunSelected.has(p.repository)
+      : p.batch_preselect!==false);
+  }
+  _toggleBatchRunProject(repository, checked) {
+    if (!this._mainBatchMode || this._mainBatchBusy ||
+        !this._batchEligibleProjects().some(p=>p.repository===repository) ||
+        ["prepared","queued","running"].includes(this._batchStatus?.status)) return;
+    if (!(this._batchRunSelected instanceof Set))
+      this._batchRunSelected = new Set(this._mainBatchProjects().map(p=>p.repository));
+    if (checked && !this._batchRunSelected.has(repository) &&
+        this._batchRunSelected.size>=8) {
+      this._mainBatchMessage = "Maximal 8 Projekte pro Sammelinstallation.";
+      this._render(); return;
+    }
+    if (checked) this._batchRunSelected.add(repository);
+    else this._batchRunSelected.delete(repository);
+    this._mainBatchPreview=null;
+    this._batchPreparation=null;
+    this._batchChallenge=null;
+    this._mainBatchMessage=this._mainBatchProjects().length
+      +" Projekte für diesen Durchlauf ausgewählt. Quellstände erneut prüfen.";
+    this._render();
   }
   _openPickerBatch() {
     if (!this._projectPickerOpen || this._mainBatchBusy) return;
+    // Start this visit with catalog defaults, excluding both DRA self-updates.
+    this._batchRunSelected = new Set(this._batchEligibleProjects()
+      .filter(p=>p.batch_preselect!==false).map(p=>p.repository));
     const selected = this._mainBatchProjects();
     if (!selected.length) {
-      this._pickerBatchMessage = "Kein aktives Projekt für das Sammelupdate ausgewählt. Auswahl in der Projektverwaltung bearbeiten.";
+      this._pickerBatchMessage = "Keine zulässigen Projekte vorausgewählt. Auswahl in der Projektverwaltung bearbeiten.";
       this._render();
       return;
     }
     this._mainBatchMode = true;
+    this._mainBatchSelectionOpen = true;
+    this._sourceHeadMessage = "";
     this._deploymentPreviewRef = null;
     this._mainBatchPreview = null;
     this._mainBatchMessage = selected.length + " Projekte für das Sammelupdate ausgewählt. Installation noch gesperrt.";
@@ -5037,6 +5091,7 @@ class DRAV2DevLabPanel extends HTMLElement {
       if (e.target.value) this._applySourceChoice(e.target.value);
     });
     s.querySelector("#dra-main-ref")?.addEventListener("input",e=>{
+      this._manualSourceRef = true;
       this._mainSourceRef=e.target.value;
       // Source previews are bound to the exact requested reference.
       this._sourcePreview=null;
