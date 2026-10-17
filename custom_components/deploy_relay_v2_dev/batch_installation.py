@@ -7,6 +7,8 @@ There is deliberately no all-project rollback after a prior project succeeded.
 from __future__ import annotations
 
 import asyncio
+from hashlib import sha256
+import json
 from dataclasses import dataclass
 from pathlib import Path
 from secrets import token_hex
@@ -14,6 +16,7 @@ from time import monotonic
 from typing import Any, Callable
 
 from .deployment_coordinator import _require_resolved_v1_transactions
+from .batch_version_summary import prepared_version_summary
 from .operation_model import OperationContractError
 from .server_deployment_jobs import ServerDeploymentJobs
 from .v1_source_bridge import PreparedV1Source, prepare_frozen_v1_source
@@ -91,6 +94,19 @@ class BatchDeployment:
     def _client(value: str) -> None:
         if type(value) is not str or len(value) != 32 or any(ch not in "0123456789abcdef" for ch in value):
             raise OperationContractError("invalid batch controller")
+
+    @staticmethod
+    def _review_digest(items: list[dict[str, Any]]) -> str:
+        """Bind the operator's approval to every displayed frozen project row."""
+        canonical = [{
+            field: item.get(field)
+            for field in ("repository", "project_key", "source_ref", "source_commit",
+                          "installed_version", "new_version", "version_marker",
+                          "version_status", "add", "change", "remove", "status")
+        } for item in items]
+        raw = json.dumps(canonical, sort_keys=True, separators=(",", ":"),
+                         ensure_ascii=True).encode("ascii")
+        return sha256(raw).hexdigest()
 
     def _snapshot(self) -> dict[str, Any]:
         if self._state is None:
@@ -173,7 +189,11 @@ class BatchDeployment:
                         targets.extend(group_targets)
                         plans.append(BatchPlanItem(item["repository"], item["project_id"],
                                                    item["commit"], item["ref"], frozen))
+                    versions = await prepared_version_summary(
+                        frozen, config_root=config_root
+                    )
                     display.append({
+                        **versions,
                         "repository": item["repository"], "project_key": item["project_id"],
                         "source_ref": item["ref"], "source_commit": item["commit"],
                         "add": frozen.preview.add_count, "change": frozen.preview.change_count,
@@ -187,6 +207,8 @@ class BatchDeployment:
                 self._state = {"schema": "dra-v2-batch-status.v1",
                                "status": "prepared" if plans else "up_to_date",
                                "batch_id": None, "items": display,
+                               "review_digest": self._review_digest(display),
+                               "review_required": bool(plans),
                                "current": 0, "total": len(plans),
                                "confirmation_required": bool(plans)}
                 if not plans:
@@ -228,12 +250,17 @@ class BatchDeployment:
                     "expires_in_seconds": int(self._expires_at - monotonic())}
 
     async def start(self, *, challenge: str, client_id: str, confirm: bool,
+                    review_digest: str, review_confirm: bool,
                     session: Any, config_root: Path,
                     token_for_repository: Callable[[str], str | None],
                     blocking_executor: Any) -> dict[str, Any]:
         self._client(client_id)
         async with self._lock:
-            if (self._closed or confirm is not True or
+            if (self._closed or confirm is not True or review_confirm is not True or
+                type(review_digest) is not str or len(review_digest) != 64 or
+                not self._state or self._state.get("status") != "prepared" or
+                review_digest != self._state.get("review_digest") or
+                review_digest != self._review_digest(self._state["items"]) or
                 type(challenge) is not str or
                 challenge != self._challenge or
                 self._controller != client_id or
@@ -247,6 +274,7 @@ class BatchDeployment:
             self._controller = None
             self._state["batch_id"] = token_hex(16)
             self._state["status"] = "queued"
+            self._state["review_required"] = False
             self._state["confirmation_required"] = False
             batch_id = self._state["batch_id"]
 
