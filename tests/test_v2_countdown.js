@@ -1455,7 +1455,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
     };
   }};
   grouped._render();
-  assert.match(grouped.shadowRoot.innerHTML,/Sammelupdate · Quellenauswahl prüfen/);
+  assert.match(grouped.shadowRoot.innerHTML,/1\/4 · Sammelinstallation prüfen und vorbereiten/);
   await grouped._previewMainBatch();
   assert.match(grouped.shadowRoot.innerHTML,/Gruppenauswahl bestätigt/);
   assert.match(grouped.shadowRoot.innerHTML,/data-stage="1"/);
