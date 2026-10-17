@@ -475,7 +475,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   assert.equal(pickerPanel._projectPickerOpen,false);
   assert.equal(pickerPanel._mainBatchMode,true);
   assert.equal(pickerPanel._batchDialogOpen,false,"Picker must not reopen preselection editor");
-  assert.match(pickerPanel.shadowRoot.innerHTML,/Sammelupdate · 2 Projekte/);
+  assert.match(pickerPanel.shadowRoot.innerHTML,/Sammelupdate · 2 von 2 installierbaren Projekten/);
   assert.match(pickerPanel.shadowRoot.innerHTML,/dra-main-batch-entry/);
   assert.match(pickerPanel.shadowRoot.innerHTML,/data-stage="1"/);
   pickerPanel._openProjectPicker();
@@ -612,7 +612,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   batch._openProjectPicker();
   batch._openPickerBatch();
   assert.equal(batch._mainBatchMode,true);
-  assert.match(batch.shadowRoot.innerHTML,/Sammelupdate · 2 Projekte/);
+  assert.match(batch.shadowRoot.innerHTML,/Sammelupdate · 2 von 2 installierbaren Projekten/);
   assert.doesNotMatch(batch.shadowRoot.innerHTML,/TheDaimos\/unselected.*dra-main-batch-entry/s);
   await batch._previewMainBatch();
   assert.equal(actualRequests,1);
