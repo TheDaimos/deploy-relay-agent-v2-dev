@@ -2026,7 +2026,7 @@ class DRAV2DevLabPanel extends HTMLElement {
   }
   _mainBatchProjects() {
     // Per-run selection never writes catalog batch_preselect flags.
-    return this._batchEligibleProjects().filter(p=>this._batchRunSelected instanceof Set
+    return this._batchEligibleProjects().filter(p=>this._batchRunSelected && typeof this._batchRunSelected.has === "function"
       ? this._batchRunSelected.has(p.repository)
       : p.batch_preselect!==false);
   }
@@ -2034,7 +2034,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     if (!this._mainBatchMode || this._mainBatchBusy ||
         !this._batchEligibleProjects().some(p=>p.repository===repository) ||
         ["prepared","queued","running"].includes(this._batchStatus?.status)) return;
-    if (!(this._batchRunSelected instanceof Set))
+    if (!(this._batchRunSelected && typeof this._batchRunSelected.has === "function"))
       this._batchRunSelected = new Set(this._mainBatchProjects().map(p=>p.repository));
     if (checked && !this._batchRunSelected.has(repository) &&
         this._batchRunSelected.size>=8) {
