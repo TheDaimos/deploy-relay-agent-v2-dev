@@ -85,11 +85,24 @@ class BatchSafety(unittest.IsolatedAsyncioTestCase):
             return await self.batch.prepare(specs,session=None,config_root=self.root,
                                             client_id=self.a)
 
-    async def start(self,challenge,client=None,confirm=True):
+    async def start(self,challenge,client=None,confirm=True,review_digest=None,review_confirm=True):
         return await self.batch.start(
             challenge=challenge,client_id=client or self.a,confirm=confirm,
+            review_digest=(review_digest if review_digest is not None
+                           else (await self.batch.status()).get("review_digest","")),
+            review_confirm=review_confirm,
             session=None,config_root=self.root,token_for_repository=lambda _:None,
             blocking_executor=None)
+
+    async def test_review_digest_or_consent_required_before_install(self):
+        offer = await self.prepare([self.spec(1)])
+        self.assertRegex(offer["preparation"]["review_digest"], r"^[a-f0-9]{64}$")
+        with self.assertRaises(model.OperationContractError):
+            await self.start(offer["challenge"],review_confirm=False)
+        with self.assertRaises(model.OperationContractError):
+            await self.start(offer["challenge"],review_digest="f"*64)
+        self.assertEqual((await self.batch.status())["status"],"prepared")
+        self.assertIsNotNone(self.batch._challenge)
 
     async def test_two_jobs_one_confirmation_and_no_repeat(self):
         specs=[self.spec(1),self.spec(2)]
