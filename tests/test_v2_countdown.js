@@ -123,10 +123,13 @@ const Panel = elements.get("dra-v2-dev-lab-panel");
     return {
       schema:"dra-v2-batch-preparation.v1",challenge:"a".repeat(32),
       preparation:{schema:"dra-v2-batch-status.v1",status:"prepared",
-        confirmation_required:true,
+        confirmation_required:true,review_digest:"f".repeat(64),
         items:request.repositories.map((repository,i)=>({
           repository,project_key:i===0?"gewitterradar":"weather_router",
           source_ref:"deploy/dev",source_commit:"b".repeat(40),
+          installed_version:i===0?"4.11.88":"0.10.150",
+          new_version:i===0?"4.11.94":"0.10.152",
+          version_status:"verified_pair",version_marker:"BUILD_VERSION",
           add:1,change:0,remove:0,status:"prepared",
         })),current:0,total:2}
     };
@@ -138,7 +141,12 @@ const Panel = elements.get("dra-v2-dev-lab-panel");
   assert.deepEqual(ws,["deploy_relay_v2_dev/batch/prepare"]);
   assert.equal(p._batchStatus.status,"prepared");
   assert.equal(p._batchChallenge,"a".repeat(32));
-  assert.match(p.shadowRoot.innerHTML,/2\/4 · Sammelinstallation ausdrücklich freigeben/);
+  assert.match(p.shadowRoot.innerHTML,/2\/4 · Versionen, Referenzen und Commits prüfen/);
+  assert.match(p.shadowRoot.innerHTML,/Installierte Version/);
+  assert.match(p.shadowRoot.innerHTML,/4\.11\.88/);
+  assert.match(p.shadowRoot.innerHTML,/4\.11\.94/);
+  assert.match(p.shadowRoot.innerHTML,/deploy\/dev/);
+  assert.match(p.shadowRoot.innerHTML,/Prüfkennung/);
   assert.match(p.shadowRoot.innerHTML,/Dateiänderungen sind vorbereitet/);
   p._mainBatchPreview={count:2};
   p._render();
