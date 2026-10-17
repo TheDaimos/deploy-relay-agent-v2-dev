@@ -30,6 +30,9 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._manualSourceRef = false;
     this._batchPreparation = null;
     this._batchChallenge = null;
+    this._batchReviewOpen = false;
+    this._batchReviewChecked = false;
+    this._batchReviewDigest = null;
     this._batchStatus = null;
     this._batchStartUncertain = false;
     this._batchStatusError = false;
@@ -708,6 +711,13 @@ class DRAV2DevLabPanel extends HTMLElement {
       try {
         const batch=await this._hass.callWS({type:"deploy_relay_v2_dev/batch/status"});
         if(batch?.schema==="dra-v2-batch-status.v1" && Array.isArray(batch.items)) {
+          if (this._batchReviewDigest && batch.review_digest &&
+              batch.review_digest !== this._batchReviewDigest) {
+            this._batchReviewChecked=false;
+            this._batchReviewOpen=false;
+            this._batchChallenge=null;
+            this._batchPreparation=null;
+          }
           this._batchStatus=batch; this._batchStatusError=false;
           if(["queued","running","success","stopped","interrupted"].includes(batch.status)){
             this._batchChallenge=null;this._batchStartUncertain=false;
@@ -2068,6 +2078,9 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._mainBatchPreview=null;
     this._batchPreparation=null;
     this._batchChallenge=null;
+    this._batchReviewOpen=false;
+    this._batchReviewChecked=false;
+    this._batchReviewDigest=null;
     this._mainBatchMessage=this._mainBatchProjects().length
       +" Projekte für diesen Durchlauf ausgewählt. Quellstände erneut prüfen."
       + (this._mainBatchProjects().some(p=>this._isOwnBatchUpdate(p))
@@ -2135,6 +2148,37 @@ class DRAV2DevLabPanel extends HTMLElement {
       if (this.isConnected) this._render();
     }
   }
+  _validateBatchReview(preparation, repositories = null) {
+    if (!preparation || preparation.schema !== "dra-v2-batch-status.v1" ||
+        !["prepared","up_to_date"].includes(preparation.status) ||
+        !Array.isArray(preparation.items) || preparation.items.length < 1 ||
+        preparation.items.length > 8 ||
+        !/^[a-f0-9]{64}$/.test(preparation.review_digest || "") ||
+        preparation.items.some(item =>
+          typeof item?.repository !== "string" ||
+          !/^[a-f0-9]{40}$/.test(item.source_commit || "") ||
+          typeof item.source_ref !== "string" || !item.source_ref.trim() ||
+          !["verified_pair","source_only","unknown"].includes(item.version_status) ||
+          (item.installed_version !== null && typeof item.installed_version !== "string") ||
+          (item.new_version !== null && typeof item.new_version !== "string") ||
+          !["prepared","up_to_date"].includes(item.status))) return false;
+    return repositories === null ||
+      (repositories.length === preparation.items.length &&
+       repositories.every(repository =>
+         preparation.items.some(item => item.repository === repository)));
+  }
+
+  _openBatchReview() {
+    const snapshot = this._batchPreparation || this._batchStatus;
+    if (!this._mainBatchMode || !this._validateBatchReview(snapshot) ||
+        snapshot.status !== "prepared" || !this._batchChallenge) return;
+    if (this._batchReviewDigest !== snapshot.review_digest)
+      this._batchReviewChecked = false;
+    this._batchReviewDigest = snapshot.review_digest;
+    this._batchReviewOpen = true;
+    this._render();
+  }
+
   async _prepareMainBatch() {
     if (!this._mainBatchMode || !this._hass || this._mainBatchBusy ||
         this._serverVersion !== DRA_V2_UI_VERSION) return;
@@ -2150,20 +2194,20 @@ class DRAV2DevLabPanel extends HTMLElement {
         type:"deploy_relay_v2_dev/batch/prepare",repositories,client_id:this._controllerId,
       });
       if(result?.schema!=="dra-v2-batch-preparation.v1" ||
-         result.preparation?.schema!=="dra-v2-batch-status.v1" ||
-         !Array.isArray(result.preparation.items) ||
-         result.preparation.items.length!==repositories.length ||
-         result.preparation.items.some(x=>!repositories.includes(x.repository) ||
-           !/^[a-f0-9]{40}$/.test(x.source_commit||""))) throw Error("invalid batch");
+         !this._validateBatchReview(result.preparation,repositories)) throw Error("invalid batch");
       this._batchPreparation=result.preparation;
       this._batchStatus=result.preparation;
       this._batchChallenge=/^[a-f0-9]{32}$/.test(result.challenge||"")?result.challenge:null;
+      this._batchReviewDigest=result.preparation.review_digest;
+      this._batchReviewChecked=false;
+      this._batchReviewOpen=!!this._batchChallenge;
       this._batchStartUncertain=false;
       this._mainBatchMessage=this._batchChallenge
         ?"Feste Quellstände vorbereitet. Ausdrückliche Installationbestätigung erforderlich."
         :"Alle ausgewählten Projekte bereits aktuell.";
     } catch (_error) {
       this._batchPreparation=null; this._batchChallenge=null;
+      this._batchReviewOpen=false;this._batchReviewChecked=false;
       const known = {
         batch_timed_out:"Zeitüberschreitung bei der Quellprüfung",
         batch_source_invalid:"Quell- oder Manifestprüfung fehlgeschlagen",
@@ -2194,9 +2238,13 @@ class DRAV2DevLabPanel extends HTMLElement {
         type:"deploy_relay_v2_dev/batch/takeover",client_id:this._controllerId,confirm:true,
       });
       if(r?.schema!=="dra-v2-batch-preparation.v1" ||
-         !/^[a-f0-9]{32}$/.test(r.challenge||""))throw Error("invalid takeover");
+         !/^[a-f0-9]{32}$/.test(r.challenge||"") ||
+         !this._validateBatchReview(r.preparation))throw Error("invalid takeover");
       this._batchChallenge=r.challenge;
       this._batchPreparation=r.preparation;
+      this._batchReviewDigest=r.preparation.review_digest;
+      this._batchReviewChecked=false;
+      this._batchReviewOpen=true;
       this._mainBatchMessage="Sammelvorbereitung übernommen. Installation separat bestätigen.";
     } catch(_error){this._mainBatchMessage="Übernahme nicht bestätigt. HA-Status prüfen.";}
     finally {this._mainBatchBusy=false;if(this.isConnected)this._render();}
@@ -2204,7 +2252,13 @@ class DRAV2DevLabPanel extends HTMLElement {
 
   async _startMainBatch() {
     if (!this._hass || !this._mainBatchMode || this._mainBatchBusy ||
-        this._batchStartUncertain || !/^[a-f0-9]{32}$/.test(this._batchChallenge||"") ||
+        this._batchStartUncertain || !this._batchReviewOpen ||
+        !this._batchReviewChecked ||
+        !this._validateBatchReview(this._batchPreparation) ||
+        this._batchPreparation.status !== "prepared" ||
+        this._batchReviewDigest !== this._batchPreparation.review_digest ||
+        this._batchStatus?.review_digest !== this._batchReviewDigest ||
+        !/^[a-f0-9]{32}$/.test(this._batchChallenge||"") ||
         !window.confirm("Sammelinstallation auf Home Assistant starten? Bei Fehler werden weitere Projekte angehalten. Jeder Teilauftrag nutzt V1-Sicherung und Rückfall."
           + (this._batchPreparation?.items?.some(item=>
                ["deploy_relay_v2_dev","deploy_relay_agent_v2_dev"].includes(item.project_key))
@@ -2218,14 +2272,19 @@ class DRAV2DevLabPanel extends HTMLElement {
       const receipt=await this._hass.callWS({
         type:"deploy_relay_v2_dev/batch/start",challenge:this._batchChallenge,
         client_id:this._controllerId,confirm:true,
+        review_digest:this._batchReviewDigest,review_confirm:true,
       });
       if(receipt?.schema!=="dra-v2-batch-start.v1" ||
          !/^[a-f0-9]{32}$/.test(receipt.batch_id||""))throw Error("invalid receipt");
       this._batchChallenge=null;
+      this._batchReviewOpen=false;
+      this._batchReviewChecked=false;
       this._batchStartUncertain=false;
       this._mainBatchMessage="Sammelauftrag auf Home Assistant angenommen.";
       await this._pollInstallation();
     }catch(_error){
+      this._batchReviewOpen=false;
+      this._batchReviewChecked=false;
       this._mainBatchMessage="Auftragsannahme unklar. Nicht erneut starten; Serverstatus/Audit prüfen.";
     }finally{this._mainBatchBusy=false;if(this.isConnected)this._render();}
   }
