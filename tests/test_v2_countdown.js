@@ -679,7 +679,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   batch._openProjectPicker();
   batch._openPickerBatch();
   assert.equal(batch._mainBatchMode,true);
-  assert.match(batch.shadowRoot.innerHTML,/Sammelupdate · 2 von 2 installierbaren Projekten/);
+  assert.match(batch.shadowRoot.innerHTML,/Sammelupdate · 2 von 3 installierbaren Projekten/);
   assert.doesNotMatch(batch.shadowRoot.innerHTML,/TheDaimos\/unselected.*dra-main-batch-entry/s);
   await batch._previewMainBatch();
   assert.equal(actualRequests,1);
