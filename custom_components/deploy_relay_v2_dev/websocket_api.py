@@ -872,11 +872,10 @@ async def async_projects_source_choices(hass, connection, msg):
                                   for p in runtime.projects.list()):
         connection.send_error(msg["id"], "invalid_project", "Projekt nicht aktiv")
         return
-    if runtime.source_scan_lock.locked():
-        connection.send_error(msg["id"], "busy", "Quellprüfung läuft")
-        return
+    # Branch/tag discovery is a small read-only request; it must not be
+    # blocked by a long inventory scan on another project.
     try:
-        async with runtime.source_scan_lock:
+        async with runtime.source_choices_lock:
             result = await asyncio.wait_for(inspect_source_choices(
                 async_get_clientsession(hass), repo,
                 token=runtime.project_auth.token(repo) or runtime.source_auth.token,
