@@ -23,7 +23,7 @@ class CompletionUiContract(unittest.TestCase):
     def test_progress_and_four_steps_reach_completion(self):
         js = self.js
         self.assertIn('displayFinished ? "completed"', js)
-        self.assertIn('aria-valuenow="${upToDate ? 1 : displayFinished ? 4', js)
+        self.assertIn('aria-valuenow="${this._mainBatchMode', js)
         self.assertIn('.dra-deploy-progress.completed .dra-deploy-progress-fill {width:100%', js)
         self.assertIn('deploymentIcons[deploymentStage-1]', js)
         self.assertIn('.dra-deploy-step.green.current', js)
@@ -37,7 +37,7 @@ class CompletionUiContract(unittest.TestCase):
         self.assertIn('const displayFinished = !upToDate && (installFinished || archivedFinish);', js)
         self.assertIn('"4/4 · Letzter Abschluss (gespeichert)"', js)
         self.assertIn('Historischer Abschluss – keine aktuelle Quellprüfung, keine neue Freigabe.', js)
-        self.assertIn('aria-valuenow="${upToDate ? 1 : displayFinished ? 4', js)
+        self.assertIn('aria-valuenow="${this._mainBatchMode', js)
         self.assertIn('displayFinished ? "completed"', js)
 
     def test_verified_no_change_is_informational_and_never_a_write_approval(self):
