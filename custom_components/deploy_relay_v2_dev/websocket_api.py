@@ -753,6 +753,8 @@ async def async_batch_install_prepare(hass, connection, msg):
     probatio.Required("challenge"): str,
     probatio.Required("client_id"): str,
     probatio.Required("confirm"): bool,
+    probatio.Required("review_digest"): str,
+    probatio.Required("review_confirm"): bool,
 })
 @websocket_api.require_admin
 @websocket_api.async_response
@@ -765,7 +767,9 @@ async def async_batch_install_start(hass, connection, msg):
     try:
         result = await runtime.batch.start(
             challenge=msg["challenge"], client_id=msg["client_id"],
-            confirm=msg["confirm"], session=async_get_clientsession(hass),
+            confirm=msg["confirm"], review_digest=msg["review_digest"],
+            review_confirm=msg["review_confirm"],
+            session=async_get_clientsession(hass),
             config_root=Path(hass.config.config_dir),
             token_for_repository=lambda repo: (
                 runtime.project_auth.token(repo) or runtime.source_auth.token),
