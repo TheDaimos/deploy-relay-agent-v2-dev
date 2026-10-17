@@ -234,6 +234,38 @@ class BatchSafety(unittest.IsolatedAsyncioTestCase):
         status = await self.batch.status()
         self.assertEqual(status["status"], "stopped")
 
+    async def test_own_runtime_install_excludes_concurrent_unrelated_job(self):
+        own_spec = {"repository": "TheDaimos/deploy-relay-agent-v2-dev",
+                    "project_id": "deploy_relay_agent_v2_dev",
+                    "ref": "deploy/dev", "commit": "c"*40, "token": None}
+        own = self.frozen(own_spec, target="custom_components/deploy_relay_v2_dev")
+        other = self.frozen(self.spec(1))
+        started = asyncio.Event()
+        release = asyncio.Event()
+
+        async def slow_own(_session, mf, *args, **kwargs):
+            if mf.project_id == "deploy_relay_agent_v2_dev":
+                started.set()
+                await release.wait()
+            return types.SimpleNamespace(
+                state=engine.TransactionState.SUCCESS,
+                restart_required=True, lifecycle="home_assistant_restart")
+
+        with patch.object(engine, "async_execute_deployment", slow_own):
+            receipt = await self.owner.start_verified(
+                manifest=own.manifest, inventory=own.inventory,
+                preview=own.preview, session=None, config_root=self.root,
+                request_id="own-"+("e"*32))
+            await asyncio.wait_for(started.wait(), timeout=1)
+            with self.assertRaises(model.OperationContractError):
+                await self.owner.start_verified(
+                    manifest=other.manifest, inventory=other.inventory,
+                    preview=other.preview, session=None, config_root=self.root,
+                    request_id="other-"+("f"*32))
+            release.set()
+            done = await self.owner.wait_completion(receipt["operation_id"])
+            self.assertEqual(done["status"], "success")
+
     async def test_expired_and_invalid_owner_are_rejected(self):
         offer=await self.prepare([self.spec(1)])
         self.batch._expires_at=batch.monotonic()-1
