@@ -24,7 +24,7 @@
   },
   "policy": {
     "allow_symlinks": false,
-    "max_files": 50,
+    "max_files": 51,
     "max_uncompressed_bytes": 3145728
   }
 }
