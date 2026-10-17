@@ -111,6 +111,11 @@ class ServerDeploymentJobs:
                 return existing
             if manifest.project_id in self._reserved_projects.values():
                 raise OperationContractError("project already deploying")
+            own_ids = {"deploy_relay_v2_dev", "deploy_relay_agent_v2_dev"}
+            if ((manifest.project_id in own_ids and self._reserved_projects) or
+                (manifest.project_id not in own_ids and
+                 any(held in own_ids for held in self._reserved_projects.values()))):
+                raise OperationContractError("V2 self-update requires exclusive install window")
             # Reject any parent/child/case-insensitive overlap before the V1
             # engine starts, but allow disjoint projects to run concurrently.
             if any(_paths_overlap(target, held) for target in targets
