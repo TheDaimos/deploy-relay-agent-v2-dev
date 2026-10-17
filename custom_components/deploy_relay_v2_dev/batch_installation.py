@@ -249,6 +249,25 @@ class BatchDeployment:
                     "preparation": self._snapshot(), "challenge": self._challenge,
                     "expires_in_seconds": int(self._expires_at - monotonic())}
 
+    async def discard(self, *, challenge: str, client_id: str,
+                      confirm: bool) -> dict[str, object]:
+        """Revoke a reviewed but not started batch; never touch project files."""
+        self._client(client_id)
+        async with self._lock:
+            if (self._closed or confirm is not True or
+                type(challenge) is not str or challenge != self._challenge or
+                self._controller != client_id or
+                not self._state or self._state.get("status") != "prepared" or
+                monotonic() >= self._expires_at):
+                raise OperationContractError("batch discard invalid")
+            self._challenge = None
+            self._pending = ()
+            self._controller = None
+            self._state["status"] = "cancelled"
+            self._state["review_required"] = False
+            self._state["confirmation_required"] = False
+            return {"schema": "dra-v2-batch-discard.v1", "status": "cancelled"}
+
     async def start(self, *, challenge: str, client_id: str, confirm: bool,
                     review_digest: str, review_confirm: bool,
                     session: Any, config_root: Path,
