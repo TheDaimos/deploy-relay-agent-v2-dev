@@ -25,7 +25,8 @@ class BatchRunContract(unittest.TestCase):
         self.assertIn('this._mainSourceRef.trim() === result.default_ref',js)
         self.assertIn('result.recommended.explicit && selectedIsDefault',js)
         self.assertIn('this._mainSourceRef = result.recommended.ref;',js)
-        self.assertIn('if (refChanged) this._automaticSourceCheckFor = null;',js)
+        self.assertIn('this._automaticSourceCheckFor = null;',js)
+        self.assertIn('if (oldDefaultPrepared) this._installPreparation = null;',js)
 
     def test_branch_discovery_not_blocked_by_inventory_lock(self):
         ws=(ROOT/"websocket_api.py").read_text(encoding="utf-8")
