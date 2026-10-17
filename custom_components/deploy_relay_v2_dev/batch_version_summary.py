@@ -12,7 +12,7 @@ import os
 from pathlib import Path, PurePosixPath
 from stat import S_ISREG
 
-from .v1_engine.preview import _safe_target_path
+from .v1_engine.preview import PreviewError, _safe_target_path
 from .v1_engine.version_markers import (
     MAX_VERSION_MARKER_SCAN_BYTES, VersionMarker, extract_version_markers,
 )
@@ -46,7 +46,7 @@ def _read_verified_local(config_root: Path, target: str, expected_sha: str) -> b
         finally:
             os.close(fd)
         return data if sha256(data).hexdigest() == expected_sha else None
-    except (OSError, ValueError):
+    except (OSError, ValueError, PreviewError):
         return None
 
 
