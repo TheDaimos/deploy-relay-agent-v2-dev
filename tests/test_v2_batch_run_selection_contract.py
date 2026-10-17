@@ -16,7 +16,8 @@ class BatchRunContract(unittest.TestCase):
         self.assertIn('this._toggleBatchRunProject(',js)
         self.assertIn('this._batchStatus?.status',js)
         self.assertIn('this._isBatchSelfUpdate(p)',js)
-        self.assertIn('Selbstupdate ausgeschlossen',js)
+        self.assertIn('this._isOwnBatchUpdate(p)',js)
+        self.assertIn('Eigenaktualisierung · zuletzt',js)
 
     def test_explicit_weather_router_ref_never_lost_to_automatic_main(self):
         js=(ROOT/"frontend"/"lab.js").read_text(encoding="utf-8")
