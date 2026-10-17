@@ -78,6 +78,7 @@ async def prepared_version_summary(prepared, *, config_root: Path) -> dict[str, 
     # Prefer matching the same marker in both versions, not two unrelated apps.
     candidates.sort(key=lambda x: (-x.rank, x.relative_path, x.name))
     source_marker = _best(candidates)
+    source_ambiguous = bool(candidates) and source_marker is None
     paired: list[tuple[VersionMarker, VersionMarker]] = []
     inspected: set[tuple[str, str]] = set()
     for marker in candidates[:_MAX_CANDIDATES]:
@@ -105,7 +106,7 @@ async def prepared_version_summary(prepared, *, config_root: Path) -> dict[str, 
             for local_marker in local:
                 if local_marker.name == remote_marker.name:
                     paired.append((remote_marker, local_marker))
-    if paired:
+    if paired and not source_ambiguous:
         rank = max(remote.rank for remote, _ in paired)
         leaders = [(remote, local) for remote, local in paired if remote.rank == rank]
         if (len({remote.value for remote, _ in leaders}) == 1 and
