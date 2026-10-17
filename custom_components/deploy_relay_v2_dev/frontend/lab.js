@@ -2250,9 +2250,37 @@ class DRAV2DevLabPanel extends HTMLElement {
     finally {this._mainBatchBusy=false;if(this.isConnected)this._render();}
   }
 
+  async _discardBatchReview() {
+    if (!this._hass || this._mainBatchBusy || !this._batchReviewOpen ||
+        !this._batchChallenge || this._batchPreparation?.status !== "prepared") return;
+    this._mainBatchBusy=true;
+    this._mainBatchMessage="Home Assistant verwirft die vorherige Vorbereitung …";
+    this._render();
+    try {
+      const receipt=await this._hass.callWS({
+        type:"deploy_relay_v2_dev/batch/discard",
+        challenge:this._batchChallenge,client_id:this._controllerId,confirm:true,
+      });
+      if(receipt?.schema!=="dra-v2-batch-discard.v1" ||
+         receipt.status!=="cancelled") throw Error("discard not acknowledged");
+      this._batchChallenge=null;
+      this._batchPreparation=null;
+      this._batchStatus={schema:"dra-v2-batch-status.v1",status:"cancelled",items:[]};
+      this._batchReviewDigest=null;
+      this._batchReviewChecked=false;
+      this._batchReviewOpen=false;
+      this._mainBatchMessage="Vorbereitung verworfen. Auswahl kann verändert und erneut geprüft werden.";
+    } catch (_error) {
+      this._mainBatchMessage="Verwerfen nicht bestätigt. Keine neue Vorbereitung beginnen; HA-Status prüfen.";
+    } finally {
+      this._mainBatchBusy=false;
+      if(this.isConnected)this._render();
+    }
+  }
+
   async _startMainBatch() {
     if (!this._hass || !this._mainBatchMode || this._mainBatchBusy ||
-        this._batchStartUncertain || !this._batchReviewOpen ||
+        this._batchStatusError || this._batchStartUncertain || !this._batchReviewOpen ||
         !this._batchReviewChecked ||
         !this._validateBatchReview(this._batchPreparation) ||
         this._batchPreparation.status !== "prepared" ||
@@ -4990,7 +5018,9 @@ class DRAV2DevLabPanel extends HTMLElement {
                 Quellstände dürfen installiert werden.
               </label>
               <div class="dra-batch-review-actions">
-                <button type="button" id="dra-batch-review-cancel">Zurück · nichts installieren</button>
+                <button type="button" id="dra-batch-review-cancel">Schließen · nichts installieren</button>
+                <button type="button" id="dra-batch-review-discard"
+                  ${this._mainBatchBusy?"disabled":""}>Vorbereitung verwerfen · Auswahl ändern</button>
                 <button type="button" id="dra-batch-review-approve"
                   ${!this._batchReviewChecked || this._batchStartUncertain ||
                      this._mainBatchBusy || this._batchStatusError ||
@@ -5490,6 +5520,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     };
     s.querySelector("#dra-batch-review-close")?.addEventListener("click",closeReview);
     s.querySelector("#dra-batch-review-cancel")?.addEventListener("click",closeReview);
+    s.querySelector("#dra-batch-review-discard")?.addEventListener("click",()=>this._discardBatchReview());
     s.querySelector("#dra-batch-review-checked")?.addEventListener("change",e=>{
       this._batchReviewChecked=e.currentTarget.checked === true;
       const confirmButton=this.shadowRoot?.querySelector("#dra-batch-review-approve");
