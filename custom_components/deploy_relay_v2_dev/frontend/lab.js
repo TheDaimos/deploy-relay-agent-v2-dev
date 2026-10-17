@@ -4641,7 +4641,7 @@ class DRAV2DevLabPanel extends HTMLElement {
                 </div>
                 <p class="note">${visiblePreviewFiles.length} von ${previewFiles.length} veränderten Dateien angezeigt · ${this._sourcePreview.unchanged_count ?? 0} unverändert (nur Anzahl verfügbar).</p>
               </details>
-            </div>` : this._mainBatchPreview ? `<div class="dra-deployment-result">
+            </div>` : this._mainBatchPreview && (!this._batchStatus || ["idle","failed"].includes(this._batchStatus.status)) ? `<div class="dra-deployment-result">
               <strong>Gruppenauswahl bestätigt: ${this._mainBatchPreview.count} Projekte</strong>
               <span class="note">Die Quellstände sind noch nicht geprüft. Installation gesperrt.</span>
             </div>` : ""}
