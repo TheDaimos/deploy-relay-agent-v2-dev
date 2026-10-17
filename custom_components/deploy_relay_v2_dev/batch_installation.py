@@ -99,8 +99,23 @@ class BatchDeployment:
         return {**self._state, "items": [dict(item) for item in self._state["items"]]}
 
     async def status(self) -> dict[str, Any]:
+        # Read-only snapshot must remain available while prepare() holds the
+        # mutation lock across slow network/inventory checks.
+        # All mutations execute on the same HA event loop.
+        return self._snapshot()
+
+    async def preparation_failed(self, reason: str) -> None:
+        """Publish a safe terminal result after a failed read-only preparation."""
+        if reason not in {"source_unavailable", "source_invalid", "timed_out",
+                          "target_conflict", "preflight_failed"}:
+            reason = "preflight_failed"
         async with self._lock:
-            return self._snapshot()
+            if self._state and self._state.get("status") == "preparing":
+                self._state["status"] = "failed"
+                self._state["error_code"] = reason
+                self._state["confirmation_required"] = False
+                self._pending = ()
+                self._challenge = None
 
     async def prepare(self, specs: list[dict[str, str]], *, session: Any,
                       config_root: Path, client_id: str) -> dict[str, Any]:
@@ -114,6 +129,12 @@ class BatchDeployment:
                 raise OperationContractError("batch already running or closed")
             self._pending = ()
             self._challenge = None
+            self._state = {
+                "schema": "dra-v2-batch-status.v1", "status": "preparing",
+                "batch_id": None, "items": [], "current": 0,
+                "total": len(specs), "confirmation_required": False,
+                "project_key": None, "error_code": None,
+            }
             active_ids = await self._jobs.active_transaction_ids()
             await asyncio.to_thread(_require_resolved_v1_transactions, config_root, active_ids)
             plans: list[BatchPlanItem] = []
@@ -128,6 +149,7 @@ class BatchDeployment:
                     item["repository"].casefold() in seen):
                     raise OperationContractError("invalid batch project")
                 seen.add(item["repository"].casefold())
+                self._state["project_key"] = item["project_id"]
                 if await self._jobs.project_active(item["project_id"]):
                     raise OperationContractError("project installation already active")
                 frozen = await prepare_frozen_v1_source(
@@ -159,6 +181,8 @@ class BatchDeployment:
                     "status": "prepared" if changed else "up_to_date",
                     "operation_id": None,
                 })
+                self._state["current"] = len(display)
+                self._state["items"] = list(display)
             self._state = {"schema": "dra-v2-batch-status.v1",
                            "status": "prepared" if plans else "up_to_date",
                            "batch_id": None, "items": display,
