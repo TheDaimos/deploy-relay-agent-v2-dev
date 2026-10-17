@@ -2618,7 +2618,9 @@ class DRAV2DevLabPanel extends HTMLElement {
       ? "V" + this._serverVersion + " DEV" : "Noch nicht ermittelt";
     const runtimeVersionState = versionMismatch ? "mismatch" :
       runtimeVersionKnown ? "matched" : "pending";
-    const deploymentBusy = this._mainBatchMode ? this._mainBatchBusy : (this._sourceBusy || this._installBusy);
+    const deploymentBusy = this._mainBatchMode
+      ? this._mainBatchBusy || this._batchStatus?.status === "preparing"
+      : (this._sourceBusy || this._installBusy);
     const installActive = !!this._installJob &&
       this._installJob.project_key === mainProject?.project_id &&
       ["queued","running","waiting_for_resource","cancel_requested"].includes(this._installJob.status);
