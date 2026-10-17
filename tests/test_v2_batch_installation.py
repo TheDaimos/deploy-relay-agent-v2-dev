@@ -266,6 +266,44 @@ class BatchSafety(unittest.IsolatedAsyncioTestCase):
             done = await self.owner.wait_completion(receipt["operation_id"])
             self.assertEqual(done["status"], "success")
 
+    async def test_read_only_status_remains_available_during_slow_preflight(self):
+        """Other devices may inspect the HA plan while GitHub is still being read."""
+        request = self.spec(1)
+        started = asyncio.Event()
+        release = asyncio.Event()
+
+        async def slow_source(**_kwargs):
+            started.set()
+            await release.wait()
+            return self.frozen(request)
+
+        with patch.object(batch, "prepare_frozen_v1_source", slow_source):
+            pending = asyncio.create_task(self.batch.prepare(
+                [request], session=None, config_root=self.root, client_id=self.a))
+            await asyncio.wait_for(started.wait(), timeout=1)
+            status = await asyncio.wait_for(self.batch.status(), timeout=0.5)
+            self.assertEqual(status["schema"], "dra-v2-batch-status.v1")
+            self.assertEqual(status["status"], "preparing")
+            self.assertEqual(status["project_key"], "safe1")
+            self.assertEqual(status["current"], 0)
+            self.assertEqual(status["total"], 1)
+            release.set()
+            receipt = await asyncio.wait_for(pending, timeout=1)
+        self.assertEqual(receipt["preparation"]["status"], "prepared")
+        self.assertEqual((await self.batch.status())["status"], "prepared")
+
+    async def test_invalid_preflight_has_sanitized_terminal_failure(self):
+        specs = [self.spec(1), self.spec(2)]
+        with self.assertRaises(model.OperationContractError):
+            await self.prepare(specs, targets={
+                "safe1": "custom_components/same",
+                "safe2": "custom_components/same/child"})
+        failed = await self.batch.status()
+        self.assertEqual(failed["status"], "failed")
+        self.assertEqual(failed["error_code"], "target_conflict")
+        self.assertIsNone(self.batch._challenge)
+        self.assertEqual(self.batch._pending, ())
+
     async def test_expired_and_invalid_owner_are_rejected(self):
         offer=await self.prepare([self.spec(1)])
         self.batch._expires_at=batch.monotonic()-1
