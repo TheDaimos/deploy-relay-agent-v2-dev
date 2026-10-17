@@ -2164,7 +2164,24 @@ class DRAV2DevLabPanel extends HTMLElement {
         :"Alle ausgewählten Projekte bereits aktuell.";
     } catch (_error) {
       this._batchPreparation=null; this._batchChallenge=null;
-      this._mainBatchMessage="Sammelvorbereitung nicht bestätigt. Keine Installation gestartet.";
+      const known = {
+        batch_timed_out:"Zeitüberschreitung bei der Quellprüfung",
+        batch_source_invalid:"Quell- oder Manifestprüfung fehlgeschlagen",
+        batch_target_conflict:"Zielkonflikt oder unvollständige Transaktion",
+        batch_source_unavailable:"GitHub-Quelle nicht erreichbar",
+        batch_preflight_failed:"Serverseitige Vorbereitung fehlgeschlagen",
+        invalid_selection:"Ungültige Projektauswahl",
+        busy:"Andere HA-Quellprüfung läuft",
+      };
+      const reason = known[_error?.code] || "HA hat die Vorbereitung nicht bestätigt";
+      this._mainBatchMessage = reason +
+        ". Keine Installation gestartet. Status des betroffenen Projekts und Diagnose prüfen.";
+      // A failed read-only preparation cannot start an installation. Query the
+      // HA-owned state, not an old local approval, before allowing another try.
+      try {
+        const snapshot = await this._hass.callWS({type:"deploy_relay_v2_dev/batch/status"});
+        if (snapshot?.schema==="dra-v2-batch-status.v1") this._batchStatus=snapshot;
+      } catch (_ignore) {}
     } finally { this._mainBatchBusy=false; if(this.isConnected)this._render(); }
   }
 
@@ -4109,10 +4126,11 @@ class DRAV2DevLabPanel extends HTMLElement {
               ${this._installStatusError || !this._restartSummary.operation_id || runningJobs.length?"disabled":""}>Gemeinsamen HA-Neustart ausführen</button>`}
           ${this._deferredRestartMessage ? `<p role="status">${this._escapeProject(this._deferredRestartMessage)}</p>` : ""}
         </section>` : ""}
-        ${this._batchStatus && ["queued","running","success","stopped","interrupted"].includes(this._batchStatus.status) ?
+        ${this._batchStatus && ["preparing","failed","queued","running","success","stopped","interrupted"].includes(this._batchStatus.status) ?
           `<section class="dra-global-observer" role="status" aria-label="Geräteübergreifender Sammelauftrag">
             <div class="dra-observer-top"><strong>Sammelauftrag · ${this._escapeProject(this._batchStatus.status)}</strong>
-              <span class="dra-observer-note">${this._batchStatus.current} von ${this._batchStatus.total} Teilaufträgen abgeschlossen</span>
+              <span class="dra-observer-note">${this._batchStatus.current} von ${this._batchStatus.total}
+                ${this._batchStatus.status === "preparing" ? "Quellen geprüft" : "Teilaufträgen abgeschlossen"}</span>
             </div>
             ${this._batchStatus.items.map(item => `<p class="dra-observer-note">
               ${this._escapeProject(this._installProjectNames[item.project_key] || item.project_key)}:
@@ -4539,10 +4557,15 @@ class DRAV2DevLabPanel extends HTMLElement {
               ${this._restartMessage ? `<p class="dra-restart-message" role="status">
                 ${this._escapeProject(this._restartMessage)}</p>` : ""}
             </section>` : ""}
-            <div class="dra-deploy-progress ${upToDate ? "up-to-date" : displayFinished ? "completed" : installFailed ? "failed" : deploymentBusy || installActive ? "running" : mainPreviewVerified ? "verified" : "idle"}"
+            <div class="dra-deploy-progress ${this._mainBatchMode
+              ? batchFinished ? "completed" : batchFailed ? "failed"
+                : batchRunning || deploymentBusy ? "running" : batchPrepared ? "verified" : "idle"
+              : upToDate ? "up-to-date" : displayFinished ? "completed" : installFailed ? "failed" : deploymentBusy || installActive ? "running" : mainPreviewVerified ? "verified" : "idle"}"
               role="progressbar" aria-label="Deployment-Fortschritt"
               aria-valuemin="0" aria-valuemax="4"
-              aria-valuenow="${upToDate ? 1 : displayFinished ? 4 : this._installSubmissionActive || installActive || installFailed ? 3 : mainPreviewVerified ? 1 : 0}">
+              aria-valuenow="${this._mainBatchMode
+                ? batchFinished ? 4 : batchRunning ? 3 : batchPrepared ? 2 : 1
+                : upToDate ? 1 : displayFinished ? 4 : this._installSubmissionActive || installActive || installFailed ? 3 : mainPreviewVerified ? 1 : 0}">
               <div class="dra-deploy-progress-fill"></div>
             </div>
             <div class="dra-deploy-steps" role="list" aria-label="Vier Schritte des Deployments">
@@ -4623,6 +4646,14 @@ class DRAV2DevLabPanel extends HTMLElement {
             ${this._mainBatchMode ? `<section class="dra-deployment-result" role="group"
               aria-label="Serverseitiges Sammelupdate">
               <strong>Sammelupdate · serverseitige Installation</strong>
+              ${this._batchStatus?.status === "preparing" ? `<p role="status">Home Assistant prüft
+                ${this._batchStatus.current || 0} von ${this._batchStatus.total || 0}
+                Projekten. Aktuell: ${this._escapeProject(this._batchStatus.project_key || "wird ermittelt")}.
+                Der Auftrag läuft auf dem Server weiter.</p>` : ""}
+              ${this._batchStatus?.status === "failed" ? `<p role="alert">
+                Sammelvorbereitung abgebrochen · Bereich: ${this._escapeProject(this._batchStatus.project_key || "unbekannt")}
+                · Fehlerkategorie: ${this._escapeProject(this._batchStatus.error_code || "unbekannt")}.
+                Es wurde keine Installation gestartet.</p>` : ""}
               ${this._batchStatus?.status === "prepared" ? `<p>Feste Commits und Dateiänderungen sind vorbereitet.
                 Nur eine ausdrückliche Freigabe kann den Auftrag starten.</p>` : ""}
               ${this._batchStatus?.items?.length ? this._batchStatus.items.map(item => `
