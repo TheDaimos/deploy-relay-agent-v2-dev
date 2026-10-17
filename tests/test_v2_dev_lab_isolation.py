@@ -585,7 +585,7 @@ class LabIsolationContracts(unittest.TestCase):
         frontend = (LAB_ROOT / "frontend/lab.js").read_text(encoding="utf-8")
         for term in (
             '_mainBatchProjects() {',
-            'p.active !== false && p.batch_preselect !== false',
+            '_batchEligibleProjects() {',
             'this._mainBatchMode = true;',
             'this._mainBatchMode = false;',
             'this._mainBatchPreview = null;',
@@ -594,7 +594,7 @@ class LabIsolationContracts(unittest.TestCase):
             'result.installation_enabled !== false',
             'result.sources_verified !== false',
             'dra-v2-dev-batch-preview.v1',
-            'Sammelupdate · ${mainBatchProjects.length} Projekte',
+            'Sammelupdate · ${mainBatchProjects.length} von ${this._batchEligibleProjects().length} installierbaren Projekten',
             'id="dra-picker-batch"',
             'id="dra-preview"',
             'Die Quellstände sind noch nicht geprüft',
