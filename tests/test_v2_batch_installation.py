@@ -152,7 +152,7 @@ class BatchSafety(unittest.IsolatedAsyncioTestCase):
                 "safe1":"custom_components/same",
                 "safe2":"custom_components/same/child",
             })
-        self.assertEqual((await self.batch.status())["status"],"idle")
+        self.assertEqual((await self.batch.status())["status"],"failed")
 
     async def test_self_updates_execute_after_normal_projects_v1_before_v2(self):
         normal = self.spec(1)
