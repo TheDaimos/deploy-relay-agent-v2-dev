@@ -1628,6 +1628,7 @@ class DRAV2DevLabPanel extends HTMLElement {
           !this._manualSourceRef && !this._installPreparation && !activeInstall) {
         const refChanged = this._mainSourceRef.trim() !== result.recommended.ref;
         this._mainSourceRef = result.recommended.ref;
+        if (refChanged) this._automaticSourceCheckFor = null;
         if (!this._installPreparation) {
           this._sourcePreview = null;
           this._sourceHead = null;
@@ -1975,6 +1976,8 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._sourceChoicesMessage = "";
     this._deploymentPreviewRef = null;
     this._mainBatchMode = false;
+    this._mainBatchSelectionOpen = false;
+    this._batchRunSelected = null;
     this._mainBatchPreview = null;
     this._mainBatchMessage = "";
     this._sourcePreview = null;
@@ -4096,7 +4099,7 @@ class DRAV2DevLabPanel extends HTMLElement {
                 ${mainPreviewVerified ? (previewNoChanges ? "Aktuell" : "Änderungen vorhanden") : this._mainBatchMode ? "Mehrere Projekte" : "Prüfung ausstehend"}
               </span></div>
             </div>
-            ${this._sourceHeadMessage ? `<p class="note" role="status">${this._escapeProject(this._sourceHeadMessage)}</p>` : ""}
+            ${!this._mainBatchMode && this._sourceHeadMessage ? `<p class="note" role="status">${this._escapeProject(this._sourceHeadMessage)}</p>` : ""}
             ${this._mainBatchMode ? `
               <div class="dra-source-info">
                 <strong>Sammelupdate · ${mainBatchProjects.length} von ${this._batchEligibleProjects().length} installierbaren Projekten</strong>
@@ -5100,7 +5103,9 @@ class DRAV2DevLabPanel extends HTMLElement {
       button.addEventListener("click",()=>this._chooseMainProject(button.dataset.repo)));
     s.querySelector("#dra-picker-batch")?.addEventListener("click",()=>this._openPickerBatch());
     s.querySelector("#dra-main-batch-selection")?.addEventListener("toggle",e=>{
-      this._mainBatchSelectionOpen = e.currentTarget.open;
+      // Ignore delayed events emitted by a former, detached render tree.
+      if (e.currentTarget === this.shadowRoot?.querySelector("#dra-main-batch-selection"))
+        this._mainBatchSelectionOpen = e.currentTarget.open;
     });
     s.querySelectorAll(".dra-batch-run-choice").forEach(input=>
       input.addEventListener("change",e=>this._toggleBatchRunProject(
