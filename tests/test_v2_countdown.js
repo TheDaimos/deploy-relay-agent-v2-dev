@@ -104,6 +104,73 @@ vm.runInNewContext(
   ctx,
 );
 const Panel = elements.get("dra-v2-dev-lab-panel");
+
+(function testBatchRunSelectionAndPersistentExpansion() {
+  const p=new Panel();
+  p._view="main";p._mainBatchMode=true;p._mainBatchSelectionOpen=true;
+  p._projects=[
+    {project_id:"deploy_relay",name:"DRA V1",
+      repository:"TheDaimos/deploy-relay-agent-dev",active:true,batch_preselect:true},
+    {project_id:"deploy_relay_agent_v2_dev",name:"DRA V2",
+      repository:"TheDaimos/deploy-relay-agent-v2-dev",active:true,batch_preselect:true},
+    {project_id:"weather_router",name:"WeatherRouter",
+      repository:"TheDaimos/weather-router-dev",active:true,batch_preselect:true},
+    {project_id:"gewitterradar",name:"Gewitterradar",
+      repository:"TheDaimos/gewitterradar",active:true,batch_preselect:true},
+  ];
+  p._batchRunSelected=new Set(p._batchEligibleProjects().map(x=>x.repository));
+  assert.deepEqual(p._mainBatchProjects().map(x=>x.name),["WeatherRouter","Gewitterradar"]);
+  p._render();
+  assert.match(p.shadowRoot.innerHTML,/id="dra-main-batch-selection"\s+open/);
+  assert.match(p.shadowRoot.innerHTML,/Selbstupdate ausgeschlossen/);
+  assert.match(p.shadowRoot.innerHTML,/Sammelupdate · 2 von 2 installierbaren Projekten/);
+  p._toggleBatchRunProject("TheDaimos/weather-router-dev",false);
+  assert.deepEqual(p._mainBatchProjects().map(x=>x.name),["Gewitterradar"]);
+  assert.equal(p._projects[2].batch_preselect,true,"temporary choice must not change catalog");
+  assert.match(p.shadowRoot.innerHTML,/id="dra-main-batch-selection"\s+open/);
+  p._render();
+  p._render();
+  assert.match(p.shadowRoot.innerHTML,/id="dra-main-batch-selection"\s+open/);
+  assert.equal(p._batchRunSelected.has("TheDaimos/weather-router-dev"),false);
+  p._toggleBatchRunProject("TheDaimos/deploy-relay-agent-v2-dev",true);
+  assert.deepEqual(p._mainBatchProjects().map(x=>x.name),["Gewitterradar"]);
+  p._batchStatus={status:"prepared"};
+  p._toggleBatchRunProject("TheDaimos/weather-router-dev",true);
+  assert.equal(p._batchRunSelected.has("TheDaimos/weather-router-dev"),false,
+    "prepared plan selection must be immutable");
+  console.log("DRA V2 temporary batch choices, protected self-update and persistent expansion PASS");
+})();
+
+(async function testPreferredBranchOverridesAutomaticMainButNotManualChoice() {
+  const p=new Panel();
+  p._view="main";p._selectedMainRepo="TheDaimos/weather-router-dev";
+  p._mainSourceRef="main";
+  p._projects=[{project_id:"weather_router",name:"WeatherRouter",
+    repository:"TheDaimos/weather-router-dev",active:true}];
+  p._hass={async callWS(request){
+    assert.equal(request.type,"deploy_relay_v2_dev/projects/source_choices");
+    return {schema:"dra-v2-source-choices.v1",repository:request.repository,
+      default_ref:"main",recommended:{kind:"branch",ref:"deploy/dev",explicit:true,
+        channel:"dev",commit:"a".repeat(40)},
+      choices:[{kind:"branch",ref:"main",commit:"b".repeat(40)},
+        {kind:"branch",ref:"deploy/dev",commit:"a".repeat(40)}]};
+  }};
+  p._syncController=async()=>true;
+  p._restoreServerPreparation=async()=>{};
+  let scans=0;
+  p._sourceCheck=()=>{scans++};
+  await p._loadSourceChoices();
+  assert.equal(p._mainSourceRef,"deploy/dev");
+  assert.equal(scans,1);
+  p._applySourceChoice("main");
+  assert.equal(p._manualSourceRef,true);
+  await p._loadSourceChoices();
+  assert.equal(p._mainSourceRef,"main",
+    "deliberately chosen main must never be overwritten");
+  console.log("DRA V2 WeatherRouter development-branch default and explicit manual override PASS");
+})().catch(e=>{console.error(e);process.exitCode=1;});
+
+
 const panel = new Panel();
 const opId = "a".repeat(32);
 const sample = (status, idx = null) => ({
