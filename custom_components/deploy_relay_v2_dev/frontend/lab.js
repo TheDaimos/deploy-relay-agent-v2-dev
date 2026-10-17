@@ -2047,8 +2047,8 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._batchRunSelected = new Set(this._batchEligibleProjects()
       .filter(p=>p.batch_preselect!==false).map(p=>p.repository));
     const selected = this._mainBatchProjects();
-    if (!selected.length) {
-      this._pickerBatchMessage = "Keine zulässigen Projekte vorausgewählt. Auswahl in der Projektverwaltung bearbeiten.";
+    if (!this._batchEligibleProjects().length) {
+      this._pickerBatchMessage = "Keine zulässigen Projekte aktiv. Bitte zuerst andere Projekte hinzufügen.";
       this._render();
       return;
     }
@@ -2057,7 +2057,8 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._sourceHeadMessage = "";
     this._deploymentPreviewRef = null;
     this._mainBatchPreview = null;
-    this._mainBatchMessage = selected.length + " Projekte für das Sammelupdate ausgewählt. Installation noch gesperrt.";
+    this._mainBatchMessage = selected.length +
+      " Projekte vorausgewählt. Auswahlkästchen für diesen Durchlauf frei änderbar.";
     this._sourcePreview = null;
     this._projectPickerOpen = false;
     this._pickerBatchMessage = "";
@@ -2438,6 +2439,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     const activeMainProjects = this._projects.filter(p => p.active !== false);
     const mainProject = activeMainProjects.find(p => p.repository === this._selectedMainRepo) || activeMainProjects[0] || null;
     const mainBatchProjects = this._mainBatchProjects();
+    const batchActiveProjects = this._projects.filter(p=>p.active!==false);
     const mainPreviewVerified = !this._mainBatchMode && !this._sourceConnectionTest &&
       !!mainProject &&
       this._sourceRepository === mainProject.repository &&
@@ -2946,7 +2948,7 @@ class DRAV2DevLabPanel extends HTMLElement {
         .dra-main-batch-card {border-color:#587f94;box-shadow:inset 3px 0 0 #62a4c2;}
         .dra-main-batch-list {display:flex;flex-direction:column;max-height:40vh;overflow:auto;
           border:1px solid #445c69;border-radius:10px;padding:0 12px;margin-top:12px;}
-        .dra-main-batch-entry {display:grid;grid-template-columns:24px minmax(0,1fr);column-gap:10px;
+        .dra-main-batch-entry {display:grid;grid-template-columns:28px minmax(0,1fr);column-gap:10px;
           padding:10px 0;border-bottom:1px solid #3d505b;align-items:center;}
         .dra-main-batch-entry:last-child {border:0;}
         .dra-main-batch-entry > .note {grid-column:2;font-size:12px;overflow-wrap:anywhere;}
@@ -4097,14 +4099,34 @@ class DRAV2DevLabPanel extends HTMLElement {
             ${this._sourceHeadMessage ? `<p class="note" role="status">${this._escapeProject(this._sourceHeadMessage)}</p>` : ""}
             ${this._mainBatchMode ? `
               <div class="dra-source-info">
-                <strong>Sammelupdate · ${mainBatchProjects.length} Projekte</strong>
-                <p class="note">Alle aktivierten und vorausgewählten Projekte in gespeicherter Reihenfolge.</p>
-                <details class="dra-source-extra"><summary>Ausgewählte Projekte anzeigen</summary>
-                  <div class="dra-main-batch-list">${mainBatchProjects.length
-                    ? mainBatchProjects.map((p,i) => `<div class="dra-main-batch-entry">
-                        <span>${i+1}.</span><strong>${this._escapeProject(p.name)}</strong>
-                        <span class="note">${this._escapeProject(p.repository)}</span></div>`).join("")
-                    : '<p class="note">Keine aktivierten Projekte. Auswahl in der Projektverwaltung bearbeiten.</p>'}</div>
+                <strong>Sammelupdate · ${mainBatchProjects.length} von ${this._batchEligibleProjects().length} installierbaren Projekten</strong>
+                <p class="note">Nur die ausgewählten Projekte werden in diesem Durchlauf geprüft.
+                  Die gespeicherte Vorauswahl bleibt unverändert; DRA-Selbstupdates sind ausgeschlossen.</p>
+                <details class="dra-source-extra" id="dra-main-batch-selection"
+                  ${this._mainBatchSelectionOpen ? "open" : ""}>
+                  <summary>Projekte für diesen Lauf auswählen (${mainBatchProjects.length})</summary>
+                  <div class="dra-main-batch-list">${batchActiveProjects.length
+                    ? batchActiveProjects.map(p => {
+                        const forbidden = this._isBatchSelfUpdate(p);
+                        const checked = !forbidden && mainBatchProjects.some(x=>x.repository===p.repository);
+                        const locked = ["prepared","queued","running"].includes(this._batchStatus?.status) ||
+                          this._mainBatchBusy;
+                        return `<label class="dra-main-batch-entry"
+                            ${forbidden ? 'title="Selbstupdate im Sammelauftrag aus Sicherheitsgründen ausgeschlossen"' : ""}>
+                          <input type="checkbox" class="dra-batch-run-choice"
+                            data-repo="${this._escapeProject(p.repository)}"
+                            ${checked ? "checked" : ""}
+                            ${forbidden || locked ? "disabled" : ""}
+                            aria-label="${this._escapeProject(p.name)} für diesen Sammellauf auswählen">
+                          <strong>${this._escapeProject(p.name)}</strong>
+                          <span class="note">${this._escapeProject(p.repository)}
+                            ${forbidden ? " · Selbstupdate ausgeschlossen" : ""}</span>
+                        </label>`;
+                      }).join("")
+                    : '<p class="note">Keine aktiven Projekte vorhanden.</p>'}</div>
+                  <p class="note">${mainBatchProjects.length} Projekt${mainBatchProjects.length===1?"":"e"} ausgewählt.
+                    Maximal 8 pro Durchlauf. Während einer vorbereiteten oder laufenden
+                    Installation bleibt die Auswahl unverändert.</p>
                 </details>
               </div>` : `
               <div class="dra-source-info ${mainPreviewVerified ? (previewNoChanges ? "verified" : "changed") : ""}">
@@ -5077,6 +5099,12 @@ class DRAV2DevLabPanel extends HTMLElement {
     s.querySelectorAll(".dra-picker-entry").forEach(button=>
       button.addEventListener("click",()=>this._chooseMainProject(button.dataset.repo)));
     s.querySelector("#dra-picker-batch")?.addEventListener("click",()=>this._openPickerBatch());
+    s.querySelector("#dra-main-batch-selection")?.addEventListener("toggle",e=>{
+      this._mainBatchSelectionOpen = e.currentTarget.open;
+    });
+    s.querySelectorAll(".dra-batch-run-choice").forEach(input=>
+      input.addEventListener("change",e=>this._toggleBatchRunProject(
+        e.currentTarget.dataset.repo,e.currentTarget.checked)));
     s.querySelector("#dra-load-source-choices")?.addEventListener("click",()=>this._loadSourceChoices());
     s.querySelector("#dra-source-advanced > summary")?.addEventListener("click",()=>{
       // Update before native <details> activation so all later re-renders retain
