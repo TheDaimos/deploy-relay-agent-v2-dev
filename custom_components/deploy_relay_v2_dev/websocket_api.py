@@ -732,9 +732,18 @@ async def async_batch_install_prepare(hass, connection, msg):
                     client_id=msg["client_id"],
                 )
             result = await asyncio.wait_for(verify(), timeout=240)
-    except Exception:
-        connection.send_error(msg["id"], "batch_preparation_failed",
-                              "Sammelvorbereitung nicht bestätigt. Keine Installation gestartet.")
+    except Exception as exc:
+        # Never emit raw GitHub failures, secrets or filesystem paths to a UI.
+        reason = (
+            "timed_out" if isinstance(exc, TimeoutError) else
+            "target_conflict" if isinstance(exc, OperationContractError) else
+            "source_invalid" if isinstance(exc, PreflightError) else
+            "preflight_failed"
+        )
+        await runtime.batch.preparation_failed(reason)
+        connection.send_error(msg["id"], "batch_" + reason,
+                              "Sammelvorbereitung abgebrochen (" + reason +
+                              "). Keine Installation gestartet.")
         return
     connection.send_result(msg["id"], result)
 
