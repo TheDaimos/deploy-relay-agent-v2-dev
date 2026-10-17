@@ -701,12 +701,10 @@ async def async_batch_install_prepare(hass, connection, msg):
     try:
         chosen = runtime.projects.batch_preview(msg["repositories"])
         projects = chosen["selected"]
-        if not 1 <= len(projects) <= 8 or any(
-            project["project_id"] in {"deploy_relay", "deploy_relay_v2_dev",
-                                      "deploy_relay_agent_v2_dev"}
-            for project in projects
-        ):
+        if not 1 <= len(projects) <= 8:
             raise OperationContractError("invalid batch selection")
+        # DRA self-updates are allowed in a batch, but the HA batch executor
+        # verifies their exact target and orders them last (V1 before V2).
     except (CatalogError, OperationContractError, ValueError, TypeError):
         connection.send_error(msg["id"], "invalid_selection", "Projektauswahl für Installation ungültig")
         return
