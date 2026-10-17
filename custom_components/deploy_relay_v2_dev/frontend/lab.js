@@ -2015,8 +2015,14 @@ class DRAV2DevLabPanel extends HTMLElement {
             "thedaimos/deploy-relay-agent-v2-dev"].includes(repo) ||
       ["deploy_relay","deploy_relay_v2_dev","deploy_relay_agent_v2_dev"].includes(id);
   }
+  _isOwnBatchUpdate(project) {
+    return ["deploy_relay_v2_dev","deploy_relay_agent_v2_dev"]
+      .includes(String(project?.project_id||"").toLowerCase()) ||
+      String(project?.repository||"").toLowerCase() === "thedaimos/deploy-relay-agent-v2-dev";
+  }
   _batchEligibleProjects() {
-    return this._projects.filter(p=>p.active!==false && !this._isBatchSelfUpdate(p));
+    // Match the proven V1 self-update-last model. V2 runs last of all.
+    return this._projects.filter(p=>p.active!==false);
   }
   _mainBatchProjects() {
     // Per-run selection never writes catalog batch_preselect flags.
@@ -2041,14 +2047,19 @@ class DRAV2DevLabPanel extends HTMLElement {
     this._batchPreparation=null;
     this._batchChallenge=null;
     this._mainBatchMessage=this._mainBatchProjects().length
-      +" Projekte für diesen Durchlauf ausgewählt. Quellstände erneut prüfen.";
+      +" Projekte für diesen Durchlauf ausgewählt. Quellstände erneut prüfen."
+      + (this._mainBatchProjects().some(p=>this._isOwnBatchUpdate(p))
+        ? " DRA V2 wird zwingend als letztes Projekt installiert; HA-Neustart danach erforderlich."
+        : "");
     this._render();
   }
   _openPickerBatch() {
     if (!this._projectPickerOpen || this._mainBatchBusy) return;
-    // Start this visit with catalog defaults, excluding both DRA self-updates.
+    // DRA V1 may be preselected; DRA V2 self-update requires an explicit
+    // per-run opt-in and always executes at the very end.
     this._batchRunSelected = new Set(this._batchEligibleProjects()
-      .filter(p=>p.batch_preselect!==false).map(p=>p.repository));
+      .filter(p=>p.batch_preselect!==false && !this._isOwnBatchUpdate(p))
+      .map(p=>p.repository));
     const selected = this._mainBatchProjects();
     if (!this._batchEligibleProjects().length) {
       this._pickerBatchMessage = "Keine zulässigen Projekte aktiv. Bitte zuerst andere Projekte hinzufügen.";
@@ -2155,7 +2166,11 @@ class DRAV2DevLabPanel extends HTMLElement {
   async _startMainBatch() {
     if (!this._hass || !this._mainBatchMode || this._mainBatchBusy ||
         this._batchStartUncertain || !/^[a-f0-9]{32}$/.test(this._batchChallenge||"") ||
-        !window.confirm("Sammelinstallation auf Home Assistant starten? Bei Fehler werden weitere Projekte angehalten. Jeder Teilauftrag nutzt V1-Sicherung und Rückfall."))return;
+        !window.confirm("Sammelinstallation auf Home Assistant starten? Bei Fehler werden weitere Projekte angehalten. Jeder Teilauftrag nutzt V1-Sicherung und Rückfall."
+          + (this._batchPreparation?.items?.some(item=>
+               ["deploy_relay_v2_dev","deploy_relay_agent_v2_dev"].includes(item.project_key))
+             ? " DRA V2 wird unbedingt zuletzt aktualisiert. Danach ist ein HA-Neustart notwendig."
+             : "")))return;
     this._mainBatchBusy=true;
     this._batchStartUncertain=true;
     this._mainBatchMessage="Sammelauftrag wird Home Assistant zur einmaligen Annahme übermittelt …";
@@ -4104,26 +4119,28 @@ class DRAV2DevLabPanel extends HTMLElement {
               <div class="dra-source-info">
                 <strong>Sammelupdate · ${mainBatchProjects.length} von ${this._batchEligibleProjects().length} installierbaren Projekten</strong>
                 <p class="note">Nur die ausgewählten Projekte werden in diesem Durchlauf geprüft.
-                  Die gespeicherte Vorauswahl bleibt unverändert; DRA-Selbstupdates sind ausgeschlossen.</p>
+                  Die gespeicherte Vorauswahl bleibt unverändert. DRA V1 und DRA V2
+                  werden nach allen anderen Projekten in dieser Reihenfolge installiert.
+                  DRA V2 muss für diesen Lauf bewusst ausgewählt werden.</p>
                 <details class="dra-source-extra" id="dra-main-batch-selection"
                   ${this._mainBatchSelectionOpen ? "open" : ""}>
                   <summary>Projekte für diesen Lauf auswählen (${mainBatchProjects.length})</summary>
                   <div class="dra-main-batch-list">${batchActiveProjects.length
                     ? batchActiveProjects.map(p => {
-                        const forbidden = this._isBatchSelfUpdate(p);
-                        const checked = !forbidden && mainBatchProjects.some(x=>x.repository===p.repository);
+                        const selfUpdate = this._isBatchSelfUpdate(p);
+                        const checked = mainBatchProjects.some(x=>x.repository===p.repository);
                         const locked = ["prepared","queued","running"].includes(this._batchStatus?.status) ||
                           this._mainBatchBusy;
                         return `<label class="dra-main-batch-entry"
-                            ${forbidden ? 'title="Selbstupdate im Sammelauftrag aus Sicherheitsgründen ausgeschlossen"' : ""}>
+                            ${selfUpdate ? 'title="Eigenaktualisierung wird durch Home Assistant zuletzt installiert"' : ""}>
                           <input type="checkbox" class="dra-batch-run-choice"
                             data-repo="${this._escapeProject(p.repository)}"
                             ${checked ? "checked" : ""}
-                            ${forbidden || locked ? "disabled" : ""}
+                            ${locked ? "disabled" : ""}
                             aria-label="${this._escapeProject(p.name)} für diesen Sammellauf auswählen">
                           <strong>${this._escapeProject(p.name)}</strong>
                           <span class="note">${this._escapeProject(p.repository)}
-                            ${forbidden ? " · Selbstupdate ausgeschlossen" : ""}</span>
+                            ${selfUpdate ? " · Eigenaktualisierung · zuletzt" : ""}</span>
                         </label>`;
                       }).join("")
                     : '<p class="note">Keine aktiven Projekte vorhanden.</p>'}</div>
@@ -4586,7 +4603,7 @@ class DRAV2DevLabPanel extends HTMLElement {
             </section>` : ""}
             <p class="dra-deployment-hint note">
               Einzelupdates nutzen die V1-Installationsengine. Schreiben erfordert einen freigegebenen Projektzugang
-              und eine separate Bestätigung. Sammelinstallationen nutzen ebenfalls die V1-Engine; Selbstupdates bleiben gesperrt.
+              und eine separate Bestätigung. Sammelinstallationen nutzen ebenfalls die V1-Engine; DRA-Selbstupdates erfolgen zuletzt.
             </p>
           </article>
           <article class="dra-tests-panel">
