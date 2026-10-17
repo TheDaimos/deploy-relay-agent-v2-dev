@@ -2751,7 +2751,7 @@ class DRAV2DevLabPanel extends HTMLElement {
         : batchFailed ? "1/4 · Vorbereitung/Installation fehlgeschlagen – Details prüfen"
         : batchRunning ? "3/4 · Sammelinstallation läuft auf Home Assistant …"
         : batchPrepared ? this._batchChallenge
-          ? "2/4 · Sammelinstallation ausdrücklich freigeben"
+          ? "2/4 · Versionen, Referenzen und Commits prüfen"
           : "2/4 · Sammelvorbereitung auf diesem Gerät übernehmen"
         : batchState === "up_to_date" ? "Aktuell · Kein Sammelupdate erforderlich"
         : "1/4 · Sammelinstallation prüfen und vorbereiten"
@@ -3314,6 +3314,35 @@ class DRAV2DevLabPanel extends HTMLElement {
         @media (max-width:420px) {.dra-logs-actions {grid-template-columns:1fr;}
           .dra-deployment-heading h2 {font-size:17px;}}
 
+        .dra-batch-review-dialog {max-width:min(1260px,calc(100vw - 24px));
+          width:100%;max-height:min(92vh,980px);overflow:auto;box-sizing:border-box;}
+        .dra-batch-review-table-wrap {margin:16px 0;overflow:auto;border:1px solid #496172;
+          border-radius:10px;max-height:56vh;}
+        .dra-batch-review-table {width:100%;border-collapse:collapse;text-align:left;
+          min-width:810px;font-size:13px;}
+        .dra-batch-review-table th,.dra-batch-review-table td {vertical-align:top;
+          padding:12px;border-bottom:1px solid #344b58;}
+        .dra-batch-review-table thead th {position:sticky;top:0;z-index:1;
+          background:#263845;color:#d8ecf5;}
+        .dra-batch-review-table td code {overflow-wrap:anywhere;word-break:break-all;
+          font-size:12px;color:#ddf5fd;}
+        .dra-batch-review-table tbody th {color:#e3eef5;font-weight:720;min-width:130px;}
+        .dra-batch-review-table tbody .note {margin-top:3px;color:#aebfca;}
+        .dra-review-arrow {font-size:19px;color:#83d8e4;text-align:center;}
+        .dra-review-unknown {background:rgba(142,91,24,.09);}
+        .dra-batch-review-warning {background:#45331b;color:#f9d7a5;
+          border:1px solid #ab7b32;border-radius:9px;padding:12px;font-size:13px;}
+        .dra-batch-review-ack {display:flex;gap:12px;align-items:flex-start;margin:12px 0;
+          padding:13px;border:1px solid #658b9d;border-radius:10px;line-height:1.5;}
+        .dra-batch-review-ack input {width:20px;height:20px;flex:none;accent-color:#0097c4;}
+        .dra-batch-review-actions {display:flex;flex-wrap:wrap;justify-content:flex-end;gap:10px;}
+        .dra-batch-review-actions button {min-height:46px;padding:10px 16px;}
+        @media(max-width:640px){
+          .dra-batch-review-dialog {max-height:94vh;}
+          .dra-batch-review-table-wrap {max-height:50vh;}
+          .dra-batch-review-actions {flex-direction:column;}
+          .dra-batch-review-actions button {width:100%;}
+        }
         .dra-deploy-action {box-sizing:border-box;width:100%;margin:0;padding:17px 18px;
           min-height:79px;border-radius:14px;display:flex;gap:12px;align-items:center;justify-content:center;
           text-align:center;font-size:clamp(16px,2vw,21px);font-weight:800;letter-spacing:.005em;
@@ -4730,9 +4759,9 @@ class DRAV2DevLabPanel extends HTMLElement {
                 `<button type="button" id="dra-batch-install-takeover"
                   ${this._mainBatchBusy?"disabled":""}>Vorbereitung auf diesem Gerät übernehmen</button>` : ""}
               ${this._batchChallenge && this._batchStatus?.status==="prepared" ?
-                `<button type="button" id="dra-batch-install-confirm" ${this._mainBatchBusy ||
-                  this._batchStartUncertain || this._serverVersion!==DRA_V2_UI_VERSION ?"disabled":""}>
-                  Ja, Sammelinstallation starten</button>` : ""}
+                `<p class="note"><strong>Verbindliche Prüfübersicht erforderlich:</strong>
+                  Installierte Version, neue Version, Git-Zweig und vollständige Commit-Kennung
+                  müssen vor der Installation im Zwischenfenster bestätigt werden.</p>` : ""}
               ${this._batchStartUncertain ? `<p role="alert">Auftragsannahme unklar.
                 Keine zweite Installationsanforderung senden; HA-Status/Audit prüfen.</p>` : ""}
               <p class="note">Teilinstallationen erfolgen nacheinander durch Home Assistant.
@@ -4901,6 +4930,76 @@ class DRAV2DevLabPanel extends HTMLElement {
         </div>
         <p class="note">Während eines laufenden Tests wird der Status etwa alle 1,5 Sekunden aktualisiert. Im Leerlauf erfolgt keine regelmäßige Abfrage. Nach einem Home-Assistant-Neustart bleiben abgeschlossene Aufträge im begrenzten Verlauf abrufbar. Vorher laufende Testaufträge erscheinen als unterbrochen und werden nicht neu gestartet.</p>
         </section>
+        ${this._batchReviewOpen && this._mainBatchMode && this._batchPreparation?.status==="prepared" ?
+          `<div class="git-dialog-backdrop" id="dra-batch-review-backdrop">
+            <section class="git-dialog dra-batch-review-dialog" role="dialog" aria-modal="true"
+              aria-labelledby="dra-batch-review-title" tabindex="-1" id="dra-batch-review-dialog">
+              <header class="dra-picker-header">
+                <div>
+                  <h2 id="dra-batch-review-title">Sammelupdate · verbindliche Prüfübersicht</h2>
+                  <p class="note">Home Assistant hat alle Quellstände auf feste Commits geprüft.
+                    Diese Zeilen gelten ausschließlich für diesen vorbereiteten Durchlauf.</p>
+                </div>
+                <button type="button" id="dra-batch-review-close" title="Übersicht schließen"
+                  aria-label="Prüfübersicht schließen">${closeIcon}</button>
+              </header>
+              <div class="dra-batch-review-table-wrap">
+                <table class="dra-batch-review-table">
+                  <thead><tr>
+                    <th scope="col">Projekt</th>
+                    <th scope="col">Installierte Version</th>
+                    <th scope="col" aria-label="Versionsvergleich">→</th>
+                    <th scope="col">Neue Version</th>
+                    <th scope="col">Commit (40 Zeichen)</th>
+                    <th scope="col">Ausgewählt · Ref</th>
+                    <th scope="col">Änderungen</th>
+                  </tr></thead>
+                  <tbody>${this._batchPreparation.items.map(item=>{
+                    const name=this._projects.find(p=>p.project_id===item.project_key)?.name ||
+                      item.project_key;
+                    const oldVersion=item.installed_version || "Nicht ermittelbar";
+                    const newVersion=item.new_version || "Nicht ermittelbar";
+                    const missing=item.version_status!=="verified_pair";
+                    const label=item.status==="up_to_date"?"Aktuell · keine Installation":
+                      "Zur Installation vorbereitet";
+                    return `<tr class="${missing?"dra-review-unknown":""}">
+                      <th scope="row">${this._escapeProject(name)}
+                        <div class="note">${this._escapeProject(item.repository)}</div></th>
+                      <td>${this._escapeProject(oldVersion)}</td><td class="dra-review-arrow">→</td>
+                      <td><strong>${this._escapeProject(newVersion)}</strong>
+                        ${missing?'<div class="note">Version nicht vollständig nachgewiesen</div>':""}</td>
+                      <td><code>${this._escapeProject(item.source_commit)}</code></td>
+                      <td><code>${this._escapeProject(item.source_ref)}</code></td>
+                      <td>${this._escapeProject(label)}
+                        <div class="note">+${item.add} · ~${item.change} · −${item.remove}</div></td>
+                    </tr>`;
+                  }).join("")}</tbody>
+                </table>
+              </div>
+              ${this._batchPreparation.items.some(item=>item.version_status!=="verified_pair")
+                ? `<p class="dra-batch-review-warning" role="status">
+                  Mindestens eine Versionsangabe konnte nicht vollständig aus geprüften
+                  lokalen und Git-Dateien ermittelt werden. Es werden keine Versionsnummern
+                  geschätzt. Prüfe die Quelle und den Commit besonders sorgfältig.</p>` : ""}
+              <p class="note">Prüfkennung: <code>${this._escapeProject(this._batchPreparation.review_digest)}</code></p>
+              <label class="dra-batch-review-ack">
+                <input type="checkbox" id="dra-batch-review-checked"
+                  ${this._batchReviewChecked?"checked":""}>
+                Ich habe alle Projekte, installierten und neuen Versionen,
+                Git-Referenzen und vollständigen Commits geprüft. Die angegebenen
+                Quellstände dürfen installiert werden.
+              </label>
+              <div class="dra-batch-review-actions">
+                <button type="button" id="dra-batch-review-cancel">Zurück · nichts installieren</button>
+                <button type="button" id="dra-batch-review-approve"
+                  ${!this._batchReviewChecked || this._batchStartUncertain ||
+                     this._mainBatchBusy || this._batchStatusError ||
+                     this._batchStatus?.review_digest!==this._batchReviewDigest
+                     ? "disabled" : ""}>
+                  Geprüfte Sammelinstallation bestätigen</button>
+              </div>
+            </section>
+          </div>` : ""}
         ${this._projectPickerOpen ? `
           <div class="git-dialog-backdrop" id="dra-picker-backdrop">
             <section class="git-dialog dra-picker-dialog" id="dra-picker-dialog"
@@ -5383,6 +5482,22 @@ class DRAV2DevLabPanel extends HTMLElement {
       }
       this._render();
     });
+    const closeReview=()=>{
+      if (this._mainBatchBusy) return;
+      this._batchReviewOpen=false;
+      this._batchReviewChecked=false;
+      this._render();
+    };
+    s.querySelector("#dra-batch-review-close")?.addEventListener("click",closeReview);
+    s.querySelector("#dra-batch-review-cancel")?.addEventListener("click",closeReview);
+    s.querySelector("#dra-batch-review-checked")?.addEventListener("change",e=>{
+      this._batchReviewChecked=e.currentTarget.checked === true;
+      const confirmButton=this.shadowRoot?.querySelector("#dra-batch-review-approve");
+      if(confirmButton) confirmButton.disabled=!this._batchReviewChecked ||
+        this._mainBatchBusy || this._batchStartUncertain || this._batchStatusError ||
+        this._batchStatus?.review_digest !== this._batchReviewDigest;
+    });
+    s.querySelector("#dra-batch-review-approve")?.addEventListener("click",()=>this._startMainBatch());
     s.querySelector("#dra-batch-install-prepare")?.addEventListener("click",()=>this._prepareMainBatch());
     s.querySelector("#dra-batch-install-takeover")?.addEventListener("click",()=>this._takeOverMainBatch());
     s.querySelector("#dra-batch-install-confirm")?.addEventListener("click",()=>this._startMainBatch());
@@ -5391,7 +5506,7 @@ class DRAV2DevLabPanel extends HTMLElement {
       if (this._mainBatchMode) {
         if (deploymentStage === 1) void this._prepareMainBatch();
         else if (deploymentStage === 2) {
-          if (this._batchChallenge) void this._startMainBatch();
+          if (this._batchChallenge) this._openBatchReview();
           else void this._takeOverMainBatch();
         }
       } else if (deploymentStage === 1 && mainProject) {
