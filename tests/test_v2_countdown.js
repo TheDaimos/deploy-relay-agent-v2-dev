@@ -140,6 +140,10 @@ const Panel = elements.get("dra-v2-dev-lab-panel");
   assert.equal(p._batchChallenge,"a".repeat(32));
   assert.match(p.shadowRoot.innerHTML,/2\/4 · Sammelinstallation ausdrücklich freigeben/);
   assert.match(p.shadowRoot.innerHTML,/Dateiänderungen sind vorbereitet/);
+  p._mainBatchPreview={count:2};
+  p._render();
+  assert.doesNotMatch(p.shadowRoot.innerHTML,/Die Quellstände sind noch nicht geprüft/,
+    "a server-verified batch must not display the obsolete selection-only lock");
   console.log("DRA V2 guided batch advances from step 1 to HA-prepared step 2 PASS");
 })().catch(e=>{console.error(e);process.exitCode=1;});
 
