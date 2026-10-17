@@ -135,70 +135,84 @@ class BatchDeployment:
                 "total": len(specs), "confirmation_required": False,
                 "project_key": None, "error_code": None,
             }
-            active_ids = await self._jobs.active_transaction_ids()
-            await asyncio.to_thread(_require_resolved_v1_transactions, config_root, active_ids)
-            plans: list[BatchPlanItem] = []
-            display: list[dict[str, Any]] = []
-            targets: list[str] = []
-            seen: set[str] = set()
-            for item in sorted(specs, key=lambda entry:
-                               _priority(entry.get("project_id", "")) if isinstance(entry, dict) else 0):
-                if (type(item) is not dict or
-                    set(item) != {"repository", "project_id", "ref", "commit", "token"} or
-                    type(item["repository"]) is not str or
-                    item["repository"].casefold() in seen):
-                    raise OperationContractError("invalid batch project")
-                seen.add(item["repository"].casefold())
-                self._state["project_key"] = item["project_id"]
-                if await self._jobs.project_active(item["project_id"]):
-                    raise OperationContractError("project installation already active")
-                frozen = await prepare_frozen_v1_source(
-                    session=session, repository=item["repository"],
-                    source_ref=item["ref"], source_commit=item["commit"],
-                    expected_project_id=item["project_id"],
-                    config_root=config_root, token=item["token"],
-                )
-                changed = (frozen.preview.add_count + frozen.preview.change_count +
-                           frozen.preview.remove_count)
-                # Validate self-update identity and exact own integration
-                # target even when the new version has no file differences.
-                plan = build_plan(frozen.manifest, source_ref=item["ref"],
-                                  source_commit=item["commit"])
-                _verify_self_update_plan(item, plan, frozen.manifest)
-                if changed:
-                    group_targets = [g.target.casefold() for g in plan.groups]
-                    if any(_paths_overlap(a, b) for a in group_targets for b in targets):
-                        raise OperationContractError("batch target overlap")
-                    targets.extend(group_targets)
-                    plans.append(BatchPlanItem(item["repository"], item["project_id"],
-                                               item["commit"], item["ref"], frozen))
-                display.append({
-                    "repository": item["repository"], "project_key": item["project_id"],
-                    "source_ref": item["ref"], "source_commit": item["commit"],
-                    "add": frozen.preview.add_count, "change": frozen.preview.change_count,
-                    "remove": frozen.preview.remove_count,
-                    "unchanged": frozen.preview.unchanged_count,
-                    "status": "prepared" if changed else "up_to_date",
-                    "operation_id": None,
-                })
-                self._state["current"] = len(display)
-                self._state["items"] = list(display)
-            self._state = {"schema": "dra-v2-batch-status.v1",
-                           "status": "prepared" if plans else "up_to_date",
-                           "batch_id": None, "items": display,
-                           "current": 0, "total": len(plans),
-                           "confirmation_required": bool(plans)}
-            if not plans:
+            try:
+                active_ids = await self._jobs.active_transaction_ids()
+                await asyncio.to_thread(_require_resolved_v1_transactions, config_root, active_ids)
+                plans: list[BatchPlanItem] = []
+                display: list[dict[str, Any]] = []
+                targets: list[str] = []
+                seen: set[str] = set()
+                for item in sorted(specs, key=lambda entry:
+                                   _priority(entry.get("project_id", "")) if isinstance(entry, dict) else 0):
+                    if (type(item) is not dict or
+                        set(item) != {"repository", "project_id", "ref", "commit", "token"} or
+                        type(item["repository"]) is not str or
+                        item["repository"].casefold() in seen):
+                        raise OperationContractError("invalid batch project")
+                    seen.add(item["repository"].casefold())
+                    self._state["project_key"] = item["project_id"]
+                    if await self._jobs.project_active(item["project_id"]):
+                        raise OperationContractError("project installation already active")
+                    frozen = await prepare_frozen_v1_source(
+                        session=session, repository=item["repository"],
+                        source_ref=item["ref"], source_commit=item["commit"],
+                        expected_project_id=item["project_id"],
+                        config_root=config_root, token=item["token"],
+                    )
+                    changed = (frozen.preview.add_count + frozen.preview.change_count +
+                               frozen.preview.remove_count)
+                    # Validate self-update identity and exact own integration
+                    # target even when the new version has no file differences.
+                    plan = build_plan(frozen.manifest, source_ref=item["ref"],
+                                      source_commit=item["commit"])
+                    _verify_self_update_plan(item, plan, frozen.manifest)
+                    if changed:
+                        group_targets = [g.target.casefold() for g in plan.groups]
+                        if any(_paths_overlap(a, b) for a in group_targets for b in targets):
+                            raise OperationContractError("batch target overlap")
+                        targets.extend(group_targets)
+                        plans.append(BatchPlanItem(item["repository"], item["project_id"],
+                                                   item["commit"], item["ref"], frozen))
+                    display.append({
+                        "repository": item["repository"], "project_key": item["project_id"],
+                        "source_ref": item["ref"], "source_commit": item["commit"],
+                        "add": frozen.preview.add_count, "change": frozen.preview.change_count,
+                        "remove": frozen.preview.remove_count,
+                        "unchanged": frozen.preview.unchanged_count,
+                        "status": "prepared" if changed else "up_to_date",
+                        "operation_id": None,
+                    })
+                    self._state["current"] = len(display)
+                    self._state["items"] = list(display)
+                self._state = {"schema": "dra-v2-batch-status.v1",
+                               "status": "prepared" if plans else "up_to_date",
+                               "batch_id": None, "items": display,
+                               "current": 0, "total": len(plans),
+                               "confirmation_required": bool(plans)}
+                if not plans:
+                    return {"schema": "dra-v2-batch-preparation.v1",
+                            "preparation": self._snapshot(), "challenge": None}
+                self._pending = tuple(plans)
+                self._challenge = token_hex(16)
+                self._expires_at = monotonic() + LIFETIME_SECONDS
+                self._controller = client_id
+                self._controller_expiry = self._expires_at
                 return {"schema": "dra-v2-batch-preparation.v1",
-                        "preparation": self._snapshot(), "challenge": None}
-            self._pending = tuple(plans)
-            self._challenge = token_hex(16)
-            self._expires_at = monotonic() + LIFETIME_SECONDS
-            self._controller = client_id
-            self._controller_expiry = self._expires_at
-            return {"schema": "dra-v2-batch-preparation.v1",
-                    "preparation": self._snapshot(), "challenge": self._challenge,
-                    "expires_in_seconds": LIFETIME_SECONDS}
+                        "preparation": self._snapshot(), "challenge": self._challenge,
+                        "expires_in_seconds": LIFETIME_SECONDS}
+            except Exception as exc:
+                # Never leave a permanently "preparing" state after a failed
+                # source read or V1 safety check. No installation was started.
+                self._pending = ()
+                self._challenge = None
+                self._state["status"] = "failed"
+                self._state["confirmation_required"] = False
+                self._state["error_code"] = (
+                    "timed_out" if isinstance(exc, TimeoutError) else
+                    "target_conflict" if isinstance(exc, OperationContractError) else
+                    "preflight_failed"
+                )
+                raise
 
     async def take_over(self, client_id: str, *, confirm: bool) -> dict[str, Any]:
         self._client(client_id)
