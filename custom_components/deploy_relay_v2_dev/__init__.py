@@ -47,6 +47,7 @@ class LabRuntime:
     projects: ProjectCatalog
     settings: V2Settings
     source_scan_lock: asyncio.Lock
+    source_choices_lock: asyncio.Lock
     source_auth: GitReadAuth
     project_auth: ProjectReadAuth
     source_diagnostics: SourceDiagnosticLog
@@ -153,7 +154,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     runtime = LabRuntime(registry=registry, supervisor=supervisor, journal=journal,
                          measurement=measurement, suite=suite, git_export=git_export,
                          projects=projects, settings=settings,
-                         source_scan_lock=asyncio.Lock(), source_auth=source_auth,
+                         source_scan_lock=asyncio.Lock(), source_choices_lock=asyncio.Lock(),
+                         source_auth=source_auth,
                          project_auth=project_auth,
                          source_diagnostics=SourceDiagnosticLog(),
                          source_preview_jobs=SourcePreviewJobs(
