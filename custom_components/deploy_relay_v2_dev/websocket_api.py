@@ -783,6 +783,30 @@ async def async_batch_install_start(hass, connection, msg):
 
 
 @websocket_api.websocket_command({
+    probatio.Required("type"): "deploy_relay_v2_dev/batch/discard",
+    probatio.Required("challenge"): str,
+    probatio.Required("client_id"): str,
+    probatio.Required("confirm"): bool,
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def async_batch_install_discard(hass, connection, msg):
+    runtime = _runtime(hass)
+    if runtime is None:
+        connection.send_error(msg["id"], "not_ready", "Sammelvorbereitung nicht bereit")
+        return
+    try:
+        result = await runtime.batch.discard(
+            challenge=msg["challenge"], client_id=msg["client_id"],
+            confirm=msg["confirm"])
+    except (OperationContractError, ValueError):
+        connection.send_error(msg["id"], "batch_discard_rejected",
+                              "Vorbereitung konnte nicht sicher verworfen werden")
+        return
+    connection.send_result(msg["id"], result)
+
+
+@websocket_api.websocket_command({
     probatio.Required("type"): "deploy_relay_v2_dev/batch/status",
 })
 @websocket_api.require_admin
@@ -1635,6 +1659,7 @@ def async_register_commands(hass: HomeAssistant) -> None:
                     async_settings_get, async_settings_save, async_settings_ack_cpu_warning,
                     async_batch_preview, async_batch_install_prepare, async_batch_install_start,
                     async_batch_install_status, async_batch_install_takeover,
+                    async_batch_install_discard,
                     async_projects_connection_check,
                     async_projects_source_choices, async_projects_source_head,
                     async_projects_source_preview,
