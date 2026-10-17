@@ -155,6 +155,53 @@ const Panel = elements.get("dra-v2-dev-lab-panel");
   console.log("DRA V2 guided batch advances from step 1 to HA-prepared step 2 PASS");
 })().catch(e=>{console.error(e);process.exitCode=1;});
 
+(async function testBatchReviewRejectsUnseenOrStaleCommitAndRequiresSignedHAReceipt() {
+  const p=new Panel();
+  p._mainBatchMode=true;p._view="main";p._serverVersion="0.1.107";
+  p._projects=[{repository:"TheDaimos/gewitterradar",
+    project_id:"gewitterradar",name:"Gewitterradar",active:true}];
+  const row={repository:"TheDaimos/gewitterradar",project_key:"gewitterradar",
+    source_ref:"deploy/dev",source_commit:"a".repeat(40),
+    installed_version:"4.11.88",new_version:"4.11.94",
+    version_status:"verified_pair",version_marker:"BUILD_VERSION",
+    add:1,change:0,remove:0,status:"prepared"};
+  const prep={schema:"dra-v2-batch-status.v1",status:"prepared",
+    confirmation_required:true,review_digest:"c".repeat(64),items:[row]};
+  p._batchStatus=prep;p._batchPreparation=prep;
+  p._batchChallenge="b".repeat(32);p._batchReviewDigest=prep.review_digest;
+  p._batchReviewOpen=true;p._batchReviewChecked=false;
+  let count=0, sent=null;
+  p._hass={callWS:async req=>{
+    count++;sent=req;
+    return {schema:"dra-v2-batch-start.v1",batch_id:"d".repeat(32),status:"queued"};
+  }};
+  p._pollInstallation=async()=>{};
+  p._render();
+  assert.match(p.shadowRoot.innerHTML,/4\.11\.88/);
+  assert.match(p.shadowRoot.innerHTML,/4\.11\.94/);
+  assert.match(p.shadowRoot.innerHTML,/a{40}/);
+  assert.match(p.shadowRoot.innerHTML,/deploy\/dev/);
+  assert.match(p.shadowRoot.innerHTML,/id="dra-batch-review-approve"\s+disabled/);
+  await p._startMainBatch();
+  assert.equal(count,0,"No installation until review checkbox selected");
+  p._batchReviewChecked=true;
+  p._batchReviewDigest="f".repeat(64);
+  await p._startMainBatch();
+  assert.equal(count,0,"A stale review digest must reject install");
+  p._batchReviewDigest=prep.review_digest;
+  const oldConfirm=mockWindow.confirm;
+  mockWindow.confirm=()=>true;
+  try {await p._startMainBatch();}
+  finally {mockWindow.confirm=oldConfirm;}
+  assert.equal(count,1);
+  assert.equal(sent.type,"deploy_relay_v2_dev/batch/start");
+  assert.equal(sent.review_confirm,true);
+  assert.equal(sent.review_digest,"c".repeat(64));
+  assert.equal(sent.challenge,"b".repeat(32));
+  assert.equal(p._batchChallenge,null);
+  console.log("DRA V2 review modal blocks unreviewed/stale commit and signs exact HA batch PASS");
+})().catch(e=>{console.error(e);process.exitCode=1;});
+
 (async function testStaleMainPreparationCannotUndoWeatherRouterRecommendation() {
   const p=new Panel();
   const repo="TheDaimos/weather-router-dev";
