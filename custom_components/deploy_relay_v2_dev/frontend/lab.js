@@ -405,6 +405,19 @@ class DRAV2DevLabPanel extends HTMLElement {
           prepared.confirmation_required !== true ||
           !/^[a-f0-9]{32}$/.test(prepared.challenge || "") ||
           !/^[a-f0-9]{40}$/.test(prepared.source_commit || "")) return;
+      // A pending old main-branch approval must not overwrite the explicit
+      // project-owned deploy/dev recommendation on every HA status poll.
+      // The old challenge remains on HA until expiry; no write is triggered.
+      const expected = this._sourceChoicesLoadedFor === repository &&
+        this._sourceChoices?.recommended?.explicit && !this._manualSourceRef
+        ? this._sourceChoices.recommended.ref : null;
+      if (expected && prepared.source_ref !== expected) {
+        this._installPreparation = null;
+        this._sourceMessage = "Ältere Vorbereitung für " + prepared.source_ref +
+          " nicht übernommen. Empfohlene Quelle: " + expected +
+          ". Neue Quellprüfung erforderlich.";
+        return;
+      }
       this._installPreparation = prepared;
       this._sourceRepository = repository;
       this._mainSourceRef = prepared.source_ref;
@@ -1624,19 +1637,28 @@ class DRAV2DevLabPanel extends HTMLElement {
       const activeInstall = this._installJobs.some(job=>
         job.project_key === this._projects.find(p=>p.repository===repository)?.project_id &&
         ["queued","running","waiting_for_resource","cancel_requested"].includes(job.status));
+      const oldDefaultPrepared = this._installPreparation?.repository === repository &&
+        this._installPreparation.source_ref === result.default_ref &&
+        result.recommended.ref !== result.default_ref;
       if (result.recommended.explicit && selectedIsDefault &&
-          !this._manualSourceRef && !this._installPreparation && !activeInstall) {
+          !this._manualSourceRef && (!this._installPreparation || oldDefaultPrepared) &&
+          !activeInstall) {
         const refChanged = this._mainSourceRef.trim() !== result.recommended.ref;
         this._mainSourceRef = result.recommended.ref;
-        if (refChanged) this._automaticSourceCheckFor = null;
-        if (!this._installPreparation) {
+        // A previous HA preparation for main cannot authorize deploy/dev.
+        // It may remain on the server until expiry but is never presented as
+        // a valid approval for the newly recommended branch.
+        if (oldDefaultPrepared) this._installPreparation = null;
+        if (refChanged || oldDefaultPrepared) {
+          this._automaticSourceCheckFor = null;
           this._sourcePreview = null;
           this._sourceHead = null;
           this._deploymentPreviewRef = null;
-          this._sourceMessage = refChanged
-            ? "Empfohlener Entwicklungszweig " + result.recommended.ref + " übernommen. Vorschau erneut berechnen."
-            : "Empfohlener Entwicklungszweig bestätigt.";
         }
+        this._sourceMessage = refChanged
+          ? "Empfohlener Entwicklungszweig " + result.recommended.ref +
+            " übernommen. Quellprüfung wird neu durchgeführt."
+          : "Empfohlener Entwicklungszweig bestätigt.";
       }
       await this._syncController(repository);
       await this._restoreServerPreparation(repository);
