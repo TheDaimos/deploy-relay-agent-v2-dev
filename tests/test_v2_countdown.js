@@ -105,6 +105,81 @@ vm.runInNewContext(
 );
 const Panel = elements.get("dra-v2-dev-lab-panel");
 
+(async function testGuidedBatchActuallyAdvancesWithHALockedPreparation() {
+  const p=new Panel();
+  p._view="main";p._mainBatchMode=true;
+  p._serverVersion="0.1.106";p._selectedMainRepo="TheDaimos/gewitterradar";
+  p._projects=[
+    {project_id:"gewitterradar",name:"Gewitterradar",repository:"TheDaimos/gewitterradar",active:true,batch_preselect:true},
+    {project_id:"weather_router",name:"WeatherRouter",repository:"TheDaimos/weather-router-dev",active:true,batch_preselect:true},
+  ];
+  p._batchRunSelected=new Set(p._projects.map(x=>x.repository));
+  const ws=[];
+  p._hass={callWS:async request=>{
+    ws.push(request.type);
+    assert.equal(request.type,"deploy_relay_v2_dev/batch/prepare");
+    assert.deepEqual([...request.repositories],["TheDaimos/gewitterradar","TheDaimos/weather-router-dev"]);
+    assert.equal(request.client_id.length,32);
+    return {
+      schema:"dra-v2-batch-preparation.v1",challenge:"a".repeat(32),
+      preparation:{schema:"dra-v2-batch-status.v1",status:"prepared",
+        confirmation_required:true,
+        items:request.repositories.map((repository,i)=>({
+          repository,project_key:i===0?"gewitterradar":"weather_router",
+          source_ref:"deploy/dev",source_commit:"b".repeat(40),
+          add:1,change:0,remove:0,status:"prepared",
+        })),current:0,total:2}
+    };
+  }};
+  p._render();
+  assert.match(p.shadowRoot.innerHTML,/1\/4 · Sammelinstallation prüfen und vorbereiten/);
+  assert.match(p.shadowRoot.innerHTML,/id="dra-preview"/);
+  await p._prepareMainBatch();
+  assert.deepEqual(ws,["deploy_relay_v2_dev/batch/prepare"]);
+  assert.equal(p._batchStatus.status,"prepared");
+  assert.equal(p._batchChallenge,"a".repeat(32));
+  assert.match(p.shadowRoot.innerHTML,/2\/4 · Sammelinstallation ausdrücklich freigeben/);
+  assert.match(p.shadowRoot.innerHTML,/Dateiänderungen sind vorbereitet/);
+  console.log("DRA V2 guided batch advances from step 1 to HA-prepared step 2 PASS");
+})().catch(e=>{console.error(e);process.exitCode=1;});
+
+(async function testStaleMainPreparationCannotUndoWeatherRouterRecommendation() {
+  const p=new Panel();
+  const repo="TheDaimos/weather-router-dev";
+  p._selectedMainRepo=repo;p._view="main";p._serverVersion="0.1.106";
+  p._projects=[{project_id:"weather_router",repository:repo,name:"WeatherRouter",active:true}];
+  const prepared={schema:"dra-v2-install-preparation.v1",repository:repo,
+    project_id:"weather_router",confirmation_required:true,
+    source_ref:"main",source_commit:"c".repeat(40),challenge:"d".repeat(32)};
+  p._installPreparation=prepared;p._mainSourceRef="main";
+  p._hass={callWS:async req=>{
+    if(req.type==="deploy_relay_v2_dev/projects/source_choices")
+      return {schema:"dra-v2-source-choices.v1",repository:repo,
+        default_ref:"main",recommended:{kind:"branch",ref:"deploy/dev",
+          commit:"b".repeat(40),channel:"dev",explicit:true},
+        choices:[{kind:"branch",ref:"main",commit:"c".repeat(40)},
+          {kind:"branch",ref:"deploy/dev",commit:"b".repeat(40)}]};
+    if(req.type==="deploy_relay_v2_dev/deployment/prepared_status")
+      return {schema:"dra-v2-prepared-status.v1",preparation:prepared};
+    throw Error("unexpected route "+req.type);
+  }};
+  p._syncController=async()=>true;
+  p._sourceCheck=()=>{};
+  p._pollSourceJob=async()=>{};
+  await p._loadSourceChoices();
+  assert.equal(p._mainSourceRef,"deploy/dev");
+  assert.equal(p._installPreparation,null);
+  await p._restoreServerPreparation(repo);
+  assert.equal(p._mainSourceRef,"deploy/dev");
+  assert.equal(p._installPreparation,null);
+  p._manualSourceRef=true;p._mainSourceRef="main";
+  await p._restoreServerPreparation(repo);
+  assert.equal(p._mainSourceRef,"main");
+  assert.equal(p._installPreparation?.source_ref,"main");
+  console.log("DRA V2 old main-branch HA approval cannot override recommended deploy/dev PASS");
+})().catch(e=>{console.error(e);process.exitCode=1;});
+
+
 (function testBatchRunSelectionAndPersistentExpansion() {
   const p=new Panel();
   p._view="main";p._mainBatchMode=true;p._mainBatchSelectionOpen=true;
