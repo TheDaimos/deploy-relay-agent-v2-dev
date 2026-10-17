@@ -22,6 +22,41 @@ from .v1_engine.planner import build_plan, _paths_overlap
 MAX_BATCH_PROJECTS = 8
 LIFETIME_SECONDS = 900
 
+# Mirrors DRA V1's self-update-last contract. The active V2 runtime must
+# remain the final writer: no later batch entry may depend on replaced code.
+SELF_UPDATE_TARGETS = {
+    "deploy_relay": ("thedaimos/deploy-relay-agent-dev",
+                     "custom_components/deploy_relay", 1),
+    "deploy_relay_agent_v2_dev": ("thedaimos/deploy-relay-agent-v2-dev",
+                                  "custom_components/deploy_relay_v2_dev", 2),
+    "deploy_relay_v2_dev": ("thedaimos/deploy-relay-agent-v2-dev",
+                            "custom_components/deploy_relay_v2_dev", 2),
+}
+
+
+def _priority(project_id: str) -> int:
+    return SELF_UPDATE_TARGETS.get(project_id, ("", "", 0))[2]
+
+
+def _verify_self_update_plan(item: dict[str, str], plan: Any, manifest: Any) -> None:
+    project_id = item["project_id"]
+    repo = item["repository"].casefold()
+    self_contract = SELF_UPDATE_TARGETS.get(project_id)
+    # A DRA repository cannot impersonate a normal project to bypass the
+    # ordering rule. Likewise a DRA project ID cannot point to another repo.
+    recognized_repo = {contract[0] for contract in SELF_UPDATE_TARGETS.values()}
+    if self_contract is None:
+        if repo in recognized_repo:
+            raise OperationContractError("self-update identity mismatch")
+        return
+    expected_repo, expected_target, _ = self_contract
+    if repo != expected_repo:
+        raise OperationContractError("self-update repository mismatch")
+    targets = [g.target.casefold() for g in plan.groups]
+    if targets != [expected_target] or manifest.lifecycle.after_install != "home_assistant_restart":
+        raise OperationContractError("self-update target or restart policy invalid")
+
+
 
 @dataclass(frozen=True)
 class BatchPlanItem:
@@ -81,13 +116,12 @@ class BatchDeployment:
             display: list[dict[str, Any]] = []
             targets: list[str] = []
             seen: set[str] = set()
-            for item in specs:
+            for item in sorted(specs, key=lambda entry:
+                               _priority(entry.get("project_id", "")) if isinstance(entry, dict) else 0):
                 if (type(item) is not dict or
                     set(item) != {"repository", "project_id", "ref", "commit", "token"} or
                     type(item["repository"]) is not str or
-                    item["repository"].casefold() in seen or
-                    item["project_id"] in {"deploy_relay", "deploy_relay_v2_dev",
-                                           "deploy_relay_agent_v2_dev"}):
+                    item["repository"].casefold() in seen):
                     raise OperationContractError("invalid batch project")
                 seen.add(item["repository"].casefold())
                 if await self._jobs.project_active(item["project_id"]):
@@ -100,9 +134,12 @@ class BatchDeployment:
                 )
                 changed = (frozen.preview.add_count + frozen.preview.change_count +
                            frozen.preview.remove_count)
+                # Validate self-update identity and exact own integration
+                # target even when the new version has no file differences.
+                plan = build_plan(frozen.manifest, source_ref=item["ref"],
+                                  source_commit=item["commit"])
+                _verify_self_update_plan(item, plan, frozen.manifest)
                 if changed:
-                    plan = build_plan(frozen.manifest, source_ref=item["ref"],
-                                      source_commit=item["commit"])
                     group_targets = [g.target.casefold() for g in plan.groups]
                     if any(_paths_overlap(a, b) for a in group_targets for b in targets):
                         raise OperationContractError("batch target overlap")
@@ -175,6 +212,11 @@ class BatchDeployment:
                 try:
                     self._state["status"] = "running"
                     for index, plan in enumerate(plans):
+                        # No other write job may still be running when this
+                        # component replaces its own source files.
+                        if _priority(plan.project_id) == 2 and await self._jobs.active():
+                            self._state["status"] = "stopped"
+                            return
                         row = next(item for item in self._state["items"]
                                    if item["project_key"] == plan.project_id)
                         row["status"] = "admitting"
