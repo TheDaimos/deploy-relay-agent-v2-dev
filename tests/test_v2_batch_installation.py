@@ -104,6 +104,25 @@ class BatchSafety(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((await self.batch.status())["status"],"prepared")
         self.assertIsNotNone(self.batch._challenge)
 
+    async def test_review_discard_revokes_challenge_and_never_installs(self):
+        offer = await self.prepare([self.spec(1)])
+        with self.assertRaises(model.OperationContractError):
+            await self.batch.discard(
+                challenge=offer["challenge"],client_id=self.b,confirm=True)
+        with self.assertRaises(model.OperationContractError):
+            await self.batch.discard(
+                challenge=offer["challenge"],client_id=self.a,confirm=False)
+        confirmed = await self.batch.discard(
+            challenge=offer["challenge"],client_id=self.a,confirm=True)
+        self.assertEqual(confirmed["status"],"cancelled")
+        self.assertEqual((await self.batch.status())["status"],"cancelled")
+        self.assertEqual(self.batch._pending,())
+        with self.assertRaises(model.OperationContractError):
+            await self.start(offer["challenge"])
+        with self.assertRaises(model.OperationContractError):
+            await self.batch.discard(
+                challenge=offer["challenge"],client_id=self.a,confirm=True)
+
     async def test_two_jobs_one_confirmation_and_no_repeat(self):
         specs=[self.spec(1),self.spec(2)]
         offer=await self.prepare(specs)
