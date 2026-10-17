@@ -2630,13 +2630,32 @@ class DRAV2DevLabPanel extends HTMLElement {
       this._installPreparation.source_ref === this._mainSourceRef.trim() &&
       /^[a-f0-9]{32}$/.test(this._installPreparation.challenge || "")
         ? this._installPreparation : null;
-    const deploymentStage = upToDate ? 1 : displayFinished ? 4 :
-      (this._installSubmissionActive || installActive || installFailed) ? 3 :
-      (preparedInstall || mainPreviewVerified) ? 2 : 1;
+    // Batch is an independent HA-owned workflow, not a read-only picker
+    // preview. Its primary button MUST advance through prepare/start.
+    const batchState = this._batchStatus?.status || "idle";
+    const batchPrepared = batchState === "prepared" && this._batchStatus?.confirmation_required === true;
+    const batchRunning = ["queued","running"].includes(batchState);
+    const batchFinished = batchState === "success";
+    const batchFailed = ["failed","stopped","interrupted"].includes(batchState);
+    const deploymentStage = this._mainBatchMode
+      ? batchFinished ? 4 : batchRunning ? 3 : batchPrepared ? 2 : 1
+      : upToDate ? 1 : displayFinished ? 4 :
+        (this._installSubmissionActive || installActive || installFailed) ? 3 :
+        (preparedInstall || mainPreviewVerified) ? 2 : 1;
     const deploymentCanPreview = this._mainBatchMode
       ? mainBatchProjects.length > 0 && !!this._hass
       : !!mainProject && !!this._hass;
-    const deploymentButtonText = upToDate ? "Aktuell · Kein Update verfügbar" :
+    const deploymentButtonText = this._mainBatchMode
+      ? deploymentBusy ? "1/4 · Sammelvorbereitung läuft auf Home Assistant …"
+        : batchFinished ? "4/4 · Sammelinstallation abgeschlossen"
+        : batchFailed ? "1/4 · Vorbereitung/Installation fehlgeschlagen – Details prüfen"
+        : batchRunning ? "3/4 · Sammelinstallation läuft auf Home Assistant …"
+        : batchPrepared ? this._batchChallenge
+          ? "2/4 · Sammelinstallation ausdrücklich freigeben"
+          : "2/4 · Sammelvorbereitung auf diesem Gerät übernehmen"
+        : batchState === "up_to_date" ? "Aktuell · Kein Sammelupdate erforderlich"
+        : "1/4 · Sammelinstallation prüfen und vorbereiten"
+      : upToDate ? "Aktuell · Kein Update verfügbar" :
       installFinished ? "4/4 · Abschluss – erfolgreich installiert" :
       archivedFinish ? "4/4 · Letzter Abschluss (gespeichert)" :
       installFailed ? "3/4 · Update fehlgeschlagen – Audit prüfen" :
@@ -4406,15 +4425,21 @@ class DRAV2DevLabPanel extends HTMLElement {
                 </details>
               </section>` : ""}
             <button id="dra-preview" class="dra-deploy-action stage-${deploymentStage}
-              ${upToDate ? "up-to-date" : ""} ${deploymentBusy ? "is-busy" : ""} ${installFailed ? "has-error" : ""}"
+              ${!this._mainBatchMode && upToDate ? "up-to-date" : ""}
+              ${deploymentBusy ? "is-busy" : ""} ${this._mainBatchMode ? batchFailed ? "has-error" : "" : installFailed ? "has-error" : ""}"
               data-stage="${deploymentStage}"
-              ${upToDate || deploymentBusy || !deploymentCanPreview || deploymentStage >= 3 ||
-                (deploymentStage === 2 && (!mainProject || mainProject.active === false ||
-                this._serverVersion !== DRA_V2_UI_VERSION || !!preparedInstall)) ? "disabled" : ""}
+              ${this._mainBatchMode
+                ? deploymentBusy || !deploymentCanPreview ||
+                  this._serverVersion !== DRA_V2_UI_VERSION ||
+                  deploymentStage >= 3 || batchState === "up_to_date" ||
+                  (deploymentStage === 2 && this._batchStartUncertain)
+                : upToDate || deploymentBusy || !deploymentCanPreview || deploymentStage >= 3 ||
+                  (deploymentStage === 2 && (!mainProject || mainProject.active === false ||
+                  this._serverVersion !== DRA_V2_UI_VERSION || !!preparedInstall)) ? "disabled" : ""}
               aria-label="${deploymentButtonText}">
               ${deploymentBusy
                 ? iconSvg('<path d="M12 3a9 9 0 1 0 9 9"/>',25)
-                : upToDate ? deploymentIcons[3] : deploymentIcons[deploymentStage-1]}
+                : (!this._mainBatchMode && upToDate) ? deploymentIcons[3] : deploymentIcons[deploymentStage-1]}
               <span>${deploymentButtonText}</span>
             </button>
             ${upToDate ? `<div class="dra-up-to-date-note" role="status">
@@ -4521,7 +4546,8 @@ class DRAV2DevLabPanel extends HTMLElement {
               </span>
             </p>
             <p class="dra-deployment-status note" role="status" aria-live="polite">
-              ${this._escapeProject(upToDate ? deploymentStatus : this._installMessage || deploymentStatus)}
+              ${this._escapeProject(this._mainBatchMode
+                ? deploymentStatus : upToDate ? deploymentStatus : this._installMessage || deploymentStatus)}
             </p>
             ${mainPreviewVerified ? `<div class="dra-deployment-result">
               <strong>Schreibgeschützte Vorschau</strong>
@@ -4583,10 +4609,9 @@ class DRAV2DevLabPanel extends HTMLElement {
                   · +${item.add} ~${item.change} −${item.remove}
                   · ${this._escapeProject(item.status)}
                 </span>`).join("") : ""}
-              ${(!this._batchStatus || ["idle","success","stopped","interrupted","up_to_date"].includes(this._batchStatus.status)) ?
-                `<button type="button" id="dra-batch-install-prepare" ${this._mainBatchBusy ||
-                  this._serverVersion!==DRA_V2_UI_VERSION ? "disabled" : ""}>
-                  Sammelinstallation vorbereiten</button>` : ""}
+              <p class="note">Die große Schaltfläche oberhalb steuert alle Schritte:
+                Quellprüfung und Vorbereitung → ausdrückliche Bestätigung → serverseitige Installation.
+                Es gibt keinen zweiten, versteckten Vorbereitungsweg.</p>
               ${this._batchStatus?.status==="prepared" && !this._batchChallenge ?
                 `<button type="button" id="dra-batch-install-takeover"
                   ${this._mainBatchBusy?"disabled":""}>Vorbereitung auf diesem Gerät übernehmen</button>` : ""}
@@ -5249,9 +5274,14 @@ class DRAV2DevLabPanel extends HTMLElement {
     s.querySelector("#dra-batch-install-confirm")?.addEventListener("click",()=>this._startMainBatch());
     s.querySelector("#dra-preview")?.addEventListener("click",()=>{
       if (deploymentBusy) return;
-      if (deploymentStage === 1) {
-        if (this._mainBatchMode) this._previewMainBatch();
-        else if (mainProject) this._sourceCheck({dataset:{repo:mainProject.repository}});
+      if (this._mainBatchMode) {
+        if (deploymentStage === 1) void this._prepareMainBatch();
+        else if (deploymentStage === 2) {
+          if (this._batchChallenge) void this._startMainBatch();
+          else void this._takeOverMainBatch();
+        }
+      } else if (deploymentStage === 1 && mainProject) {
+        this._sourceCheck({dataset:{repo:mainProject.repository}});
       } else if (deploymentStage === 2 && mainProject && !preparedInstall) {
         this._prepareInstallation(mainProject);
       }
