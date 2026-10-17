@@ -46,8 +46,12 @@ def _verify_self_update_plan(item: dict[str, str], plan: Any, manifest: Any) -> 
     # ordering rule. Likewise a DRA project ID cannot point to another repo.
     recognized_repo = {contract[0] for contract in SELF_UPDATE_TARGETS.values()}
     if self_contract is None:
-        if repo in recognized_repo:
-            raise OperationContractError("self-update identity mismatch")
+        own_targets = {contract[1] for contract in SELF_UPDATE_TARGETS.values()}
+        targets = [g.target.casefold() for g in plan.groups]
+        if repo in recognized_repo or any(
+            _paths_overlap(target, own) for target in targets for own in own_targets
+        ):
+            raise OperationContractError("self-update identity or target mismatch")
         return
     expected_repo, expected_target, _ = self_contract
     if repo != expected_repo:
