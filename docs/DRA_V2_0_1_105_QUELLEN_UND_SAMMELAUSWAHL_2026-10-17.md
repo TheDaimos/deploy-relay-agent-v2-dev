@@ -29,3 +29,19 @@
 - Desktop, Android und iPad: Wiederaufbau darf die Projektauswahl nicht selbständig zuklappen.
 
 **GitHub CI ist kein Ersatz für die HA-Realabnahme.** Keine produktiven Installationen aus einer ungeprüften Sammelvorbereitung auslösen.
+
+
+## Nachtrag 0.1.106 DEV – DRA-Eigenaktualisierung im Sammelupdate
+
+DRA V1 unterstützt eine eigene Aktualisierung im Sammellauf und installiert sich dort zuletzt. DRA V2 übernimmt diese Fähigkeit, ohne die HA-seitigen Sicherheitsgrenzen aufzugeben:
+
+- DRA V1 ist als eigenes Projekt wählbar und kann wie in V1 vorausgewählt sein.
+- Die laufende DRA-V2-Integration ist ebenfalls wählbar, **jedoch nur mit bewusster Auswahl für den jeweiligen Sammellauf**.
+- HA ordnet jedes ausgewählte Projekt unabhängig von der Browserreihenfolge: reguläre Projekte → DRA V1 → DRA V2. Der noch aktive V2-Ausrichter wird also zwingend als Letztes aktualisiert.
+- Git-Repositories `TheDaimos/deploy-relay-agent-dev` und `TheDaimos/deploy-relay-agent-v2-dev` müssen die korrekten Projekt-IDs, ihre exakt erwarteten Installationsordner und `home_assistant_restart` im verifizierten Manifest besitzen. Identitätsfälschung, fremde Repositories mit DRA-Projekt-ID oder ein nicht als DRA deklariertes Projekt mit DRA-Zielordner führen zum Abbruch der Vorbereitung.
+- Eine Aktualisierung des aktuell ausführenden V2-Moduls erhält ein exklusives Schreibfenster. Andere Installationsaufträge dürfen dabei weder bereits aktiv sein noch neu begonnen werden.
+- Die bestehende V1-Engine ist weiterhin für das individuelle Sichern, Verifizieren und gegebenenfalls Zurückrollen verantwortlich. Das Batch-Protokoll bestätigt die Installation erst nach erfolgreicher Rückmeldung dieser Engine.
+- Kein automatischer Neustart; nach einer V2-Eigenaktualisierung ist ein ausdrücklich bestätigter Home-Assistant-Neustart erforderlich.
+- Das reine Einzelupdate von DRA V2 über sich selbst bleibt vorerst getrennt gesperrt. Die Freigabe dieses Nachtrags betrifft **ausschließlich das HA-seitig geordnete Sammelupdate**.
+
+**Abnahmegrenze:** CI prüft Reihenfolge, Zielordner, Identitätszuordnung, exklusive Aufträge, Doppelstart und Abbruchfälle. Ein echter Selbstupdate-Vorgang wurde auf Home Assistant noch nicht durchgeführt. Vor Nutzung mit produktiven Anwendungen zunächst das neue Verhalten auf einer Entwicklungsinstanz prüfen. Der bisherige DRA-V1-Weg zur Aktualisierung von DRA V2 bleibt die bewährte Rückfallmöglichkeit.
