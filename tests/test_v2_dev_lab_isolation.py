@@ -598,7 +598,7 @@ class LabIsolationContracts(unittest.TestCase):
             'id="dra-picker-batch"',
             'id="dra-preview"',
             'Die Quellstände sind noch nicht geprüft',
-            'Installation noch gesperrt',
+            'Selbstupdate ausgeschlossen',
         ):
             self.assertIn(term, frontend)
         self.assertNotIn('this._openBatchDialog(); // Existing non-installing', frontend)
