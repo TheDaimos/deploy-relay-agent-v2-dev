@@ -711,12 +711,18 @@ async def async_batch_install_prepare(hass, connection, msg):
     if runtime.restart_pending or runtime.source_scan_lock.locked():
         connection.send_error(msg["id"], "busy", "Ein anderer Auftrag oder HA-Neustart ist aktiv")
         return
+    current_project_key = None
+    current_stage = "source_reference"
     try:
         async with runtime.source_scan_lock:
             async def verify():
+                nonlocal current_project_key, current_stage
                 specs = []
                 for project in projects:
                     repository = project["repository"]
+                    current_project_key = project["project_id"]
+                    current_stage = "source_reference"
+                    await runtime.batch.source_inspection_started(current_project_key)
                     token = runtime.project_auth.token(repository) or runtime.source_auth.token
                     choices = await inspect_source_choices(
                         async_get_clientsession(hass), repository,
@@ -726,6 +732,7 @@ async def async_batch_install_prepare(hass, connection, msg):
                     specs.append({"repository": repository, "project_id": project["project_id"],
                                   "ref": recommended["ref"],
                                   "commit": recommended["commit"], "token": token})
+                current_stage = "batch_planning"
                 return await runtime.batch.prepare(
                     specs, session=async_get_clientsession(hass),
                     config_root=Path(hass.config.config_dir),
@@ -740,10 +747,19 @@ async def async_batch_install_prepare(hass, connection, msg):
             "source_invalid" if isinstance(exc, PreflightError) else
             "preflight_failed"
         )
-        await runtime.batch.preparation_failed(reason)
-        connection.send_error(msg["id"], "batch_" + reason,
-                              "Sammelvorbereitung abgebrochen (" + reason +
-                              "). Keine Installation gestartet.")
+        observed = await runtime.batch.status()
+        failed_project = observed.get("project_key") or current_project_key
+        failed_stage = observed.get("check_stage") if observed.get("status") == "failed" else current_stage
+        if failed_stage not in {"source_reference", "manifest", "inventory",
+                                "local_comparison", "version_detection", "batch_planning"}:
+            failed_stage = current_stage
+        await runtime.batch.preparation_failed(
+            reason, project_id=failed_project, check_stage=failed_stage)
+        connection.send_error(
+            msg["id"], "batch_" + reason,
+            "Sammelvorbereitung: " + (failed_project or "unbekanntes Projekt") +
+            " · Prüfschritt " + failed_stage + " · " + reason +
+            ". Keine Installation gestartet.")
         return
     connection.send_result(msg["id"], result)
 
