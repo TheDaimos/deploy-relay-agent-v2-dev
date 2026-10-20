@@ -26,3 +26,7 @@ Diese Entwicklung wurde ausschließlich ins angegebene DRA-V2-Repository überno
 Nach vollständig grünem GitHub-CI-Lauf kann eine kontrollierte DRA-V1-Installation der neuen V2-Testversion auf Home Assistant DEV ausdrücklich freigegeben werden. Auf Notebook/PC den Sammelauftrag **nur vorbereiten**, anschließend auf dem Smartphone bei geöffnetem Einzelprojekt die geräteübergreifende Statuskarte prüfen, die Sammelprüfübersicht ausdrücklich übernehmen und verifizieren, dass alle festen Quellstände und Commits identisch sind, die Checkbox erneut leer ist und keine zweite Installation beginnt. Auch die Rückkehr zum ursprünglichen Gerät darf die Eigentümer-/Freigabeprüfung nicht umgehen.
 
 **GitHub Actions ist keine HA-Realabnahme.** Bis zur tatsächlichen positiven Prüfung bleibt eine Sammelinstallation gesperrt.
+
+## 4. Abschließende CI-Prüfung
+
+GitHub Actions **39431689364**, auf dem letzten Programm-/Testcommit **`dc085e4d51ff6a2efa8d208f96e9a270c9332ea4`**, wurde mit **completed / SUCCESS** verifiziert. Damit ist die automatisierte Prüfung des Kandidaten erfolgreich, aber **keine Home-Assistant-Realabnahme und keine Sammelinstallationsfreigabe** erfolgt.
