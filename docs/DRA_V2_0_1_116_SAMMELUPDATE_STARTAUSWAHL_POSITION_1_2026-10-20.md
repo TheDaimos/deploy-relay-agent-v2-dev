@@ -22,10 +22,14 @@ Der Rückfall auf die Einzelprojektquelle und dessen automatische Quellenprüfun
 
 Die sichtbare Version, Python-Konstante und Manifest lauten synchron **0.1.116 DEV**. Bestehende JavaScript-Testvorgaben und ergänzende Startauswahl-Vertragstests wurden an den neuen Stand angepasst.
 
-**Letzter Testcommit:** `a3d44873df793d6255548e28ee90d3355d580db9`.
+**Letzter Testcommit:** `8c35b1de82eee0114281ceb8eb4bd1e8aefab5ff`.
 
 ## Grenzen der Prüfung
 
 GitHub-Tests sind keine HA-Realabnahme. Die tatsächliche Startauswahl auf Notebook, iPad und Handy ist erst mit einer bewusst kontrolliert installierten 0.1.116 DEV auf HA DEV nachweisbar. Die erneute Bestätigung der bestehenden vorbereiteten Prüfübersicht darf weder beim Seitenaufruf noch beim Gerätewechsel automatisch gesetzt werden. Keine DRA-V1-, WeatherRouter- oder Gewitterradar-Änderungen; keine Installation oder Neustart ausgelöst.
 
 **Realprüfungen nach grüner CI:** Sammelupdate serverseitig auf Position 1 speichern, auf einem neuen Gerät öffnen, Sammelupdate als Startansicht prüfen, gezielt auf ein Einzelprojekt wechseln, Status aktualisieren und sicherstellen, dass die Auswahl erhalten bleibt. Anschließend den vorbereiteten HA-Sammelauftrag ohne erneute Vorbereitungs- oder Installationsanforderung übernehmen.
+
+## Abschließende CI-Verifikation
+
+Die erste Gesamtausführung schlug wegen einer veralteten JavaScript-Testannahme fehl: Der Test erwartete noch eine Anfrage an die Einzelprojekt-Sitzungen, obwohl die neue Sammelupdate-Startansicht diesen unnötigen Aufruf absichtlich auslässt. Die Erwartung wurde korrigiert. **GitHub Actions `39432313350` ist auf Commit `8c35b1de82eee0114281ceb8eb4bd1e8aefab5ff` abgeschlossen mit SUCCESS.** Die spätere Änderung an diesem Dokument betrifft ausschließlich Markdown. Eine HA-Realabnahme ist noch offen.
