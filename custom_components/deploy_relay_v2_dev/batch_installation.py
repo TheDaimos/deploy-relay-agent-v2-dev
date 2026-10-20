@@ -130,6 +130,8 @@ class BatchDeployment:
         async with self._lock:
             if self._closed or self._task is not None and not self._task.done():
                 raise OperationContractError("batch not available")
+            if self._pending and self._challenge and monotonic() < self._expires_at:
+                raise OperationContractError("previous batch awaiting explicit review")
             if not self._state or self._state.get("status") != "inspecting_sources":
                 self._state = {
                     "schema": "dra-v2-batch-status.v1",
