@@ -88,7 +88,10 @@ class BatchRunContract(unittest.TestCase):
         self.assertIn('@media(max-width:900px)',js)
         self.assertIn('.dra-batch-review-table-wrap {display:none;}',js)
         self.assertIn('grid-template-columns:minmax(0,1fr) 22px',js)
-        self.assertIn('^[a-f0-9]{40}
+        self.assertIn("fullCommit = /^[a-f0-9]{40}$/.test",js)
+        self.assertIn("review_digest:this._batchReviewDigest,review_confirm:true",js)
+
+    def test_first_picker_position_is_fresh_device_default(self):
         js=(ROOT/"frontend"/"lab.js").read_text(encoding="utf-8")
         self.assertIn("this._pickerBatchPosition === 0",js)
         self.assertIn("this._mainBatchMode = true;",js)
