@@ -14,6 +14,15 @@ MAX_PROJECTS = 32
 _NAME = re.compile(r"^[^\x00-\x1f\x7f<>]{1,80}\Z")
 _REPOSITORY = re.compile(r"[A-Za-z0-9_.-]{1,100}/[A-Za-z0-9_.-]{1,100}\Z")
 _PROJECT_ID = re.compile(r"[a-z][a-z0-9_]{0,63}\Z")
+# Repository identities with independently verified deploy-relay.json project IDs.
+# Other repositories keep their generated proposal ID and are still checked
+# against their signed/pinned source manifest before installation.
+_KNOWN_PROJECT_IDS = {
+    "thedaimos/deploy-relay-agent-dev": "deploy_relay",
+    "thedaimos/weather-router-dev": "weather_router",
+    "thedaimos/weather-router-extensions-dev": "weather_router_private_extensions",
+}
+
 _MANIFEST = "deploy-relay.json"
 _ENTRY_KEYS = frozenset({
     "project_id", "name", "repository", "manifest_path",
@@ -92,7 +101,7 @@ def proposal(repository: object, name: object, retention: object = 10,
     if type(label) is not str:
         raise CatalogError("invalid project label")
     ident = re.sub(r"[^a-z0-9_]", "_", repo.split("/")[1].casefold()).strip("_")
-    ident = ident[:55] or "project"
+    ident = _KNOWN_PROJECT_IDS.get(repo.casefold(), ident[:55] or "project")
     if not ident[0].isalpha():
         ident = "project_" + ident
     if not _PROJECT_ID.fullmatch(ident):
@@ -161,6 +170,14 @@ class ProjectCatalog:
         if type(data) is not list or len(data) > MAX_PROJECTS:
             raise CatalogError("invalid catalog size")
         rows = [sanitize_entry(r) for r in data]
+        # Existing catalogs already stored the erroneous generated ID.
+        # Migrate only the exact known old identity and repository pairing;
+        # preserve explicit/custom IDs and reject any resulting collisions.
+        for row in rows:
+            canonical = _KNOWN_PROJECT_IDS.get(row["repository"].casefold())
+            legacy = re.sub(r"[^a-z0-9_]", "_", row["repository"].split("/")[1].casefold()).strip("_")[:55]
+            if canonical and row["project_id"] == legacy:
+                row["project_id"] = canonical
         batch_position = obj.get("picker_batch_position", len(rows))
         if type(batch_position) is not int or not 0 <= batch_position <= len(rows):
             raise CatalogError("invalid picker position")
