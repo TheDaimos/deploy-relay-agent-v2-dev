@@ -4194,6 +4194,11 @@ class DRAV2DevLabPanel extends HTMLElement {
           #dra-main-view .dra-deploy-steps {gap:5px;}
           #dra-main-view .dra-deploy-step {min-height:62px;padding:8px 3px;}
         }
+        /* Compact batch status, expandable for a full six-project audit. */
+        .dra-batch-observer-details {margin-top:6px;}
+        .dra-batch-observer-details summary {cursor:pointer;font-weight:600;}
+        .dra-batch-observer-grid {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:5px 12px;margin-top:8px;}
+        .dra-batch-observer-grid > div {margin:0;overflow-wrap:anywhere;}
       </style>
       <main>
         <header class="dra-head">
@@ -4286,11 +4291,16 @@ class DRAV2DevLabPanel extends HTMLElement {
               <span class="dra-observer-note">${this._batchStatus.current} von ${this._batchStatus.total}
                 ${this._batchStatus.status === "preparing" ? "Quellen geprüft" : "Teilaufträgen abgeschlossen"}</span>
             </div>
-            ${this._batchStatus.items.map(item => `<p class="dra-observer-note">
-              ${this._escapeProject(this._installProjectNames[item.project_key] || item.project_key)}:
-              ${this._escapeProject(item.status)}
-              ${item.operation_id ? " · Auftrag " + this._escapeProject(item.operation_id.slice(0,12)) : ""}
-            </p>`).join("")}
+            ${this._batchStatus.items.length ? `<details class="dra-batch-observer-details">
+              <summary>Projektstatus anzeigen (${this._batchStatus.items.length})</summary>
+              <div class="dra-batch-observer-grid">
+                ${this._batchStatus.items.map(item => `<div class="dra-observer-note">
+                  <strong>${this._escapeProject(this._installProjectNames[item.project_key] || item.project_key)}</strong>
+                  · ${this._escapeProject(item.status)}
+                  ${item.operation_id ? " · Auftrag " + this._escapeProject(item.operation_id.slice(0,12)) : ""}
+                </div>`).join("")}
+              </div>
+            </details>` : ""}
             ${this._batchStatusError ? "<p>Statusabfrage unterbrochen – serverseitiger Auftrag bleibt bestehen.</p>" : ""}
           </section>` : ""}
         <section id="dra-main-view" ${this._view==="main"?"":"hidden"}>
@@ -4842,6 +4852,12 @@ class DRAV2DevLabPanel extends HTMLElement {
                     "invalid source entry":"GitHub liefert einen ungültigen Zweig-/Tag-Eintrag",
                     "GitHub response could not be verified":"GitHub-Antwort nicht verifizierbar",
                     "invalid GitHub JSON":"GitHub-Antwort nicht als gültige JSON-Daten lesbar",
+                    inventory_file_limit:"Die Quelle enthält mehr Dateien als das Manifest erlaubt",
+                    inventory_byte_limit:"Die Quelle überschreitet das festgelegte Größenlimit",
+                    inventory_duplicate_paths:"Doppelte Dateipfade in der Quelle",
+                    inventory_directory_cycle:"Unzulässiger oder doppelter Quellordner",
+                    inventory_unsafe_path:"Unsicherer Quellpfad",
+                    inventory_read_unavailable:"GitHub-Dateibestand konnte nicht vollständig verifiziert werden",
                   })[this._batchStatus.error_detail] || "Quellprüfung konnte nicht verifiziert werden")}</p>` : ""}
                 <p class="note">Diese Angaben stammen aus dem lesbaren Home-Assistant-Auftragsstatus.
                   Ein zusätzlicher Protokollexport ist dafür nicht notwendig. Andere ausgewählte
