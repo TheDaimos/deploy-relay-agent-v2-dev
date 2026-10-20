@@ -145,7 +145,8 @@ class BatchDeployment:
 
     async def preparation_failed(self, reason: str, *,
                                  project_id: str | None = None,
-                                 check_stage: str | None = None) -> None:
+                                 check_stage: str | None = None,
+                                 detail_code: str | None = None) -> None:
         """Publish scoped safe terminal result for any read-only batch failure."""
         if reason not in {"source_unavailable", "source_invalid", "timed_out",
                           "target_conflict", "preflight_failed"}:
@@ -159,6 +160,19 @@ class BatchDeployment:
                 self._state["status"] = "failed"
                 self._state["error_code"] = reason
                 self._state["check_stage"] = check_stage
+                allowed_details = {
+                    "github_http_authentication", "github_http_forbidden",
+                    "github_http_not_found", "github_http_rate_limited",
+                    "invalid deployment recommendation",
+                    "invalid recommendation blob", "invalid recommendation format",
+                    "invalid recommended reference", "missing default branch",
+                    "repository mismatch", "invalid source entry",
+                    "GitHub response could not be verified",
+                    "invalid GitHub JSON",
+                }
+                self._state["error_detail"] = (
+                    detail_code if detail_code in allowed_details else None
+                )
                 if project_id and type(project_id) is str and len(project_id) <= 64:
                     self._state["project_key"] = project_id
                 self._state["confirmation_required"] = False
