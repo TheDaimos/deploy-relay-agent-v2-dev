@@ -28,6 +28,17 @@ class BatchRunContract(unittest.TestCase):
         self.assertIn('this._automaticSourceCheckFor = null;',js)
         self.assertIn('if (oldDefaultPrepared) this._installPreparation = null;',js)
 
+    def test_wide_layout_and_early_batch_failure_are_readable(self):
+        js=(ROOT/"frontend"/"lab.js").read_text(encoding="utf-8")
+        self.assertIn("@media (min-width: 1150px)", js)
+        self.assertIn('grid-template-areas:"project deployment" "source deployment" "tests tests"', js)
+        self.assertIn("#dra-main-view[hidden] {display:none;}", js)
+        self.assertIn('class="dra-batch-top-error" role="alert"', js)
+        self.assertIn("this._batchStatus?.status === \"failed\"", js)
+        self.assertIn('this._escapeProject(this._batchStatus.error_code || "Unbekannt")', js)
+        self.assertIn("const DRA_V2_UI_VERSION = \"0.1.110\";", js)
+        self.assertIn("review_digest:this._batchReviewDigest,review_confirm:true", js)
+
     def test_branch_discovery_not_blocked_by_inventory_lock(self):
         ws=(ROOT/"websocket_api.py").read_text(encoding="utf-8")
         init=(ROOT/"__init__.py").read_text(encoding="utf-8")
