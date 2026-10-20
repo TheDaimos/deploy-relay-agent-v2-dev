@@ -263,10 +263,14 @@ class BatchDeployment:
                 self._challenge = None
                 self._state["status"] = "failed"
                 self._state["confirmation_required"] = False
+                stage = getattr(exc, "check_stage", None)
+                if stage in ("source_reference", "manifest", "inventory",
+                             "local_comparison", "version_detection"):
+                    self._state["check_stage"] = stage
                 self._state["error_code"] = (
                     "timed_out" if isinstance(exc, TimeoutError) else
                     "target_conflict" if isinstance(exc, OperationContractError) else
-                    "preflight_failed"
+                    "source_invalid" if stage is not None else "preflight_failed"
                 )
                 raise
 
