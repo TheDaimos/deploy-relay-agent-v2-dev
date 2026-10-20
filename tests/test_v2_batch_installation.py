@@ -94,6 +94,35 @@ class BatchSafety(unittest.IsolatedAsyncioTestCase):
             session=None,config_root=self.root,token_for_repository=lambda _:None,
             blocking_executor=None)
 
+    async def test_failed_reference_discovery_is_visible_without_git_export(self):
+        await self.batch.source_inspection_started("weather_router_private_extensions")
+        pending = await self.batch.status()
+        self.assertEqual(pending["status"], "inspecting_sources")
+        self.assertEqual(pending["project_key"], "weather_router_private_extensions")
+        self.assertEqual(pending["check_stage"], "source_reference")
+        await self.batch.preparation_failed(
+            "source_invalid",
+            project_id="weather_router_private_extensions",
+            check_stage="source_reference",
+        )
+        failed = await self.batch.status()
+        self.assertEqual(failed["status"], "failed")
+        self.assertEqual(failed["project_key"], "weather_router_private_extensions")
+        self.assertEqual(failed["check_stage"], "source_reference")
+        self.assertEqual(failed["error_code"], "source_invalid")
+        self.assertEqual(failed["items"], [])
+        self.assertIsNone(self.batch._challenge)
+        self.assertEqual(self.batch._pending, ())
+
+    async def test_prepared_batch_cannot_be_overwritten_during_inspection(self):
+        offer = await self.prepare([self.spec(1)])
+        with self.assertRaises(model.OperationContractError):
+            await self.batch.source_inspection_started("safe2")
+        still = await self.batch.status()
+        self.assertEqual(still["status"], "prepared")
+        self.assertEqual(still["review_digest"], offer["preparation"]["review_digest"])
+        self.assertEqual(self.batch._challenge, offer["challenge"])
+
     async def test_review_digest_or_consent_required_before_install(self):
         offer = await self.prepare([self.spec(1)])
         self.assertRegex(offer["preparation"]["review_digest"], r"^[a-f0-9]{64}$")
