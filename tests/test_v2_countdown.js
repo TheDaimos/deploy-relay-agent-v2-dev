@@ -231,6 +231,38 @@ const Panel = elements.get("dra-v2-dev-lab-panel");
   console.log("DRA V2 review modal blocks unreviewed/stale commit and signs exact HA batch PASS");
 })().catch(e=>{console.error(e);process.exitCode=1;});
 
+(() => {
+  const p=new Panel();
+  p._mainBatchMode=true; p._view="main"; p._serverVersion="0.1.117";
+  p._projects=[{repository:"TheDaimos/gewitterradar",project_id:"gewitterradar",name:"Gewitterradar",active:true}];
+  const item={repository:"TheDaimos/gewitterradar",project_key:"gewitterradar",
+    source_ref:"deploy/dev",source_commit:"a".repeat(40),installed_version:"4.11.99",
+    new_version:"4.11.100",version_status:"verified_pair",add:8,change:2,remove:1,status:"prepared"};
+  const preparation={schema:"dra-v2-batch-status.v1",status:"prepared",
+    confirmation_required:true,review_digest:"c".repeat(64),items:[item]};
+  p._batchStatus=preparation; p._batchPreparation=preparation;
+  p._batchChallenge="b".repeat(32); p._batchReviewDigest=preparation.review_digest;
+  p._batchReviewOpen=true; p._batchReviewChecked=false;
+  p._render();
+  let html=p.shadowRoot.innerHTML;
+  assert.match(html,/class="dra-batch-review-mobile-list"/);
+  assert.match(html,/data-project-key="gewitterradar"/);
+  assert.match(html,/4\.11\.99/);
+  assert.match(html,/4\.11\.100/);
+  assert.match(html,/Commit <code title="a{40}">a{12}<\/code>/);
+  assert.match(html,/class="dra-review-full-commit">a{40}<\/code>/);
+  assert.match(html,/data-commit="a{40}"/);
+  assert.match(html,/class="dra-review-copy-commit"/);
+  assert.match(html,/class="dra-batch-review-table"/);
+  assert.match(html,/id="dra-batch-review-approve"\s+disabled/);
+  p.shadowRoot.querySelectorAll = selector => selector === ".dra-review-mobile-card[open]"
+    ? [{dataset:{projectKey:"gewitterradar"}}] : [];
+  p._render();
+  html=p.shadowRoot.innerHTML;
+  assert.match(html,/data-project-key="gewitterradar"\s+open>/);
+  console.log("DRA V2 compact mobile review preserves expanded cards, full commit and HA approval lock PASS");
+})();
+
 (async function testStaleMainPreparationCannotUndoWeatherRouterRecommendation() {
   const p=new Panel();
   const repo="TheDaimos/weather-router-dev";
