@@ -120,15 +120,45 @@ class BatchDeployment:
         # All mutations execute on the same HA event loop.
         return self._snapshot()
 
-    async def preparation_failed(self, reason: str) -> None:
-        """Publish a safe terminal result after a failed read-only preparation."""
+    async def source_inspection_started(self, project_id: str) -> None:
+        """Expose HA-owned progress before frozen V1 planning begins.
+
+        No tokens, full GitHub responses or local paths enter the status.
+        """
+        if type(project_id) is not str or not project_id or len(project_id)>64:
+            raise OperationContractError("invalid inspected project")
+        async with self._lock:
+            if self._closed or self._task is not None and not self._task.done():
+                raise OperationContractError("batch not available")
+            if not self._state or self._state.get("status") != "inspecting_sources":
+                self._state = {
+                    "schema": "dra-v2-batch-status.v1",
+                    "status": "inspecting_sources", "batch_id": None, "items": [],
+                    "current": 0, "total": 0, "confirmation_required": False,
+                    "project_key": project_id, "check_stage": "source_reference",
+                    "error_code": None,
+                }
+            else:
+                self._state["project_key"] = project_id
+
+    async def preparation_failed(self, reason: str, *,
+                                 project_id: str | None = None,
+                                 check_stage: str | None = None) -> None:
+        """Publish scoped safe terminal result for any read-only batch failure."""
         if reason not in {"source_unavailable", "source_invalid", "timed_out",
                           "target_conflict", "preflight_failed"}:
             reason = "preflight_failed"
+        if check_stage not in {"source_reference", "manifest", "inventory",
+                              "local_comparison", "version_detection",
+                              "batch_planning"}:
+            check_stage = "batch_planning"
         async with self._lock:
-            if self._state and self._state.get("status") == "preparing":
+            if self._state and self._state.get("status") in ("preparing","inspecting_sources"):
                 self._state["status"] = "failed"
                 self._state["error_code"] = reason
+                self._state["check_stage"] = check_stage
+                if project_id and type(project_id) is str and len(project_id) <= 64:
+                    self._state["project_key"] = project_id
                 self._state["confirmation_required"] = False
                 self._pending = ()
                 self._challenge = None
@@ -149,7 +179,8 @@ class BatchDeployment:
                 "schema": "dra-v2-batch-status.v1", "status": "preparing",
                 "batch_id": None, "items": [], "current": 0,
                 "total": len(specs), "confirmation_required": False,
-                "project_key": None, "error_code": None,
+                "project_key": None, "check_stage": "batch_planning",
+                "error_code": None,
             }
             try:
                 active_ids = await self._jobs.active_transaction_ids()
@@ -167,6 +198,7 @@ class BatchDeployment:
                         raise OperationContractError("invalid batch project")
                     seen.add(item["repository"].casefold())
                     self._state["project_key"] = item["project_id"]
+                    self._state["check_stage"] = "manifest"
                     if await self._jobs.project_active(item["project_id"]):
                         raise OperationContractError("project installation already active")
                     frozen = await prepare_frozen_v1_source(
@@ -175,6 +207,7 @@ class BatchDeployment:
                         expected_project_id=item["project_id"],
                         config_root=config_root, token=item["token"],
                     )
+                    self._state["check_stage"] = "batch_planning"
                     changed = (frozen.preview.add_count + frozen.preview.change_count +
                                frozen.preview.remove_count)
                     # Validate self-update identity and exact own integration
@@ -189,6 +222,7 @@ class BatchDeployment:
                         targets.extend(group_targets)
                         plans.append(BatchPlanItem(item["repository"], item["project_id"],
                                                    item["commit"], item["ref"], frozen))
+                    self._state["check_stage"] = "version_detection"
                     versions = await prepared_version_summary(
                         frozen, config_root=config_root
                     )
