@@ -754,7 +754,8 @@ async def async_batch_install_prepare(hass, connection, msg):
                                 "local_comparison", "version_detection", "batch_planning"}:
             failed_stage = current_stage
         await runtime.batch.preparation_failed(
-            reason, project_id=failed_project, check_stage=failed_stage)
+            reason, project_id=failed_project, check_stage=failed_stage,
+            detail_code=str(exc) if isinstance(exc, PreflightError) else None)
         connection.send_error(
             msg["id"], "batch_" + reason,
             "Sammelvorbereitung: " + (failed_project or "unbekanntes Projekt") +
