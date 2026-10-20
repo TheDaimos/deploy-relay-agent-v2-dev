@@ -4310,7 +4310,7 @@ class DRAV2DevLabPanel extends HTMLElement {
               ${this._installStatusError || !this._restartSummary.operation_id || runningJobs.length?"disabled":""}>Gemeinsamen HA-Neustart ausführen</button>`}
           ${this._deferredRestartMessage ? `<p role="status">${this._escapeProject(this._deferredRestartMessage)}</p>` : ""}
         </section>` : ""}
-        ${this._batchStatus && ["inspecting_sources","preparing","failed","queued","running","success","stopped","interrupted"].includes(this._batchStatus.status) ?
+        ${this._batchStatus && ["inspecting_sources","preparing","prepared","failed","queued","running","success","stopped","interrupted"].includes(this._batchStatus.status) ?
           `<section class="dra-global-observer" role="status" aria-label="Geräteübergreifender Sammelauftrag">
             <div class="dra-observer-top"><strong>Sammelauftrag · ${this._escapeProject(this._batchStatus.status)}</strong>
               <span class="dra-observer-note">${this._batchStatus.current} von ${this._batchStatus.total}
@@ -4326,6 +4326,11 @@ class DRAV2DevLabPanel extends HTMLElement {
                 </div>`).join("")}
               </div>
             </details>` : ""}
+            ${this._batchStatus.status==="prepared" && !this._batchReviewOpen ?
+              `<button type="button" id="dra-batch-review-handoff"
+                ${this._mainBatchBusy || this._batchStatusError ? "disabled" : ""}>
+                Prüfübersicht auf diesem Gerät übernehmen
+              </button>` : ""}
             ${this._batchStatusError ? "<p>Statusabfrage unterbrochen – serverseitiger Auftrag bleibt bestehen.</p>" : ""}
           </section>` : ""}
         <section id="dra-main-view" ${this._view==="main"?"":"hidden"}>
@@ -5646,6 +5651,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     s.querySelector("#dra-batch-review-approve")?.addEventListener("click",()=>this._startMainBatch());
     s.querySelector("#dra-batch-install-prepare")?.addEventListener("click",()=>this._prepareMainBatch());
     s.querySelector("#dra-batch-install-takeover")?.addEventListener("click",()=>this._takeOverMainBatch());
+    s.querySelector("#dra-batch-review-handoff")?.addEventListener("click",()=>this._takeOverMainBatch());
     s.querySelector("#dra-batch-install-confirm")?.addEventListener("click",()=>this._startMainBatch());
     s.querySelector("#dra-preview")?.addEventListener("click",()=>{
       if (deploymentBusy) return;
