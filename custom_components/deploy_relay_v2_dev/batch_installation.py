@@ -169,6 +169,9 @@ class BatchDeployment:
                     "repository mismatch", "invalid source entry",
                     "GitHub response could not be verified",
                     "invalid GitHub JSON",
+                    "inventory_file_limit", "inventory_byte_limit",
+                    "inventory_duplicate_paths", "inventory_directory_cycle",
+                    "inventory_unsafe_path", "inventory_read_unavailable",
                 }
                 self._state["error_detail"] = (
                     detail_code if detail_code in allowed_details else None
@@ -283,6 +286,12 @@ class BatchDeployment:
                 if stage in ("source_reference", "manifest", "inventory",
                              "local_comparison", "version_detection"):
                     self._state["check_stage"] = stage
+                self._state["error_detail"] = (
+                    str(exc) if str(exc) in {
+                        "inventory_file_limit", "inventory_byte_limit",
+                        "inventory_duplicate_paths", "inventory_directory_cycle",
+                        "inventory_unsafe_path", "inventory_read_unavailable"
+                    } else None)
                 self._state["error_code"] = (
                     "timed_out" if isinstance(exc, TimeoutError) else
                     "target_conflict" if isinstance(exc, OperationContractError) else
