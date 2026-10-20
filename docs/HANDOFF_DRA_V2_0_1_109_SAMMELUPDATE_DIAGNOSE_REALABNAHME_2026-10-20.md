@@ -4,7 +4,7 @@
 **Projekt:** Deploy Relay Agent V2 (DRA V2 DEV)  
 **Privates Repository:** TheDaimos/deploy-relay-agent-v2-dev  
 **Einziger beschreibbarer Zweig:** feature/v2-10-inventory-operation-contract  
-**Verifizierter GitHub-HEAD:** c80c126af5f4df5fee204701f3296c7a9ca02fe5  
+**Verifizierter Code-Basiscommit vor den Übergabecommits:** c80c126af5f4df5fee204701f3296c7a9ca02fe5  
 **Verifizierte GitHub-Version:** 0.1.109 DEV (manifest.json, const.py, frontend/lab.js)  
 **GitHub Actions:** Run 39388573164, SUCCESS auf exakt diesem HEAD  
 **Letzte durch Nutzerscreenshot nachgewiesene HA-Version:** 0.1.108 DEV, Oberfläche = Python-Laufzeit  
@@ -71,7 +71,7 @@ Die V2-WebSocket-Strecke klärte zunächst alle GitHub-Referenzen und empfohlene
 - Weitere vorbereitete Freigaben dürfen nicht durch konkurrierende, noch laufende Git-Abfragen unbemerkt ersetzt werden.
 - Negative Tests für Status, Zuordnung, Fehlermeldungsbereinigung und konkurrierende Freigaben bereits umgesetzt.
 
-**0.1.109 GitHub-Verifikation:** HEAD c80c126af5f4df5fee204701f3296c7a9ca02fe5; Actions 39388573164 SUCCESS. HA-Realabnahme ausstehend.
+**0.1.109 GitHub-Verifikation:** Code-Basiscommit c80c126af5f4df5fee204701f3296c7a9ca02fe5; Actions 39388573164 SUCCESS. Der aktuelle Zweig-HEAD kann wegen der verbindlichen Übergabe-Dokumentation einen neueren Commit enthalten. HA-Realabnahme ausstehend.
 
 ## 4. Entwicklungs-Chronologie seit der älteren Übergabe 0.1.99
 
@@ -176,4 +176,4 @@ Vollständige, überprüfbare technische Antworten und eine neue Hand-off-Datei 
 
 **Weiterführungsprompt:**
 
-Bootstrap Daimos – DRA V2 0.1.109 DEV. Lies im privaten Repository TheDaimos/deploy-relay-agent-v2-dev ausschließlich auf feature/v2-10-inventory-operation-contract vollständig docs/HANDOFF_DRA_V2_0_1_109_SAMMELUPDATE_DIAGNOSE_REALABNAHME_2026-10-20.md sowie die dort verknüpften Originaldokumente. Verifiziere den GitHub-HEAD c80c126af5f4df5fee204701f3296c7a9ca02fe5 und CI Run 39388573164 und prüfe sämtliche offenen Punkte eigenständig. Auf HA ist zuletzt nur 0.1.108 belegt, 0.1.109 nicht realabgenommen. Oberste Priorität: die blockierte Sammelvorbereitung mit sechs Projekten ohne vorausgesetzten Logexport über die neue projekt- und phasenbezogene 0.1.109-Fehlerdiagnose aufklären; WeatherRouter-Referenz deploy/dev und die verbindliche Versions-/Commit-Prüfübersicht verproben. V1-Sicherheit, HA als alleinigen Ausführer, Einmalbestätigungen, Versionsprüfung und Rückfallschutz strikt bewahren. Keine unbewiesene Installations- oder Neustartfreigabe, keine unnötigen Zwischenversionen und keine Schreibzugriffe außerhalb des genannten Entwicklungszweigs. Bei weiteren Codekorrekturen alle positiven/negativen Tests samt GitHub-CI ausführen und den vollständig dokumentierten Stand wieder als Markdown im Featurezweig speichern.
+Bootstrap Daimos – DRA V2 0.1.109 DEV. Lies im privaten Repository TheDaimos/deploy-relay-agent-v2-dev ausschließlich auf feature/v2-10-inventory-operation-contract vollständig docs/HANDOFF_DRA_V2_0_1_109_SAMMELUPDATE_DIAGNOSE_REALABNAHME_2026-10-20.md sowie die dort verknüpften Originaldokumente. Verifiziere den Code-Basiscommit c80c126af5f4df5fee204701f3296c7a9ca02fe5 sowie den neuesten Zweig-HEAD und die zugehörigen CI-Prüfläufe; prüfe sämtliche offenen Punkte eigenständig. Auf HA ist zuletzt nur 0.1.108 belegt, 0.1.109 nicht realabgenommen. Oberste Priorität: die blockierte Sammelvorbereitung mit sechs Projekten ohne vorausgesetzten Logexport über die neue projekt- und phasenbezogene 0.1.109-Fehlerdiagnose aufklären; WeatherRouter-Referenz deploy/dev und die verbindliche Versions-/Commit-Prüfübersicht verproben. V1-Sicherheit, HA als alleinigen Ausführer, Einmalbestätigungen, Versionsprüfung und Rückfallschutz strikt bewahren. Keine unbewiesene Installations- oder Neustartfreigabe, keine unnötigen Zwischenversionen und keine Schreibzugriffe außerhalb des genannten Entwicklungszweigs. Bei weiteren Codekorrekturen alle positiven/negativen Tests samt GitHub-CI ausführen und den vollständig dokumentierten Stand wieder als Markdown im Featurezweig speichern.
