@@ -36,7 +36,7 @@ class BatchRunContract(unittest.TestCase):
         self.assertIn('class="dra-batch-top-error" role="alert"', js)
         self.assertIn("this._batchStatus?.status === \"failed\"", js)
         self.assertIn('this._escapeProject(this._batchStatus.error_code || "Unbekannt")', js)
-        self.assertIn("const DRA_V2_UI_VERSION = \"0.1.112\";", js)
+        self.assertIn("const DRA_V2_UI_VERSION = \"0.1.113\";", js)
         self.assertIn("review_digest:this._batchReviewDigest,review_confirm:true", js)
 
     def test_review_scroll_and_condensed_change_display(self):
@@ -50,6 +50,11 @@ class BatchRunContract(unittest.TestCase):
         self.assertIn('item.add ? "dra-review-add" : ""',js)
         self.assertIn('item.change ? "dra-review-edit" : ""',js)
         self.assertIn('item.remove ? "dra-review-remove" : ""',js)
+
+    def test_wide_review_overrides_generic_dialog_limit(self):
+        js=(ROOT/"frontend"/"lab.js").read_text(encoding="utf-8")
+        self.assertIn(".git-dialog.dra-batch-review-dialog",js)
+        self.assertIn("width:min(1520px,calc(100vw - 32px))",js)
 
     def test_branch_discovery_not_blocked_by_inventory_lock(self):
         ws=(ROOT/"websocket_api.py").read_text(encoding="utf-8")
