@@ -125,6 +125,24 @@ class BatchSafety(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(snap.get("error_detail"))
         self.assertNotIn("secret-value",str(snap))
 
+    async def test_inventory_error_detail_is_safe_and_preserved(self):
+        for code in ("inventory_file_limit", "inventory_byte_limit",
+                     "inventory_duplicate_paths", "inventory_directory_cycle",
+                     "inventory_unsafe_path", "inventory_read_unavailable"):
+            with self.subTest(code=code):
+                await self.batch.source_inspection_started("deploy_relay_agent_v2_dev")
+                await self.batch.preparation_failed(
+                    "source_invalid", project_id="deploy_relay_agent_v2_dev",
+                    check_stage="inventory", detail_code=code)
+                result = await self.batch.status()
+                self.assertEqual(result["error_detail"], code)
+                self.assertEqual(result["check_stage"], "inventory")
+        await self.batch.source_inspection_started("deploy_relay_agent_v2_dev")
+        await self.batch.preparation_failed(
+            "source_invalid", project_id="deploy_relay_agent_v2_dev",
+            check_stage="inventory", detail_code="private path /config/token")
+        self.assertIsNone((await self.batch.status()).get("error_detail"))
+
     async def test_github_denial_retained_as_safe_code(self):
         await self.batch.source_inspection_started("weather_router_private_extensions")
         await self.batch.preparation_failed(
