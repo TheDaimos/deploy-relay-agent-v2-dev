@@ -1,6 +1,6 @@
 /* Separate DRA V2 DEV read-only lab. No V1 custom element or URLs. */
 // Build identity of this actually loaded JavaScript, independent of the HA Python version.
-const DRA_V2_UI_VERSION = "0.1.115";
+const DRA_V2_UI_VERSION = "0.1.116";
 const G2_TEST_PYTHON_VERSION = DRA_V2_UI_VERSION;
 class DRAV2DevLabPanel extends HTMLElement {
   constructor() {
@@ -815,9 +815,19 @@ class DRAV2DevLabPanel extends HTMLElement {
         this._archiveCheckState = "stored";
       }
       this._gitReadConfigured = data.git_read_configured === true;
+      // The saved picker order is the default view on a fresh device.
+      // Position zero means the synthetic Sammelupdate row is first.
+      // Do not change an explicit selection later or auto-authorize a batch.
+      if (!this._selectedMainRepo && !this._mainBatchMode &&
+          this._pickerBatchPosition === 0) {
+        this._mainBatchMode = true;
+        this._batchRunSelected = new Set(this._projects
+          .filter(p=>p.active!==false && p.batch_preselect!==false &&
+            !this._isOwnBatchUpdate(p)).map(p=>p.repository));
+      }
       // On a freshly opened device, prefer the single HA-held prepared session
       // over an arbitrary first project; never silently override user selection.
-      if (!this._selectedMainRepo && this._serverVersion === DRA_V2_UI_VERSION) {
+      if (!this._selectedMainRepo && !this._mainBatchMode && this._serverVersion === DRA_V2_UI_VERSION) {
         try {
           const active = await this._hass.callWS({
             type:"deploy_relay_v2_dev/deployment/sessions",
@@ -858,7 +868,7 @@ class DRAV2DevLabPanel extends HTMLElement {
       this._busy = false;
       if (this.isConnected) this._render();
       const current = this._selectedMainRepo || this._projects.find(p=>p.active !== false)?.repository;
-      if (current && this._serverVersion === DRA_V2_UI_VERSION &&
+      if (current && !this._mainBatchMode && this._serverVersion === DRA_V2_UI_VERSION &&
           this._sourceChoicesLoadedFor !== current && !this._sourceChoicesBusy) {
         this._selectedMainRepo = current;
         void this._loadSourceChoices();
