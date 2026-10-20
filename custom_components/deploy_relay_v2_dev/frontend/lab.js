@@ -1,6 +1,6 @@
 /* Separate DRA V2 DEV read-only lab. No V1 custom element or URLs. */
 // Build identity of this actually loaded JavaScript, independent of the HA Python version.
-const DRA_V2_UI_VERSION = "0.1.113";
+const DRA_V2_UI_VERSION = "0.1.114";
 const G2_TEST_PYTHON_VERSION = DRA_V2_UI_VERSION;
 class DRAV2DevLabPanel extends HTMLElement {
   constructor() {
@@ -2583,6 +2583,8 @@ class DRAV2DevLabPanel extends HTMLElement {
     // The HA test status can refresh while this dialog is open. Preserve the
     // unsent secret only in the transient password input, never component state.
     const batchReviewScroll = s?.querySelector(".dra-batch-review-table-wrap")?.scrollLeft ?? 0;
+    const batchReviewTop = s?.querySelector(".dra-batch-review-table-wrap")?.scrollTop ?? 0;
+    const batchDialogTop = s?.querySelector("#dra-batch-review-dialog")?.scrollTop ?? 0;
     const settingsDraft = this._projectSettingsRepo && s?.querySelector("#manage-repository") ?
       { repository:s.querySelector("#manage-repository").value,
         name:s.querySelector("#manage-name").value,
@@ -3393,14 +3395,16 @@ class DRAV2DevLabPanel extends HTMLElement {
         .dra-batch-review-ack {display:flex;gap:12px;align-items:flex-start;margin:12px 0;
           padding:13px;border:1px solid #658b9d;border-radius:10px;line-height:1.5;}
         .dra-batch-review-ack input {width:20px;height:20px;flex:none;accent-color:#0097c4;}
-        .dra-batch-review-actions {display:flex;flex-wrap:wrap;justify-content:flex-end;gap:10px;}
-        .dra-batch-review-actions button {min-height:46px;padding:10px 16px;}
+        .dra-batch-review-actions {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;}
+        .dra-batch-review-actions button {min-width:0;min-height:44px;padding:8px 10px;white-space:normal;}
         @media(max-width:640px){
           .dra-batch-review-dialog {max-height:94vh;}
           .dra-batch-review-table-wrap {max-height:50vh;}
-          .dra-batch-review-actions {flex-direction:column;}
+          .dra-batch-review-actions {grid-template-columns:repeat(2,minmax(0,1fr));}
+          .dra-batch-review-actions button:last-child {grid-column:1/-1;}
           .dra-batch-review-actions button {width:100%;}
         }
+        @media(max-width:380px) { .dra-batch-review-actions {grid-template-columns:1fr;} .dra-batch-review-actions button:last-child {grid-column:auto;} }
         .dra-deploy-action {box-sizing:border-box;width:100%;margin:0;padding:17px 18px;
           min-height:79px;border-radius:14px;display:flex;gap:12px;align-items:center;justify-content:center;
           text-align:center;font-size:clamp(16px,2vw,21px);font-weight:800;letter-spacing:.005em;
@@ -5838,7 +5842,12 @@ class DRAV2DevLabPanel extends HTMLElement {
       });
     }
     const batchReviewTable = s.querySelector(".dra-batch-review-table-wrap");
-    if (batchReviewTable) batchReviewTable.scrollLeft = batchReviewScroll;
+    if (batchReviewTable) {
+      batchReviewTable.scrollLeft = batchReviewScroll;
+      batchReviewTable.scrollTop = batchReviewTop;
+    }
+    const batchDialog = s.querySelector("#dra-batch-review-dialog");
+    if (batchDialog) batchDialog.scrollTop = batchDialogTop;
     const v2SettingsScroll = s.querySelector(".project-v2-settings-scroll");
     if (v2SettingsScroll) v2SettingsScroll.scrollTop = previousV2SettingsScroll;
     const v2ReadInput = s.querySelector("#source-read-token");
