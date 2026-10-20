@@ -47,6 +47,9 @@ class BatchRunContract(unittest.TestCase):
         self.assertIn("dra-review-add",js)
         self.assertIn("dra-review-remove",js)
         self.assertIn("dra-review-edit",js)
+        self.assertIn('item.add ? "dra-review-add" : ""',js)
+        self.assertIn('item.change ? "dra-review-edit" : ""',js)
+        self.assertIn('item.remove ? "dra-review-remove" : ""',js)
 
     def test_branch_discovery_not_blocked_by_inventory_lock(self):
         ws=(ROOT/"websocket_api.py").read_text(encoding="utf-8")
