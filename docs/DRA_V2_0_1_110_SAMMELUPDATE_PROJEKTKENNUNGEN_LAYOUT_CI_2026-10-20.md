@@ -53,3 +53,11 @@ Die ersten 0.1.110-Prüfläufe meldeten erwartete Frontend-Testfehler, weil mehr
 **Keine HA-Sammelinstallation, kein DRA-V2-Selbstupdate und kein HA-Neustart wurden ausgeführt oder freigegeben.** Die bestehenden V1-Journale, Sicherungen, Rückfälle und serverseitigen Einmalbestätigungen bleiben Voraussetzung. DRA V1, Gewitterradar, WeatherRouter und die privaten Erweiterungen wurden nicht verändert.
 
 Die neue Version ist ein **GitHub-Testkandidat** und bleibt bis zum abschließend grünen CI-Lauf sowie der anschließenden bewusst freigegebenen HA-DEV-Realabnahme gesperrt.
+
+## 6. Abschluss der GitHub-Prüfung nach Testkorrektur
+
+**Finaler Programm- und Testcommit:** `9defce0650d484650162f32e1c278f39495e9799`.
+
+**GitHub Actions 39402970635: SUCCESS (completed)** auf exakt diesem Commit. Die zuletzt fehlgeschlagene Oberflächenprüfung beruhte auf vier zusätzlichen, noch auf `V0.1.109 DEV` festgelegten Textassertionen in `tests/test_v2_countdown.js`. Diese wurden mit `9defce0` auf `V0.1.110 DEV` umgestellt. Die vollständige GitHub-Prüfung ist anschließend grün durchgelaufen. Python-, JavaScript- und Vertragsprüfungen gelten damit für diesen neuen GitHub-Code-Stand als bestanden.
+
+**Wichtige Einschränkung:** Diese bestandenen automatisierten Prüfungen belegen weder eine reale HA-DEV-Installation noch eine erfolgreiche Sechs-Projekt-Sammelvorbereitung oder ein korrektes iPad-/Notebook-Layout im laufenden Home Assistant. Der Anwender muss den neuen Kandidaten ausdrücklich über DRA V1 installieren und zuerst ausschließlich die Quellvorbereitung prüfen; Sammelinstallation bleibt bis zur dortigen Freigabe gesperrt.
