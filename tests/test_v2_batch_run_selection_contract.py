@@ -112,27 +112,3 @@ class BatchRunContract(unittest.TestCase):
 
 if __name__=="__main__":
     unittest.main()
-,js)
-        self.assertIn('review_digest:this._batchReviewDigest,review_confirm:true',js)
-
-    def test_first_picker_position_is_fresh_device_default(self):
-        js=(ROOT/"frontend"/"lab.js").read_text(encoding="utf-8")
-        self.assertIn("this._pickerBatchPosition === 0",js)
-        self.assertIn("this._mainBatchMode = true;",js)
-        self.assertIn("!this._mainBatchMode && this._serverVersion === DRA_V2_UI_VERSION",js)
-        self.assertIn("if (current && !this._mainBatchMode &&",js)
-        self.assertIn("!this._isOwnBatchUpdate(p)",js)
-
-    def test_branch_discovery_not_blocked_by_inventory_lock(self):
-        ws=(ROOT/"websocket_api.py").read_text(encoding="utf-8")
-        init=(ROOT/"__init__.py").read_text(encoding="utf-8")
-        ast.parse(ws);ast.parse(init)
-        fragment=ws.split("async def async_projects_source_choices(",1)[1].split(
-            "async def async_projects_source_head(",1)[0]
-        self.assertIn("async with runtime.source_choices_lock:",fragment)
-        self.assertNotIn("runtime.source_scan_lock.locked()",fragment)
-        self.assertNotIn("async with runtime.source_scan_lock:",fragment)
-        self.assertIn("source_choices_lock=asyncio.Lock()",init)
-
-if __name__=="__main__":
-    unittest.main()
