@@ -1,6 +1,6 @@
 /* Separate DRA V2 DEV read-only lab. No V1 custom element or URLs. */
 // Build identity of this actually loaded JavaScript, independent of the HA Python version.
-const DRA_V2_UI_VERSION = "0.1.112";
+const DRA_V2_UI_VERSION = "0.1.113";
 const G2_TEST_PYTHON_VERSION = DRA_V2_UI_VERSION;
 class DRAV2DevLabPanel extends HTMLElement {
   constructor() {
@@ -3363,6 +3363,15 @@ class DRAV2DevLabPanel extends HTMLElement {
           width:100%;max-height:min(92vh,980px);overflow:auto;box-sizing:border-box;}
         .dra-batch-review-table-wrap {margin:16px 0;overflow:auto;border:1px solid #496172;
           border-radius:10px;max-height:56vh;}
+        /* More specific than the later generic .git-dialog width:560px rule. */
+        .git-dialog.dra-batch-review-dialog {
+          width:min(1520px,calc(100vw - 32px));
+          max-width:calc(100vw - 32px);
+          min-width:0;
+        }
+        @media(max-width:640px) {
+          .git-dialog.dra-batch-review-dialog {width:calc(100vw - 16px);max-width:calc(100vw - 16px);}
+        }
         .dra-batch-review-table {width:100%;border-collapse:collapse;text-align:left;
           min-width:810px;font-size:13px;}
         .dra-batch-review-table th,.dra-batch-review-table td {vertical-align:top;
