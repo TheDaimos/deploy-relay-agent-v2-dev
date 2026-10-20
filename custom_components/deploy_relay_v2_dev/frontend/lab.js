@@ -4800,6 +4800,22 @@ class DRAV2DevLabPanel extends HTMLElement {
                 })[this._batchStatus.check_stage] || "Nicht ermittelt")}</p>
                 <p><strong>Fehlerkategorie:</strong> ${this._escapeProject(
                   this._batchStatus.error_code || "preflight_failed")}</p>
+                ${this._batchStatus.error_detail ? `<p><strong>Weitere Eingrenzung:</strong>
+                  ${this._escapeProject(({
+                    github_http_authentication:"GitHub meldet 401 – Token ungültig oder abgelaufen",
+                    github_http_forbidden:"GitHub meldet 403 – Zugriff verweigert oder Rate begrenzt",
+                    github_http_not_found:"GitHub meldet 404 – Quelle nicht gefunden oder privater Zugriff fehlt",
+                    github_http_rate_limited:"GitHub meldet 429 – Abfragegrenze erreicht",
+                    "invalid deployment recommendation":"Projekt-Empfehlungsdatei fachlich ungültig",
+                    "invalid recommendation blob":"Integritätsprüfung der Empfehlung fehlgeschlagen",
+                    "invalid recommendation format":"Format der Empfehlung nicht gültig",
+                    "invalid recommended reference":"Empfohlener Git-Zweig oder Tag ungültig",
+                    "missing default branch":"GitHub liefert keinen Standardzweig",
+                    "repository mismatch":"Repository-Identität stimmt nicht überein",
+                    "invalid source entry":"GitHub liefert einen ungültigen Zweig-/Tag-Eintrag",
+                    "GitHub response could not be verified":"GitHub-Antwort nicht verifizierbar",
+                    "invalid GitHub JSON":"GitHub-Antwort nicht als gültige JSON-Daten lesbar",
+                  })[this._batchStatus.error_detail] || "Quellprüfung konnte nicht verifiziert werden")}</p>` : ""}
                 <p class="note">Diese Angaben stammen aus dem lesbaren Home-Assistant-Auftragsstatus.
                   Ein zusätzlicher Protokollexport ist dafür nicht notwendig. Andere ausgewählte
                   Projekte wurden ebenfalls nicht installiert.</p>
