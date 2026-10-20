@@ -137,7 +137,7 @@ const Panel = elements.get("dra-v2-dev-lab-panel");
 (async function testGuidedBatchActuallyAdvancesWithHALockedPreparation() {
   const p=new Panel();
   p._view="main";p._mainBatchMode=true;
-  p._serverVersion="0.1.113";p._selectedMainRepo="TheDaimos/gewitterradar";
+  p._serverVersion="0.1.114";p._selectedMainRepo="TheDaimos/gewitterradar";
   p._projects=[
     {project_id:"gewitterradar",name:"Gewitterradar",repository:"TheDaimos/gewitterradar",active:true,batch_preselect:true},
     {project_id:"weather_router",name:"WeatherRouter",repository:"TheDaimos/weather-router-dev",active:true,batch_preselect:true},
@@ -186,7 +186,7 @@ const Panel = elements.get("dra-v2-dev-lab-panel");
 
 (async function testBatchReviewRejectsUnseenOrStaleCommitAndRequiresSignedHAReceipt() {
   const p=new Panel();
-  p._mainBatchMode=true;p._view="main";p._serverVersion="0.1.113";
+  p._mainBatchMode=true;p._view="main";p._serverVersion="0.1.114";
   p._projects=[{repository:"TheDaimos/gewitterradar",
     project_id:"gewitterradar",name:"Gewitterradar",active:true}];
   const row={repository:"TheDaimos/gewitterradar",project_key:"gewitterradar",
@@ -234,7 +234,7 @@ const Panel = elements.get("dra-v2-dev-lab-panel");
 (async function testStaleMainPreparationCannotUndoWeatherRouterRecommendation() {
   const p=new Panel();
   const repo="TheDaimos/weather-router-dev";
-  p._selectedMainRepo=repo;p._view="main";p._serverVersion="0.1.113";
+  p._selectedMainRepo=repo;p._view="main";p._serverVersion="0.1.114";
   p._projects=[{project_id:"weather_router",repository:repo,name:"WeatherRouter",active:true}];
   const prepared={schema:"dra-v2-install-preparation.v1",repository:repo,
     project_id:"weather_router",confirmation_required:true,
@@ -976,7 +976,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
 (async () => {
   const probe = new Panel();
   probe._view = "main";
-  probe._serverVersion = "0.1.113";
+  probe._serverVersion = "0.1.114";
   probe._projects = [{repository:"TheDaimos/gewitterradar",name:"Gewitterradar",active:true}];
   probe._mainSourceRef = "";
   const calls = [];
@@ -1015,7 +1015,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   await probe._sourceCheck({dataset:{repo:"TheDaimos/gewitterradar"}},true);
   assert.equal(calls.length,0);
   assert.match(probe._sourceMessage,/Python-Laufzeit 0.1.64/);
-  probe._serverVersion = "0.1.113";
+  probe._serverVersion = "0.1.114";
   probe._render();
   assert.match(probe.shadowRoot.innerHTML,/Oberfläche und Laufzeit stimmen überein/);
   await probe._sourceCheck({dataset:{repo:"TheDaimos/gewitterradar"}},true);
@@ -1031,7 +1031,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
 (async () => {
   const panel = new Panel();
   panel._view = "main";
-  panel._serverVersion = "0.1.113";
+  panel._serverVersion = "0.1.114";
   panel._projects = [{repository:"TheDaimos/example",project_id:"example",
                       name:"Example",active:true,access_mode:"read_write"}];
   panel._selectedMainRepo = "TheDaimos/example";
@@ -1102,7 +1102,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
 
 (async () => {
   const panel = new Panel();
-  panel._serverVersion = "0.1.113";
+  panel._serverVersion = "0.1.114";
   panel._projects = [
     {repository:"TheDaimos/alpha",name:"Alpha",project_id:"alpha",
      access_mode:"read_write",active:true},
@@ -1220,9 +1220,9 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   // At initial load no HA version may be claimed before the admin state reply.
   assert.match(versions.shadowRoot.innerHTML,/id="dra-version" class="dra-version pending"/);
   assert.match(versions.shadowRoot.innerHTML,/Oberfläche/);
-  assert.match(versions.shadowRoot.innerHTML,/V0\.1\.113 DEV/);
+  assert.match(versions.shadowRoot.innerHTML,/V0\.1\.114 DEV/);
   assert.match(versions.shadowRoot.innerHTML,/HA-Laufzeit: Noch nicht ermittelt/);
-  assert.doesNotMatch(versions.shadowRoot.innerHTML,/HA-Laufzeit: V0\.1\.113 DEV/);
+  assert.doesNotMatch(versions.shadowRoot.innerHTML,/HA-Laufzeit: V0\.1\.114 DEV/);
 
   const requests = [];
   versions._hass = {async callWS(request) {
@@ -1230,7 +1230,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
     if (request.type === "deploy_relay_v2_dev/deployment/status") {
       return {schema:"dra-v2-install-status.v1",job:null};
     }
-    return {version:"0.1.113",operations:[],projects:[]};
+    return {version:"0.1.114",operations:[],projects:[]};
   }};
   await versions._refresh();
   assert.deepEqual(requests,[
@@ -1241,14 +1241,14 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
     "deploy_relay_v2_dev/deployment/audit"
   ]);
   assert.match(versions.shadowRoot.innerHTML,/id="dra-version" class="dra-version matched"/);
-  assert.match(versions.shadowRoot.innerHTML,/HA-Laufzeit: V0\.1\.113 DEV/);
+  assert.match(versions.shadowRoot.innerHTML,/HA-Laufzeit: V0\.1\.114 DEV/);
   assert.doesNotMatch(versions.shadowRoot.innerHTML,/Abweichung ·/);
 
   versions._hass = {async callWS() {return {version:"0.1.71",operations:[],projects:[]};}};
   await versions._refresh();
   assert.match(versions.shadowRoot.innerHTML,/id="dra-version" class="dra-version mismatch"/);
   assert.match(versions.shadowRoot.innerHTML,/Abweichung · HA-Laufzeit: V0\.1\.71 DEV/);
-  assert.match(versions.shadowRoot.innerHTML,/class="dra-version-number">V0\.1\.113 DEV/);
+  assert.match(versions.shadowRoot.innerHTML,/class="dra-version-number">V0\.1\.114 DEV/);
   assert.match(versions.shadowRoot.innerHTML,/aria-label="Versionsübersicht:/);
 
   versions._hass = {async callWS() {throw new Error("backend offline");}};
@@ -1554,7 +1554,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
 (async () => {
   // Regression: a successful 4/4 MUST NOT trap the next teststand at 4/4.
   const p=new Panel();
-  p._view="main";p._serverVersion="0.1.113";
+  p._view="main";p._serverVersion="0.1.114";
   const project={repository:"TheDaimos/Test-Repo-DRA-V2",project_id:"test_repo_dra_v2",name:"Test",active:true};
   p._projects=[project];p._selectedMainRepo=project.repository;
   p._mainSourceRef="main";p._deploymentPreviewRef="main";p._sourceRepository=project.repository;
@@ -1605,7 +1605,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
 (async () => {
   // Teststand +1 writes only Git; it also releases an otherwise stuck 4/4.
   const p=new Panel();
-  p._view="main";p._serverVersion="0.1.113";p._testVersionConfirm=true;
+  p._view="main";p._serverVersion="0.1.114";p._testVersionConfirm=true;
   const project={repository:"TheDaimos/Test-Repo-DRA-V2",project_id:"test_repo_dra_v2",
     name:"Test",active:true};
   p._projects=[project];p._selectedMainRepo=project.repository;
@@ -1632,7 +1632,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
 (async () => {
   // A verified zero-change inventory is informational, not step-2 authorisation.
   const p = new Panel();
-  p._view="main";p._serverVersion="0.1.113";
+  p._view="main";p._serverVersion="0.1.114";
   const project={repository:"TheDaimos/Test-Repo-DRA-V2",project_id:"test_repo_dra_v2",name:"Test",active:true};
   p._projects=[project];p._selectedMainRepo=project.repository;
   p._sourceRepository=project.repository;
@@ -1684,7 +1684,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   const project={repository:"TheDaimos/gewitterradar",project_id:"gewitterradar",name:"Gewitterradar",active:true};
   const createPanel=(flags) => {
     const p=new Panel();
-    p._view="main";p._serverVersion="0.1.113";
+    p._view="main";p._serverVersion="0.1.114";
     p._projects=[project];p._selectedMainRepo=project.repository;
     const job={operation_id:"7".repeat(32),project_key:project.project_id,
       source_commit:"8".repeat(40),status:"success",phase:"complete",...flags};
@@ -1739,7 +1739,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   const p = new Panel();
   const repository = "TheDaimos/gewitterradar";
   p._view = "main";
-  p._serverVersion = "0.1.113";
+  p._serverVersion = "0.1.114";
   p._projects = [{repository, project_id:"gewitterradar", name:"Gewitterradar", active:true}];
   p._selectedMainRepo = repository;
   p._sourceChoices = {repository, choices:[], recommended:null};
@@ -1768,7 +1768,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   // V1 plan. This must show stage 2 and permit explicit, HA-authorized control.
   const p=new Panel();
   const repository="TheDaimos/example";
-  p._serverVersion="0.1.113";
+  p._serverVersion="0.1.114";
   p._selectedMainRepo=repository;
   p._projects=[{repository,project_id:"example",name:"Example",active:true}];
   p._sourceRepository=repository;
@@ -1823,7 +1823,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   // resubmit the same installation: recover the newly admitted server job.
   const panel=new Panel();
   const repo="TheDaimos/example",commit="a".repeat(40),jobid="d".repeat(32);
-  panel._serverVersion="0.1.113";
+  panel._serverVersion="0.1.114";
   panel._selectedMainRepo=repo;
   panel._projects=[{repository:repo,project_id:"example",active:true}];
   panel._sourceRepository=repo;
@@ -1858,7 +1858,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
 (async () => {
   // Without a verifiable server status, fail closed and block a second start.
   const panel=new Panel(),repo="TheDaimos/example",commit="a".repeat(40);
-  panel._serverVersion="0.1.113";
+  panel._serverVersion="0.1.114";
   panel._selectedMainRepo=repo;
   panel._projects=[{repository:repo,project_id:"example",active:true}];
   panel._sourceRepository=repo;
@@ -1890,7 +1890,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   // An observer may inspect the exact server-held plan but cannot click
   // installation until explicit active-operator takeover succeeds.
   const panel=new Panel(),repo="TheDaimos/example";
-  panel._serverVersion="0.1.113";
+  panel._serverVersion="0.1.114";
   panel._selectedMainRepo=repo;
   panel._projects=[{repository:repo,project_id:"example",active:true}];
   panel._sourceRepository=repo;
