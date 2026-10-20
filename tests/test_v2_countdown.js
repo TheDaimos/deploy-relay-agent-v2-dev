@@ -263,6 +263,30 @@ const Panel = elements.get("dra-v2-dev-lab-panel");
   console.log("DRA V2 compact mobile review preserves expanded cards, full commit and HA approval lock PASS");
 })();
 
+(() => {
+  for (const [add,change,remove,expected] of [
+    [33,0,12,["+33","−12"]],
+    [0,4,12,["~4","−12"]],
+    [33,4,12,["+33","~4","−12"]],
+    [0,0,0,["Aktuell"]],
+  ]) {
+    const p=new Panel();
+    p._mainBatchMode=true;p._serverVersion="0.1.118";
+    p._batchReviewOpen=true;
+    p._batchPreparation={status:"prepared",review_digest:"f".repeat(64),
+      items:[{project_key:"gr",repository:"example/gr",source_ref:"deploy/dev",
+        source_commit:"a".repeat(40),installed_version:"1",new_version:"2",
+        add,change,remove,status:add+change+remove>0?"prepared":"up_to_date"}]};
+    p._render();
+    const html=p.shadowRoot.innerHTML;
+    const i=html.indexOf('class="dra-review-mobile-card');
+    const summary=html.slice(i,html.indexOf("</summary>",i));
+    for(const token of expected) assert(summary.includes(token));
+    assert(!summary.includes("+0") && !summary.includes("~0") && !summary.includes("−0"));
+  }
+  console.log("DRA V2 mobile review color-count combinations PASS");
+})();
+
 (async function testStaleMainPreparationCannotUndoWeatherRouterRecommendation() {
   const p=new Panel();
   const repo="TheDaimos/weather-router-dev";
