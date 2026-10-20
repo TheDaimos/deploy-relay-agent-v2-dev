@@ -105,6 +105,35 @@ vm.runInNewContext(
 );
 const Panel = elements.get("dra-v2-dev-lab-panel");
 
+(function testBatchSourceFailureVisibleWithoutExport() {
+  const p=new Panel();
+  p._view="main";
+  p._mainBatchMode=true;
+  p._projects=[{
+    project_id:"weather_router_private_extensions",
+    name:"WeatherRouter Private Extensions",
+    repository:"TheDaimos/weather-router-extensions-dev",
+    active:true,
+  }];
+  p._batchRunSelected=new Set([p._projects[0].repository]);
+  p._batchStatus={
+    schema:"dra-v2-batch-status.v1",
+    status:"failed",project_key:"weather_router_private_extensions",
+    check_stage:"source_reference",error_code:"source_invalid",
+    error_detail:"github_http_forbidden",items:[],
+  };
+  p._render();
+  const view=p.shadowRoot.innerHTML;
+  assert.match(view,/Quellenprüfung angehalten/);
+  assert.match(view,/WeatherRouter Private Extensions/);
+  assert.match(view,/GitHub-Referenz/);
+  assert.match(view,/GitHub meldet 403/);
+  assert.match(view,/Ein zusätzlicher Protokollexport ist dafür nicht notwendig/);
+  console.log("DRA V2 HA batch source failure explained without external Git logs PASS");
+})();
+
+
+
 (async function testGuidedBatchActuallyAdvancesWithHALockedPreparation() {
   const p=new Panel();
   p._view="main";p._mainBatchMode=true;
