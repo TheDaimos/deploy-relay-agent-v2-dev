@@ -36,7 +36,7 @@ class BatchRunContract(unittest.TestCase):
         self.assertIn('class="dra-batch-top-error" role="alert"', js)
         self.assertIn("this._batchStatus?.status === \"failed\"", js)
         self.assertIn('this._escapeProject(this._batchStatus.error_code || "Unbekannt")', js)
-        self.assertIn("const DRA_V2_UI_VERSION = \"0.1.111\";", js)
+        self.assertIn("const DRA_V2_UI_VERSION = \"0.1.112\";", js)
         self.assertIn("review_digest:this._batchReviewDigest,review_confirm:true", js)
 
     def test_branch_discovery_not_blocked_by_inventory_lock(self):
