@@ -72,6 +72,9 @@ class BatchRunContract(unittest.TestCase):
         self.assertIn("this._batchStatus=r.preparation;",section)
         self.assertIn("this._batchReviewOpen=true;",section)
         self.assertIn("this._batchReviewChecked=false;",section)
+        self.assertIn('id="dra-batch-review-handoff"',js)
+        self.assertIn('["inspecting_sources","preparing","prepared","failed"',js)
+        self.assertIn('s.querySelector("#dra-batch-review-handoff")',js)
 
     def test_branch_discovery_not_blocked_by_inventory_lock(self):
         ws=(ROOT/"websocket_api.py").read_text(encoding="utf-8")
