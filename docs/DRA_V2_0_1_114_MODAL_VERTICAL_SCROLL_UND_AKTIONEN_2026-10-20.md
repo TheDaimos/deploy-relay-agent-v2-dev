@@ -28,3 +28,7 @@ Die drei Handlungsflächen der Prüfübersicht sind in einem responsiven Raster 
 0.1.114 wurde durch diese Arbeit **nicht** auf Home Assistant installiert. Nach vollständig grüner CI kann der Anwender die Version kontrolliert über den DRA-V1-Weg auf HA DEV installieren. Dann die Sammelprüfübersicht mit sechs Projekten **nur vorbereiten**, Fenster vertikal herunterscrollen, mehrere Aktualisierungszyklen abwarten, waagerechte Tabellenposition und Aktionen auf Notebook/iPad prüfen. Die vollständigen Commits und WeatherRouter-`deploy/dev` müssen sichtbar und unverändert bleiben.
 
 **Kein Sammelstart, kein Selbstupdate und kein HA-Neustart ohne ausdrückliche Freigabe und echte Realnachweise.** DRA V1, Gewitterradar und WeatherRouter bleiben unverändert.
+
+## GitHub-CI – abschließend verifiziert
+
+Der vollständige GitHub-Actions-Lauf **39427148194** wurde am Programm-/Testcommit **`efe46511c5a871e02632335c997ed73b44f3924b`** mit **completed / SUCCESS** verifiziert. Der spätere Dokumentationscommit betrifft ausschließlich Markdown und ändert die geprüfte Programmversion nicht. **GitHub-CI ist keine HA-Realabnahme.**
