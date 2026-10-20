@@ -5090,12 +5090,11 @@ class DRAV2DevLabPanel extends HTMLElement {
                       <th scope="row">${this._escapeProject(name)}
                         <div class="note">${this._escapeProject(item.repository)}</div></th>
                       <td>${this._escapeProject(oldVersion)}</td><td class="dra-review-arrow">→</td>
-                      <td><strong>${this._escapeProject(newVersion)}</strong>
-</td>
+                      <td><strong>${this._escapeProject(newVersion)}</strong></td>
                       <td><code>${this._escapeProject(item.source_commit)}</code></td>
                       <td><code>${this._escapeProject(item.source_ref)}</code></td>
                       <td>${this._escapeProject(label)}
-                        <div class="note">+${item.add} · ~${item.change} · −${item.remove}</div></td>
+                        <div class="dra-review-counts"><span class="${item.add ? "dra-review-add" : ""}">+${item.add}</span> · <span class="${item.change ? "dra-review-edit" : ""}">~${item.change}</span> · <span class="${item.remove ? "dra-review-remove" : ""}">−${item.remove}</span></div></td>
                     </tr>`;
                   }).join("")}</tbody>
                 </table>
