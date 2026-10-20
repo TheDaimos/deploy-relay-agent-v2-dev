@@ -1,6 +1,6 @@
 /* Separate DRA V2 DEV read-only lab. No V1 custom element or URLs. */
 // Build identity of this actually loaded JavaScript, independent of the HA Python version.
-const DRA_V2_UI_VERSION = "0.1.116";
+const DRA_V2_UI_VERSION = "0.1.117";
 const G2_TEST_PYTHON_VERSION = DRA_V2_UI_VERSION;
 class DRAV2DevLabPanel extends HTMLElement {
   constructor() {
@@ -2602,6 +2602,39 @@ class DRAV2DevLabPanel extends HTMLElement {
     const batchReviewScroll = s?.querySelector(".dra-batch-review-table-wrap")?.scrollLeft ?? 0;
     const batchReviewTop = s?.querySelector(".dra-batch-review-table-wrap")?.scrollTop ?? 0;
     const batchDialogTop = s?.querySelector("#dra-batch-review-dialog")?.scrollTop ?? 0;
+    // Retain open mobile project details while HA polling rebuilds the shadow DOM.
+    const expandedMobileProjects = new Set([...s.querySelectorAll(".dra-review-mobile-card[open]")]
+      .map(node => node.dataset.projectKey));
+    const mobileReviewCards = (this._batchPreparation?.items || []).map(item => {
+      const name = this._projects.find(p => p.project_id === item.project_key)?.name || item.project_key;
+      const oldVersion = item.installed_version || "Nicht ermittelbar";
+      const newVersion = item.new_version || "Nicht ermittelbar";
+      const fullCommit = /^[a-f0-9]{40}$/.test(item.source_commit || "") ? item.source_commit : "";
+      const shortCommit = fullCommit ? fullCommit.slice(0,12) : "Nicht geprüft";
+      const statusLabel = item.status === "up_to_date" ? "Aktuell · keine Installation" : "Zur Installation vorbereitet";
+      return `<details class="dra-review-mobile-card ${item.status === "up_to_date" ? "is-current" : ""}"
+        data-project-key="${this._escapeProject(item.project_key)}"
+        ${expandedMobileProjects.has(item.project_key) ? "open" : ""}>
+        <summary aria-label="${this._escapeProject(name)} · Einzelheiten anzeigen">
+          <strong class="dra-review-mobile-project">${this._escapeProject(name)}</strong>
+          <span class="dra-review-mobile-versions">${this._escapeProject(oldVersion)} <b aria-hidden="true">→</b> ${this._escapeProject(newVersion)}</span>
+          <span class="dra-review-mobile-hash">Commit <code title="${this._escapeProject(fullCommit)}">${this._escapeProject(shortCommit)}</code></span>
+          <span class="dra-review-mobile-chevron" aria-hidden="true">⌄</span>
+        </summary>
+        <div class="dra-review-mobile-detail-list">
+          <div><span>Repository</span><strong>${this._escapeProject(item.repository)}</strong></div>
+          <div><span>Git-Referenz</span><code>${this._escapeProject(item.source_ref)}</code></div>
+          <div><span>Vollständiger Commit</span><code class="dra-review-full-commit">${this._escapeProject(fullCommit || "Nicht geprüft")}</code></div>
+          ${fullCommit ? `<button type="button" class="dra-review-copy-commit" data-commit="${this._escapeProject(fullCommit)}">Vollständigen Commit kopieren</button>` : ""}
+          <div><span>Status</span><strong>${this._escapeProject(statusLabel)}</strong></div>
+          <div><span>Dateiänderungen</span><strong class="dra-review-counts">
+            <span class="${item.add ? "dra-review-add" : ""}">+${item.add}</span> ·
+            <span class="${item.change ? "dra-review-edit" : ""}">~${item.change}</span> ·
+            <span class="${item.remove ? "dra-review-remove" : ""}">−${item.remove}</span>
+          </strong></div>
+        </div>
+      </details>`;
+    }).join("");
     const settingsDraft = this._projectSettingsRepo && s?.querySelector("#manage-repository") ?
       { repository:s.querySelector("#manage-repository").value,
         name:s.querySelector("#manage-name").value,
@@ -3407,6 +3440,42 @@ class DRAV2DevLabPanel extends HTMLElement {
         .dra-review-add {color:#68dda3;font-weight:750;}
         .dra-review-remove {color:#ff8a8a;font-weight:750;}
         .dra-review-edit {color:#f3c879;font-weight:750;}
+        /* Mobile review: readable disclosure cards instead of cropped desktop columns. */
+        .dra-batch-review-mobile-list {display:none;}
+        @media(max-width:900px) {
+          .dra-batch-review-table-wrap {display:none;}
+          .dra-batch-review-mobile-list {display:grid;gap:8px;margin:12px 0;min-width:0;}
+          .dra-review-mobile-card {min-width:0;border:1px solid #456578;border-radius:10px;
+            background:#1e2429;overflow:hidden;}
+          .dra-review-mobile-card.is-current {border-color:#4a6860;}
+          .dra-review-mobile-card summary {display:grid;grid-template-columns:minmax(0,1fr) 22px;
+            align-items:center;gap:4px 8px;list-style:none;cursor:pointer;padding:11px 12px;
+            min-height:68px;}
+          .dra-review-mobile-card summary::-webkit-details-marker {display:none;}
+          .dra-review-mobile-card summary:focus-visible {outline:2px solid #92cbdc;outline-offset:-2px;}
+          .dra-review-mobile-project {grid-column:1;font-size:14px;line-height:1.35;overflow-wrap:anywhere;}
+          .dra-review-mobile-versions {grid-column:1;font-size:13px;line-height:1.35;overflow-wrap:anywhere;}
+          .dra-review-mobile-versions b {color:#83d8e4;margin:0 6px;}
+          .dra-review-mobile-hash {grid-column:1;font-size:12px;color:#b4cbd6;}
+          .dra-review-mobile-hash code {color:#e1f5fd;font-size:12px;}
+          .dra-review-mobile-chevron {grid-column:2;grid-row:1 / span 3;align-self:center;
+            color:#9ad7e9;font-size:24px;text-align:center;transition:transform .16s;}
+          .dra-review-mobile-card[open] .dra-review-mobile-chevron {transform:rotate(180deg);}
+          .dra-review-mobile-detail-list {display:grid;gap:10px;padding:12px;
+            border-top:1px solid #456070;background:rgba(13,25,34,.45);}
+          .dra-review-mobile-detail-list > div {display:grid;gap:2px;min-width:0;}
+          .dra-review-mobile-detail-list > div > span:first-child {font-size:11px;color:#aebfca;}
+          .dra-review-mobile-detail-list strong,.dra-review-mobile-detail-list code {
+            font-size:12px;line-height:1.45;overflow-wrap:anywhere;word-break:break-word;}
+          .dra-review-full-commit {user-select:text;word-break:break-all !important;}
+          .dra-review-copy-commit {justify-self:start;padding:8px 12px;min-height:40px;
+            font-size:12px;border:1px solid #518da6;border-radius:8px;background:#1e566d;color:#eefbff;}
+          .dra-batch-review-dialog .dra-batch-review-warning {padding:9px 11px;font-size:12px;}
+          .dra-batch-review-dialog .dra-batch-review-actions {position:sticky;bottom:0;z-index:2;
+            padding:9px 0 2px;background:var(--primary-background-color,#1d1d1d);}
+          .dra-batch-review-dialog .dra-batch-review-actions button {font-size:12px;line-height:1.3;}
+          .dra-batch-review-dialog > .note code {overflow-wrap:anywhere;word-break:break-all;}
+        }
         .dra-batch-review-warning {background:#45331b;color:#f9d7a5;
           border:1px solid #ab7b32;border-radius:9px;padding:12px;font-size:13px;}
         .dra-batch-review-ack {display:flex;gap:12px;align-items:flex-start;margin:12px 0;
@@ -5102,6 +5171,7 @@ class DRAV2DevLabPanel extends HTMLElement {
                 <button type="button" id="dra-batch-review-close" title="Übersicht schließen"
                   aria-label="Prüfübersicht schließen">${closeIcon}</button>
               </header>
+              <div class="dra-batch-review-mobile-list" aria-label="Kompakte Projektübersicht">${mobileReviewCards}</div>
               <div class="dra-batch-review-table-wrap">
                 <table class="dra-batch-review-table">
                   <thead><tr>
@@ -5658,6 +5728,21 @@ class DRAV2DevLabPanel extends HTMLElement {
         this._mainBatchBusy || this._batchStartUncertain || this._batchStatusError ||
         this._batchStatus?.review_digest !== this._batchReviewDigest;
     });
+    s.querySelectorAll(".dra-review-copy-commit").forEach(button => button.addEventListener("click", async () => {
+      const commit = button.dataset.commit;
+      if (!/^[a-f0-9]{40}$/.test(commit || "")) return;
+      try {
+        if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(commit);
+        else {
+          const field = document.createElement("textarea");
+          field.value = commit; field.style.position="fixed"; field.style.opacity="0";
+          document.body.appendChild(field);
+          try { field.select(); if (!document.execCommand("copy")) throw Error("copy failed"); }
+          finally { field.remove(); }
+        }
+        button.textContent = "Commit kopiert";
+      } catch (_error) { button.textContent = "Kopieren nicht möglich"; }
+    }));
     s.querySelector("#dra-batch-review-approve")?.addEventListener("click",()=>this._startMainBatch());
     s.querySelector("#dra-batch-install-prepare")?.addEventListener("click",()=>this._prepareMainBatch());
     s.querySelector("#dra-batch-install-takeover")?.addEventListener("click",()=>this._takeOverMainBatch());
