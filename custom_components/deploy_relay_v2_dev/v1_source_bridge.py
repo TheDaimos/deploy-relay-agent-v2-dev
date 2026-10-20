@@ -16,11 +16,21 @@ from .v1_engine.manifest import DeploymentManifest, parse_manifest
 from .v1_engine.preview import PreviewResult
 from .parallel_preview import async_build_parallel_preview
 from .v1_engine.repository import normalize_repository
-from .v1_engine.source_inventory import SourceInventory, async_build_source_inventory
+from .v1_engine.source_inventory import SourceInventory, SourceInventoryError, async_build_source_inventory
 
 COMMIT = re.compile(r"[0-9a-f]{40}\Z")
 PROJECT = re.compile(r"[a-z][a-z0-9_]{0,63}\Z")
 MAX_MANIFEST_BYTES = 262144
+
+
+# Fixed safe inventory failure labels: no paths, GitHub bodies or credentials.
+INVENTORY_SAFE_ERRORS = {
+    "source exceeds manifest max_files": "inventory_file_limit",
+    "source exceeds manifest max_uncompressed_bytes": "inventory_byte_limit",
+    "source contains duplicate normalized paths": "inventory_duplicate_paths",
+    "duplicate/cyclic source directory discovery": "inventory_directory_cycle",
+    "unsafe source path returned by GitHub": "inventory_unsafe_path",
+}
 
 
 class SourceBridgeError(ValueError):
@@ -85,8 +95,12 @@ async def prepare_frozen_v1_source(
         inventory = await async_build_source_inventory(
             session, manifest, source_ref=source_ref,
             source_commit=source_commit, token=token)
+    except SourceInventoryError as exc:
+        raise SourceBridgeError(
+            INVENTORY_SAFE_ERRORS.get(str(exc), "inventory_read_unavailable"),
+            check_stage="inventory") from None
     except Exception:
-        raise SourceBridgeError("verified source inventory unavailable",
+        raise SourceBridgeError("inventory_read_unavailable",
                                 check_stage="inventory") from None
     try:
         preview = await async_build_parallel_preview(
