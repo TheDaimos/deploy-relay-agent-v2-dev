@@ -114,6 +114,27 @@ class BatchSafety(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(self.batch._challenge)
         self.assertEqual(self.batch._pending, ())
 
+    async def test_preflight_diagnostics_never_echo_arbitrary_source_errors(self):
+        await self.batch.source_inspection_started("weather_router")
+        await self.batch.preparation_failed(
+            "source_invalid",project_id="weather_router",
+            check_stage="source_reference",
+            detail_code="token=secret-value",
+        )
+        snap=await self.batch.status()
+        self.assertIsNone(snap.get("error_detail"))
+        self.assertNotIn("secret-value",str(snap))
+
+    async def test_github_denial_retained_as_safe_code(self):
+        await self.batch.source_inspection_started("weather_router_private_extensions")
+        await self.batch.preparation_failed(
+            "source_invalid",project_id="weather_router_private_extensions",
+            check_stage="source_reference",
+            detail_code="github_http_forbidden",
+        )
+        snap=await self.batch.status()
+        self.assertEqual(snap["error_detail"],"github_http_forbidden")
+
     async def test_prepared_batch_cannot_be_overwritten_during_inspection(self):
         offer = await self.prepare([self.spec(1)])
         with self.assertRaises(model.OperationContractError):
