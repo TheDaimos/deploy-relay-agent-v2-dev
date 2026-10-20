@@ -34,3 +34,7 @@ Die Codeänderungen wurden in GitHub geschrieben. Für die **endgültige CI-Bewe
 Nach vollständigem CI-Erfolg darf 0.1.112 nur kontrolliert über den bisherigen V1-Installationsweg auf HA DEV geprüft werden. Danach zunächst nur die sechsfach vorbereitete Prüfübersicht öffnen und **keine Sammelinstallation bestätigen**. Den Tabellenbereich nach rechts verschieben, mindestens zwei Statusaktualisierungen abwarten und überprüfen, ob die Position erhalten bleibt. Anschließend Darstellung auf Notebook, iPad und schmalem Bildschirm sowie die Farbwerte und den unveränderten vollständigen 40-stelligen Commit abnehmen. WeatherRouter-`deploy/dev` und Selbstupdate-Reihenfolge müssen weiterhin unabhängig überprüft werden.
 
 **GitHub-CI ≠ HA-Realabnahme.** Die endgültige Installations-, Neustart- und Selbstupdate-Freigabe bleibt ausstehend.
+
+## 5. Abschließende GitHub-CI-Verifikation
+
+Der vollständige GitHub-Actions-Prüflauf **39424958820** wurde auf dem maßgeblichen Programm-/Testcommit **`92acdf552863feee1cfe20bef1c0527cb115bbeb`** mit Status **completed / SUCCESS** verifiziert. Der nachfolgende Commit dieser Markdown-Dokumentation ändert keinen Programm- oder Testcode. Damit ist 0.1.112 ein CI-geprüfter Kandidat für eine **kontrollierte HA-DEV-Testinstallation**, aber keine erfolgreich realabgenommene Version.
