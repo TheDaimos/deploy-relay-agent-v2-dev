@@ -2582,6 +2582,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     const s = this.shadowRoot;
     // The HA test status can refresh while this dialog is open. Preserve the
     // unsent secret only in the transient password input, never component state.
+    const batchReviewScroll = s?.querySelector(".dra-batch-review-table-wrap")?.scrollLeft ?? 0;
     const settingsDraft = this._projectSettingsRepo && s?.querySelector("#manage-repository") ?
       { repository:s.querySelector("#manage-repository").value,
         name:s.querySelector("#manage-name").value,
@@ -3374,6 +3375,10 @@ class DRAV2DevLabPanel extends HTMLElement {
         .dra-batch-review-table tbody .note {margin-top:3px;color:#aebfca;}
         .dra-review-arrow {font-size:19px;color:#83d8e4;text-align:center;}
         .dra-review-unknown {background:rgba(142,91,24,.09);}
+        .dra-review-counts {white-space:nowrap;margin-top:4px;font-variant-numeric:tabular-nums;}
+        .dra-review-add {color:#68dda3;font-weight:750;}
+        .dra-review-remove {color:#ff8a8a;font-weight:750;}
+        .dra-review-edit {color:#f3c879;font-weight:750;}
         .dra-batch-review-warning {background:#45331b;color:#f9d7a5;
           border:1px solid #ab7b32;border-radius:9px;padding:12px;font-size:13px;}
         .dra-batch-review-ack {display:flex;gap:12px;align-items:flex-start;margin:12px 0;
@@ -5824,6 +5829,8 @@ class DRAV2DevLabPanel extends HTMLElement {
         if (event.key === "Escape") this._closeGitDialog();
       });
     }
+    const batchReviewTable = s.querySelector(".dra-batch-review-table-wrap");
+    if (batchReviewTable) batchReviewTable.scrollLeft = batchReviewScroll;
     const v2SettingsScroll = s.querySelector(".project-v2-settings-scroll");
     if (v2SettingsScroll) v2SettingsScroll.scrollTop = previousV2SettingsScroll;
     const v2ReadInput = s.querySelector("#source-read-token");
