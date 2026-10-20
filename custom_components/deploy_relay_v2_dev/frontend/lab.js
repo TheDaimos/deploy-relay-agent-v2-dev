@@ -1,6 +1,6 @@
 /* Separate DRA V2 DEV read-only lab. No V1 custom element or URLs. */
 // Build identity of this actually loaded JavaScript, independent of the HA Python version.
-const DRA_V2_UI_VERSION = "0.1.114";
+const DRA_V2_UI_VERSION = "0.1.115";
 const G2_TEST_PYTHON_VERSION = DRA_V2_UI_VERSION;
 class DRAV2DevLabPanel extends HTMLElement {
   constructor() {
@@ -2256,6 +2256,13 @@ class DRAV2DevLabPanel extends HTMLElement {
       if(r?.schema!=="dra-v2-batch-preparation.v1" ||
          !/^[a-f0-9]{32}$/.test(r.challenge||"") ||
          !this._validateBatchReview(r.preparation))throw Error("invalid takeover");
+      // Takeover is of the HA-owned batch, not of the previously selected
+      // individual project. Restore the batch screen before opening its review.
+      this._mainBatchMode=true;
+      this._mainBatchSelectionOpen=false;
+      this._batchRunSelected=new Set(r.preparation.items.map(item=>item.repository));
+      this._batchStatus=r.preparation;
+      this._batchStatusError=false;
       this._batchChallenge=r.challenge;
       this._batchPreparation=r.preparation;
       this._batchReviewDigest=r.preparation.review_digest;
