@@ -109,6 +109,48 @@ class V2ProjectCatalogTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(m.CatalogError):
                 await m.ProjectCatalog(storage).load()
 
+    async def test_verified_project_ids_match_authoritative_manifests(self):
+        expected = {
+            "TheDaimos/deploy-relay-agent-dev": "deploy_relay",
+            "TheDaimos/weather-router-dev": "weather_router",
+            "TheDaimos/weather-router-extensions-dev": "weather_router_private_extensions",
+        }
+        for repo, project_id in expected.items():
+            with self.subTest(repository=repo):
+                row = await self.catalog.add(repo, repo.split("/")[-1])
+                self.assertEqual(row["project_id"], project_id)
+        self.assertEqual(len({row["project_id"] for row in self.catalog.list()}), 3)
+
+    async def test_legacy_generated_ids_migrate_without_rewriting_storage(self):
+        repos = [
+            "TheDaimos/deploy-relay-agent-dev",
+            "TheDaimos/weather-router-dev",
+            "TheDaimos/weather-router-extensions-dev",
+        ]
+        rows = []
+        for repo in repos:
+            row = m.proposal(repo, "Legacy", origin="v1_import")
+            row["project_id"] = repo.split("/")[-1].lower().replace("-", "_")
+            rows.append(row)
+        storage = Store({"schema": m.SCHEMA, "projects": rows})
+        catalog = m.ProjectCatalog(storage)
+        await catalog.load()
+        self.assertEqual([row["project_id"] for row in catalog.list()], [
+            "deploy_relay", "weather_router", "weather_router_private_extensions"])
+        self.assertEqual(storage.writes, 0)
+        self.assertEqual(catalog.batch_preview(repos)["count"], 3)
+        await catalog.set_batch_preselect(repos[0], False)
+        self.assertEqual(storage.value["projects"][0]["project_id"], "deploy_relay")
+
+    async def test_legacy_identity_collision_fails_closed(self):
+        legacy = m.proposal("TheDaimos/deploy-relay-agent-dev", "Old", origin="manual")
+        legacy["project_id"] = "deploy_relay_agent_dev"
+        other = m.proposal("TheDaimos/another", "Other", origin="manual")
+        other["project_id"] = "deploy_relay"
+        catalog = m.ProjectCatalog(Store({"schema": m.SCHEMA, "projects": [legacy, other]}))
+        with self.assertRaises(m.CatalogError):
+            await catalog.load()
+
     async def test_import_preview_does_not_write(self):
         v1 = v1_projects(("TheDaimos/weather-router-dev", "WeatherRouter", 10))
         preview = m.v1_proposals(v1)
