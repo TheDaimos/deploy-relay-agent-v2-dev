@@ -5091,7 +5091,7 @@ class DRAV2DevLabPanel extends HTMLElement {
                         <div class="note">${this._escapeProject(item.repository)}</div></th>
                       <td>${this._escapeProject(oldVersion)}</td><td class="dra-review-arrow">→</td>
                       <td><strong>${this._escapeProject(newVersion)}</strong>
-                        ${missing?'<div class="note">Version nicht vollständig nachgewiesen</div>':""}</td>
+</td>
                       <td><code>${this._escapeProject(item.source_commit)}</code></td>
                       <td><code>${this._escapeProject(item.source_ref)}</code></td>
                       <td>${this._escapeProject(label)}
