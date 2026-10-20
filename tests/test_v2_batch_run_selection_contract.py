@@ -39,6 +39,15 @@ class BatchRunContract(unittest.TestCase):
         self.assertIn("const DRA_V2_UI_VERSION = \"0.1.112\";", js)
         self.assertIn("review_digest:this._batchReviewDigest,review_confirm:true", js)
 
+    def test_review_scroll_and_condensed_change_display(self):
+        js=(ROOT/"frontend"/"lab.js").read_text(encoding="utf-8")
+        self.assertIn('const batchReviewScroll = s?.querySelector(".dra-batch-review-table-wrap")?.scrollLeft ?? 0;',js)
+        self.assertIn("batchReviewTable.scrollLeft = batchReviewScroll",js)
+        self.assertNotIn("Version nicht vollständig nachgewiesen",js)
+        self.assertIn("dra-review-add",js)
+        self.assertIn("dra-review-remove",js)
+        self.assertIn("dra-review-edit",js)
+
     def test_branch_discovery_not_blocked_by_inventory_lock(self):
         ws=(ROOT/"websocket_api.py").read_text(encoding="utf-8")
         init=(ROOT/"__init__.py").read_text(encoding="utf-8")
