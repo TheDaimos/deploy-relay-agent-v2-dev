@@ -1,6 +1,6 @@
 /* Separate DRA V2 DEV read-only lab. No V1 custom element or URLs. */
 // Build identity of this actually loaded JavaScript, independent of the HA Python version.
-const DRA_V2_UI_VERSION = "0.1.109";
+const DRA_V2_UI_VERSION = "0.1.110";
 const G2_TEST_PYTHON_VERSION = DRA_V2_UI_VERSION;
 class DRAV2DevLabPanel extends HTMLElement {
   constructor() {
@@ -4174,6 +4174,26 @@ class DRAV2DevLabPanel extends HTMLElement {
           font-size:13px; line-height:1.2; font-weight:750; display:block; width:100%;
           text-align:center !important; margin:0 !important; padding:0 !important;
         }
+        /* Wide notebook / iPad landscape: show source and execution side by side.
+           Mobile and narrow split views retain their original single column. */
+        @media (min-width: 1150px) {
+          #dra-main-view {
+            display:grid;
+            grid-template-columns:minmax(0, 0.92fr) minmax(0, 1.08fr);
+            grid-template-areas:"project deployment" "source deployment" "tests tests";
+            gap:12px;
+            align-items:start;
+          }
+          #dra-main-view[hidden] {display:none;}
+          #dra-main-view > .dra-projectbar {grid-area:project;min-width:0;margin:0;}
+          #dra-main-view > .dra-source-card {grid-area:source;min-width:0;margin:0;}
+          #dra-main-view > .dra-deployment-panel {grid-area:deployment;min-width:0;margin:0;}
+          #dra-main-view > .dra-tests-panel {grid-area:tests;min-width:0;margin:0;}
+          #dra-main-view .dra-project-picker-field {min-width:0;}
+          #dra-main-view .dra-project-picker-trigger {min-width:0;}
+          #dra-main-view .dra-deploy-steps {gap:5px;}
+          #dra-main-view .dra-deploy-step {min-height:62px;padding:8px 3px;}
+        }
       </style>
       <main>
         <header class="dra-head">
@@ -4387,6 +4407,13 @@ class DRAV2DevLabPanel extends HTMLElement {
               </details>`}
           </article>
           <article class="dra-deployment-panel">
+            ${this._mainBatchMode && this._batchStatus?.status === "failed" ? `<div class="dra-batch-top-error" role="alert" style="border:1px solid #b36a39;border-radius:8px;padding:10px;margin-bottom:10px;background:rgba(135,70,32,.14)">
+              <strong>Sammelvorbereitung fehlgeschlagen – keine Installation gestartet</strong>
+              <p style="margin:5px 0 0">Projekt: ${this._escapeProject(this._projects.find(p=>p.project_id===this._batchStatus.project_key)?.name || this._batchStatus.project_key || "Unbekannt")} ·
+              Prüfschritt: ${this._escapeProject(this._batchStatus.check_stage || "Unbekannt")} ·
+              Fehler: ${this._escapeProject(this._batchStatus.error_code || "Unbekannt")}</p>
+              <p style="margin:5px 0 0" class="note">Die ausführliche Eingrenzung steht weiter unten im selben Abschnitt.</p>
+            </div>` : ""}
             <div class="dra-deployment-heading">
               <h2>Deployment</h2>
               ${mainProject ? `<div class="dra-controller-chip ${this._controllerStatus?.controller === true ? "is-controller" :
