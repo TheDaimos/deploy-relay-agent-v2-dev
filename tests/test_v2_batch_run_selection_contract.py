@@ -91,6 +91,16 @@ class BatchRunContract(unittest.TestCase):
         self.assertIn("fullCommit = /^[a-f0-9]{40}$/.test",js)
         self.assertIn("review_digest:this._batchReviewDigest,review_confirm:true",js)
 
+    def test_mobile_minimal_change_indicators_are_distinct(self):
+        js=(ROOT/"frontend"/"lab.js").read_text(encoding="utf-8")
+        self.assertIn('added ? `<span class="dra-review-mini-count dra-review-add"',js)
+        self.assertIn('changed ? `<span class="dra-review-mini-count dra-review-edit"',js)
+        self.assertIn('removed ? `<span class="dra-review-mini-count dra-review-remove"',js)
+        self.assertIn('.dra-review-mini-count.dra-review-edit {color:#ffe082;',js)
+        self.assertIn('.dra-review-mini-count.dra-review-remove {color:#ff667f;',js)
+        self.assertIn('const hasChanges = added + changed + removed > 0;',js)
+        self.assertIn('minimalChanges ||',js)
+
     def test_first_picker_position_is_fresh_device_default(self):
         js=(ROOT/"frontend"/"lab.js").read_text(encoding="utf-8")
         self.assertIn("this._pickerBatchPosition === 0",js)
