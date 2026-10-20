@@ -2210,7 +2210,7 @@ class DRAV2DevLabPanel extends HTMLElement {
       this._batchReviewOpen=false;this._batchReviewChecked=false;
       const known = {
         batch_timed_out:"Zeitüberschreitung bei der Quellprüfung",
-        batch_source_invalid:"Quell- oder Manifestprüfung fehlgeschlagen",
+        batch_source_invalid:"GitHub-Referenz, Manifest oder Quellenprüfung fehlgeschlagen",
         batch_target_conflict:"Zielkonflikt oder unvollständige Transaktion",
         batch_source_unavailable:"GitHub-Quelle nicht erreichbar",
         batch_preflight_failed:"Serverseitige Vorbereitung fehlgeschlagen",
@@ -2218,13 +2218,29 @@ class DRAV2DevLabPanel extends HTMLElement {
         busy:"Andere HA-Quellprüfung läuft",
       };
       const reason = known[_error?.code] || "HA hat die Vorbereitung nicht bestätigt";
-      this._mainBatchMessage = reason +
-        ". Keine Installation gestartet. Status des betroffenen Projekts und Diagnose prüfen.";
+      this._mainBatchMessage = reason + ". Keine Installation gestartet.";
       // A failed read-only preparation cannot start an installation. Query the
       // HA-owned state, not an old local approval, before allowing another try.
       try {
         const snapshot = await this._hass.callWS({type:"deploy_relay_v2_dev/batch/status"});
-        if (snapshot?.schema==="dra-v2-batch-status.v1") this._batchStatus=snapshot;
+        if (snapshot?.schema==="dra-v2-batch-status.v1") {
+          this._batchStatus=snapshot;
+          const name=this._projects.find(p=>p.project_id===snapshot.project_key)?.name ||
+            snapshot.project_key || "unbekanntes Projekt";
+          const phases={
+            source_reference:"GitHub-Zweig, Zugriff oder Empfehlung",
+            manifest:"Installationsmanifest",
+            inventory:"Git-Dateibestand",
+            local_comparison:"Dateivergleich mit Home Assistant",
+            version_detection:"Versionsprüfung",
+            batch_planning:"Sammelplanung",
+          };
+          if(snapshot.status==="failed") this._mainBatchMessage=
+            "Sammelvorbereitung angehalten: "+name+" · "+
+            (phases[snapshot.check_stage]||"Quellprüfung")+
+            " · "+(snapshot.error_code||"preflight_failed")+
+            ". Es wurde keine Installation gestartet.";
+        }
       } catch (_ignore) {}
     } finally { this._mainBatchBusy=false; if(this.isConnected)this._render(); }
   }
@@ -2706,7 +2722,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     const runtimeVersionState = versionMismatch ? "mismatch" :
       runtimeVersionKnown ? "matched" : "pending";
     const deploymentBusy = this._mainBatchMode
-      ? this._mainBatchBusy || this._batchStatus?.status === "preparing"
+      ? this._mainBatchBusy || ["inspecting_sources","preparing"].includes(this._batchStatus?.status)
       : (this._sourceBusy || this._installBusy);
     const installActive = !!this._installJob &&
       this._installJob.project_key === mainProject?.project_id &&
@@ -4244,7 +4260,7 @@ class DRAV2DevLabPanel extends HTMLElement {
               ${this._installStatusError || !this._restartSummary.operation_id || runningJobs.length?"disabled":""}>Gemeinsamen HA-Neustart ausführen</button>`}
           ${this._deferredRestartMessage ? `<p role="status">${this._escapeProject(this._deferredRestartMessage)}</p>` : ""}
         </section>` : ""}
-        ${this._batchStatus && ["preparing","failed","queued","running","success","stopped","interrupted"].includes(this._batchStatus.status) ?
+        ${this._batchStatus && ["inspecting_sources","preparing","failed","queued","running","success","stopped","interrupted"].includes(this._batchStatus.status) ?
           `<section class="dra-global-observer" role="status" aria-label="Geräteübergreifender Sammelauftrag">
             <div class="dra-observer-top"><strong>Sammelauftrag · ${this._escapeProject(this._batchStatus.status)}</strong>
               <span class="dra-observer-note">${this._batchStatus.current} von ${this._batchStatus.total}
@@ -4764,14 +4780,30 @@ class DRAV2DevLabPanel extends HTMLElement {
             ${this._mainBatchMode ? `<section class="dra-deployment-result" role="group"
               aria-label="Serverseitiges Sammelupdate">
               <strong>Sammelupdate · serverseitige Installation</strong>
-              ${this._batchStatus?.status === "preparing" ? `<p role="status">Home Assistant prüft
+              ${["inspecting_sources","preparing"].includes(this._batchStatus?.status) ? `<p role="status">Home Assistant prüft
                 ${this._batchStatus.current || 0} von ${this._batchStatus.total || 0}
                 Projekten. Aktuell: ${this._escapeProject(this._batchStatus.project_key || "wird ermittelt")}.
                 Der Auftrag läuft auf dem Server weiter.</p>` : ""}
-              ${this._batchStatus?.status === "failed" ? `<p role="alert">
-                Sammelvorbereitung abgebrochen · Bereich: ${this._escapeProject(this._batchStatus.project_key || "unbekannt")}
-                · Fehlerkategorie: ${this._escapeProject(this._batchStatus.error_code || "unbekannt")}.
-                Es wurde keine Installation gestartet.</p>` : ""}
+              ${this._batchStatus?.status === "failed" ? `<div class="dra-deployment-result" role="alert"
+                style="border-color:#b36a39;background:rgba(135,70,32,.16);padding:14px;">
+                <strong>Quellenprüfung angehalten – keine Installation gestartet</strong>
+                <p><strong>Projekt:</strong> ${this._escapeProject(
+                  this._projects.find(p=>p.project_id===this._batchStatus.project_key)?.name ||
+                  this._batchStatus.project_key || "Nicht ermittelt")}</p>
+                <p><strong>Prüfschritt:</strong> ${this._escapeProject(({
+                  source_reference:"GitHub-Referenz / Lesezugriff / Kanalempfehlung",
+                  manifest:"Installationsmanifest",
+                  inventory:"Quell-Dateibestand",
+                  local_comparison:"Lokaler Dateivergleich",
+                  version_detection:"Installierte / neue Version",
+                  batch_planning:"Installationsplanung",
+                })[this._batchStatus.check_stage] || "Nicht ermittelt")}</p>
+                <p><strong>Fehlerkategorie:</strong> ${this._escapeProject(
+                  this._batchStatus.error_code || "preflight_failed")}</p>
+                <p class="note">Diese Angaben stammen aus dem lesbaren Home-Assistant-Auftragsstatus.
+                  Ein zusätzlicher Protokollexport ist dafür nicht notwendig. Andere ausgewählte
+                  Projekte wurden ebenfalls nicht installiert.</p>
+              </div>` : ""}
               ${this._batchStatus?.status === "prepared" ? `<p>Feste Commits und Dateiänderungen sind vorbereitet.
                 Nur eine ausdrückliche Freigabe kann den Auftrag starten.</p>` : ""}
               ${this._batchStatus?.items?.length ? this._batchStatus.items.map(item => `
