@@ -24,7 +24,11 @@ MAX_MANIFEST_BYTES = 262144
 
 
 class SourceBridgeError(ValueError):
-    """Pinned V1-compatible source cannot be safely prepared."""
+    """Safe stage-labelled failure; never includes tokens or remote payloads."""
+
+    def __init__(self, message: str, *, check_stage: str = "source_reference") -> None:
+        super().__init__(message)
+        self.check_stage = check_stage
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,18 +76,28 @@ async def prepare_frozen_v1_source(
             normalized, manifest_path, ref=source_commit,
             max_bytes=MAX_MANIFEST_BYTES,
         )
-        manifest = parse_manifest(raw,expected_repository=normalized,
+        manifest = parse_manifest(raw, expected_repository=normalized,
                                   expected_project_id=expected_project_id)
+    except Exception:
+        raise SourceBridgeError("verified manifest unavailable or invalid",
+                                check_stage="manifest") from None
+    try:
         inventory = await async_build_source_inventory(
             session, manifest, source_ref=source_ref,
             source_commit=source_commit, token=token)
+    except Exception:
+        raise SourceBridgeError("verified source inventory unavailable",
+                                check_stage="inventory") from None
+    try:
         preview = await async_build_parallel_preview(
             manifest, inventory, config_root=config_root,
         )
     except Exception:
-        raise SourceBridgeError("frozen source not safely inspectable") from None
+        raise SourceBridgeError("local comparison not safely possible",
+                                check_stage="local_comparison") from None
     if (preview.source_commit != source_commit or
         preview.project_id != expected_project_id or
         inventory.repository.casefold() != normalized.casefold()):
-        raise SourceBridgeError("source preview identity mismatch")
+        raise SourceBridgeError("source preview identity mismatch",
+                                check_stage="local_comparison")
     return PreparedV1Source(manifest,inventory,preview)
