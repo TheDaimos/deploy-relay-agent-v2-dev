@@ -36,7 +36,7 @@ class BatchRunContract(unittest.TestCase):
         self.assertIn('class="dra-batch-top-error" role="alert"', js)
         self.assertIn("this._batchStatus?.status === \"failed\"", js)
         self.assertIn('this._escapeProject(this._batchStatus.error_code || "Unbekannt")', js)
-        self.assertIn("const DRA_V2_UI_VERSION = \"0.1.114\";", js)
+        self.assertIn("const DRA_V2_UI_VERSION = \"0.1.115\";", js)
         self.assertIn("review_digest:this._batchReviewDigest,review_confirm:true", js)
 
     def test_review_scroll_and_condensed_change_display(self):
@@ -63,6 +63,15 @@ class BatchRunContract(unittest.TestCase):
         self.assertIn('batchReviewTable.scrollTop = batchReviewTop;',js)
         self.assertIn('grid-template-columns:repeat(3,minmax(0,1fr))',js)
         self.assertIn('grid-template-columns:repeat(2,minmax(0,1fr))',js)
+
+    def test_cross_device_batch_takeover_restores_review_mode(self):
+        js=(ROOT/"frontend"/"lab.js").read_text(encoding="utf-8")
+        section=js.split("async _takeOverMainBatch()",1)[1].split("async _discardBatchReview()",1)[0]
+        self.assertIn("this._mainBatchMode=true;",section)
+        self.assertIn("this._batchRunSelected=new Set(r.preparation.items.map(item=>item.repository));",section)
+        self.assertIn("this._batchStatus=r.preparation;",section)
+        self.assertIn("this._batchReviewOpen=true;",section)
+        self.assertIn("this._batchReviewChecked=false;",section)
 
     def test_branch_discovery_not_blocked_by_inventory_lock(self):
         ws=(ROOT/"websocket_api.py").read_text(encoding="utf-8")
