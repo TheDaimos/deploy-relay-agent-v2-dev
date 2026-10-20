@@ -1,6 +1,6 @@
 /* Separate DRA V2 DEV read-only lab. No V1 custom element or URLs. */
 // Build identity of this actually loaded JavaScript, independent of the HA Python version.
-const DRA_V2_UI_VERSION = "0.1.117";
+const DRA_V2_UI_VERSION = "0.1.118";
 const G2_TEST_PYTHON_VERSION = DRA_V2_UI_VERSION;
 class DRAV2DevLabPanel extends HTMLElement {
   constructor() {
@@ -2612,12 +2612,22 @@ class DRAV2DevLabPanel extends HTMLElement {
       const fullCommit = /^[a-f0-9]{40}$/.test(item.source_commit || "") ? item.source_commit : "";
       const shortCommit = fullCommit ? fullCommit.slice(0,12) : "Nicht geprüft";
       const statusLabel = item.status === "up_to_date" ? "Aktuell · keine Installation" : "Zur Installation vorbereitet";
-      return `<details class="dra-review-mobile-card ${item.status === "up_to_date" ? "is-current" : ""}"
+      // Never infer changes from a version string: use the HA-verified file inventory.
+      const added = Number.isInteger(item.add) && item.add > 0 ? item.add : 0;
+      const changed = Number.isInteger(item.change) && item.change > 0 ? item.change : 0;
+      const removed = Number.isInteger(item.remove) && item.remove > 0 ? item.remove : 0;
+      const hasChanges = added + changed + removed > 0;
+      const minimalChanges = [
+        added ? `<span class="dra-review-mini-count dra-review-add" title="Hinzugefügt: ${added}">+${added}</span>` : "",
+        changed ? `<span class="dra-review-mini-count dra-review-edit" title="Geändert: ${changed}">~${changed}</span>` : "",
+        removed ? `<span class="dra-review-mini-count dra-review-remove" title="Entfernt: ${removed}">−${removed}</span>` : "",
+      ].filter(Boolean).join("");
+      return `<details class="dra-review-mobile-card ${hasChanges ? "has-changes" : "is-current"}"
         data-project-key="${this._escapeProject(item.project_key)}"
         ${expandedMobileProjects.has(item.project_key) ? "open" : ""}>
         <summary aria-label="${this._escapeProject(name)} · Einzelheiten anzeigen">
           <strong class="dra-review-mobile-project">${this._escapeProject(name)}</strong>
-          <span class="dra-review-mobile-versions">${this._escapeProject(oldVersion)} <b aria-hidden="true">→</b> ${this._escapeProject(newVersion)}</span>
+          <span class="dra-review-mobile-version-line"><span class="dra-review-mobile-versions">${this._escapeProject(oldVersion)} <b aria-hidden="true">→</b> ${this._escapeProject(newVersion)}</span><span class="dra-review-mobile-changes">${minimalChanges || (item.status === "up_to_date" ? '<span class="dra-review-mini-current">Aktuell</span>' : '<span class="dra-review-mini-current">Keine Dateiänderungen</span>')}</span></span>
           <span class="dra-review-mobile-hash">Commit <code title="${this._escapeProject(fullCommit)}">${this._escapeProject(shortCommit)}</code></span>
           <span class="dra-review-mobile-chevron" aria-hidden="true">⌄</span>
         </summary>
@@ -3448,13 +3458,23 @@ class DRAV2DevLabPanel extends HTMLElement {
           .dra-review-mobile-card {min-width:0;border:1px solid #456578;border-radius:10px;
             background:#1e2429;overflow:hidden;}
           .dra-review-mobile-card.is-current {border-color:#4a6860;}
+          .dra-review-mobile-card.has-changes {border-left:4px solid #47b8ca;}
+          .dra-review-mobile-card.is-current {border-left:4px solid #51646b;}
+          .dra-review-mobile-version-line {grid-column:1;display:flex;gap:5px 9px;align-items:baseline;flex-wrap:wrap;min-width:0;}
+          .dra-review-mobile-changes {display:inline-flex;align-items:center;flex-wrap:wrap;gap:5px;}
+          .dra-review-mini-count {display:inline-block;padding:2px 6px;border:1px solid currentColor;
+            border-radius:6px;font-size:12px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.25;}
+          .dra-review-mini-count.dra-review-add {color:#77e7ae;background:rgba(36,143,87,.18);}
+          .dra-review-mini-count.dra-review-edit {color:#ffe082;background:rgba(167,120,15,.21);}
+          .dra-review-mini-count.dra-review-remove {color:#ff667f;background:rgba(173,40,65,.19);}
+          .dra-review-mini-current {font-size:12px;color:#b7c8cf;font-weight:600;}
           .dra-review-mobile-card summary {display:grid;grid-template-columns:minmax(0,1fr) 22px;
             align-items:center;gap:4px 8px;list-style:none;cursor:pointer;padding:11px 12px;
             min-height:68px;}
           .dra-review-mobile-card summary::-webkit-details-marker {display:none;}
           .dra-review-mobile-card summary:focus-visible {outline:2px solid #92cbdc;outline-offset:-2px;}
           .dra-review-mobile-project {grid-column:1;font-size:14px;line-height:1.35;overflow-wrap:anywhere;}
-          .dra-review-mobile-versions {grid-column:1;font-size:13px;line-height:1.35;overflow-wrap:anywhere;}
+          .dra-review-mobile-versions {font-size:13px;line-height:1.35;overflow-wrap:anywhere;}
           .dra-review-mobile-versions b {color:#83d8e4;margin:0 6px;}
           .dra-review-mobile-hash {grid-column:1;font-size:12px;color:#b4cbd6;}
           .dra-review-mobile-hash code {color:#e1f5fd;font-size:12px;}
