@@ -1,6 +1,6 @@
 /* Separate DRA V2 DEV read-only lab. No V1 custom element or URLs. */
 // Build identity of this actually loaded JavaScript, independent of the HA Python version.
-const DRA_V2_UI_VERSION = "0.1.118";
+const DRA_V2_UI_VERSION = "0.1.119";
 const G2_TEST_PYTHON_VERSION = DRA_V2_UI_VERSION;
 class DRAV2DevLabPanel extends HTMLElement {
   constructor() {
@@ -3626,6 +3626,42 @@ class DRAV2DevLabPanel extends HTMLElement {
           background:linear-gradient(145deg,#187995,#18546b);}
         .dra-post-install .dra-ha-restart {border:1px solid #c88f36;color:#ffe2b3;
           background:linear-gradient(145deg,#795122,#5e3f21);}
+        /* Restart summary: compact responsive layout, two-step confirmation unchanged. */
+        .dra-restart-pending {display:grid;gap:9px;padding:12px 16px;}
+        .dra-restart-compact {display:grid;grid-template-columns:minmax(0,1fr) auto;
+          align-items:center;gap:10px 18px;min-width:0;}
+        .dra-restart-compact-info {display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 13px;min-width:0;}
+        .dra-restart-compact-title {color:#d5ecf6;font-size:15px;}
+        .dra-restart-compact-projects {font-size:13px;color:#e8d09c;overflow-wrap:anywhere;}
+        .dra-restart-compact-info .dra-observer-note {font-size:11px;}
+        .dra-restart-compact-action {display:flex;justify-content:flex-end;align-items:center;min-width:0;}
+        .dra-restart-compact-action button {width:auto;max-width:100%;min-height:42px;
+          padding:9px 15px;border-radius:8px;margin:0;}
+        .dra-restart-requested {color:#a9e4c8;font-size:13px;}
+        .dra-restart-advice {font-size:12px;line-height:1.4;}
+        .dra-restart-advice summary {cursor:pointer;color:#afc2cd;}
+        .dra-restart-advice p {margin:6px 0 0;color:#b9c8d0;}
+        .dra-deferred-restart-confirm {margin-top:0;padding:10px 12px;}
+        .dra-deferred-restart-confirm .dra-restart-buttons {justify-content:flex-end;}
+        .dra-deferred-restart-confirm .dra-restart-buttons button {min-height:42px;}
+        @media(max-width:760px) {
+          .dra-restart-compact {grid-template-columns:minmax(0,1fr);}
+          .dra-restart-compact-action {justify-content:stretch;}
+          .dra-restart-compact-action button {width:100%;}
+        }
+        /* Server-side batch progress: gold project names and distinguishable file counts. */
+        .dra-batch-install-row {display:flex;flex-wrap:wrap;align-items:baseline;
+          gap:3px 9px;padding:3px 0;min-width:0;font-size:12px;line-height:1.45;}
+        .dra-batch-install-project {color:#f0ba40;font-weight:750;}
+        .dra-batch-install-details {display:flex;flex-wrap:wrap;gap:3px 9px;align-items:baseline;
+          min-width:0;overflow-wrap:anywhere;}
+        .dra-batch-install-counts {display:inline-flex;align-items:baseline;gap:8px;
+          font-variant-numeric:tabular-nums;white-space:nowrap;}
+        .dra-batch-install-counts .dra-review-add {color:#77e7ae;font-weight:800;}
+        .dra-batch-install-counts .dra-review-edit {color:#ffe082;font-weight:800;}
+        .dra-batch-install-counts .dra-review-remove {color:#ff667f;font-weight:800;}
+        .dra-batch-install-zero {color:#a9b7c0;opacity:.7;}
+        .dra-batch-install-state {color:#c3dbe4;}
         .dra-restart-confirm {margin-top:12px;border:1px solid #bd914f;
           border-radius:9px;background:#392c22;padding:13px;}
         .dra-restart-confirm p {color:#ffe6c7;margin:5px 0 12px;}
@@ -4387,27 +4423,38 @@ class DRAV2DevLabPanel extends HTMLElement {
             </div>`;
           }).join("")}
         </section>` : ""}
-        ${this._restartSummary?.required ? `<section class="dra-global-observer" role="status"
+        ${this._restartSummary?.required ? `<section class="dra-global-observer dra-restart-pending" role="status"
           aria-label="Ausstehender Home-Assistant-Neustart">
-          <div class="dra-observer-top"><strong>HA-Neustart vorgemerkt · ${this._restartSummary.count} ${this._restartSummary.count===1?"Update":"Updates"}</strong>
-            <span class="dra-observer-note">Installationen abgeschlossen · gemeinsamer Neustart möglich</span>
+          <div class="dra-restart-compact">
+            <div class="dra-restart-compact-info">
+              <strong class="dra-restart-compact-title">HA-Neustart vorgemerkt · ${this._restartSummary.count} ${this._restartSummary.count===1?"Update":"Updates"}</strong>
+              <span class="dra-restart-compact-projects">${this._restartSummary.items.map(item=>
+                this._escapeProject(this._installProjectNames[item.project_key] || item.project_key)).join(" · ")}</span>
+              <span class="dra-observer-note">Installationen abgeschlossen · gemeinsamer Neustart möglich</span>
+            </div>
+            <div class="dra-restart-compact-action">
+              ${this._restartSummary.restart_requested ? `<strong class="dra-restart-requested">Neustart bereits angefordert</strong>` :
+                !this._deferredRestartDialogOpen ? `<button type="button" id="dra-deferred-restart-open"
+                  ${this._installStatusError || !this._restartSummary.operation_id || runningJobs.length?"disabled":""}>Gemeinsamen HA-Neustart ausführen</button>` : ""}
+            </div>
           </div>
-          <p class="dra-observer-note">${this._restartSummary.items.map(item=>
-            this._escapeProject(this._installProjectNames[item.project_key] || item.project_key)).join(" · ")}</p>
-          <p class="dra-observer-note">Weitere unabhängige Aktualisierungen dürfen vorher installiert werden.
-            Bei fachlichen Abhängigkeiten kann ein früherer Neustart erforderlich sein.</p>
-          ${this._restartSummary.restart_requested ? `<strong>Neustart wurde bereits angefordert.</strong>` :
-            this._deferredRestartDialogOpen ? `<div class="dra-restart-confirm">
+          <details class="dra-restart-advice">
+            <summary>Hinweise zu weiteren Updates und Abhängigkeiten</summary>
+            <p>Weitere unabhängige Aktualisierungen dürfen vorher installiert werden.
+              Bei fachlichen Abhängigkeiten kann ein früherer Neustart erforderlich sein.</p>
+          </details>
+          ${!this._restartSummary.restart_requested && this._deferredRestartDialogOpen ? `<div class="dra-restart-confirm dra-deferred-restart-confirm" role="group"
+            aria-label="Gemeinsamen Home-Assistant-Neustart bestätigen">
               <strong>Home Assistant jetzt einmalig neu starten?</strong>
               <p>Alle aktiven Installationen müssen zuvor abgeschlossen sein.</p>
-              <button type="button" id="dra-deferred-restart-cancel"
-                ${this._deferredRestartBusy?"disabled":""}>Abbrechen</button>
-              <button type="button" id="dra-deferred-restart-confirm"
-                ${this._deferredRestartBusy || this._installStatusError || !this._restartSummary.operation_id || runningJobs.length?"disabled":""}>Ja, Home Assistant neu starten</button>
-            </div>` :
-            `<button type="button" id="dra-deferred-restart-open"
-              ${this._installStatusError || !this._restartSummary.operation_id || runningJobs.length?"disabled":""}>Gemeinsamen HA-Neustart ausführen</button>`}
-          ${this._deferredRestartMessage ? `<p role="status">${this._escapeProject(this._deferredRestartMessage)}</p>` : ""}
+              <div class="dra-restart-buttons">
+                <button type="button" id="dra-deferred-restart-cancel"
+                  ${this._deferredRestartBusy?"disabled":""}>Abbrechen</button>
+                <button type="button" id="dra-deferred-restart-confirm"
+                  ${this._deferredRestartBusy || this._installStatusError || !this._restartSummary.operation_id || runningJobs.length?"disabled":""}>Ja, Home Assistant neu starten</button>
+              </div>
+            </div>` : ""}
+          ${this._deferredRestartMessage ? `<p class="dra-restart-message" role="status">${this._escapeProject(this._deferredRestartMessage)}</p>` : ""}
         </section>` : ""}
         ${this._batchStatus && ["inspecting_sources","preparing","prepared","failed","queued","running","success","stopped","interrupted"].includes(this._batchStatus.status) ?
           `<section class="dra-global-observer" role="status" aria-label="Geräteübergreifender Sammelauftrag">
@@ -4995,11 +5042,18 @@ class DRAV2DevLabPanel extends HTMLElement {
               ${this._batchStatus?.status === "prepared" ? `<p>Feste Commits und Dateiänderungen sind vorbereitet.
                 Nur eine ausdrückliche Freigabe kann den Auftrag starten.</p>` : ""}
               ${this._batchStatus?.items?.length ? this._batchStatus.items.map(item => `
-                <span>${this._escapeProject(this._projects.find(p=>p.project_id===item.project_key)?.name || item.project_key)}
-                  · ${this._escapeProject(item.source_ref)} · ${this._escapeProject(item.source_commit.slice(0,12))}
-                  · +${item.add} ~${item.change} −${item.remove}
-                  · ${this._escapeProject(item.status)}
-                </span>`).join("") : ""}
+                <div class="dra-batch-install-row">
+                  <strong class="dra-batch-install-project">${this._escapeProject(this._projects.find(p=>p.project_id===item.project_key)?.name || item.project_key)}</strong>
+                  <span class="dra-batch-install-details">
+                    <span>${this._escapeProject(item.source_ref)} · ${this._escapeProject(item.source_commit.slice(0,12))}</span>
+                    <span class="dra-batch-install-counts">
+                      <span class="${item.add > 0 ? "dra-review-add" : "dra-batch-install-zero"}">+${item.add}</span>
+                      <span class="${item.change > 0 ? "dra-review-edit" : "dra-batch-install-zero"}">~${item.change}</span>
+                      <span class="${item.remove > 0 ? "dra-review-remove" : "dra-batch-install-zero"}">−${item.remove}</span>
+                    </span>
+                    <span class="dra-batch-install-state">${this._escapeProject(item.status)}</span>
+                  </span>
+                </div>`).join("") : ""}
               <p class="note">Die große Schaltfläche oberhalb steuert alle Schritte:
                 Quellprüfung und Vorbereitung → ausdrückliche Bestätigung → serverseitige Installation.
                 Es gibt keinen zweiten, versteckten Vorbereitungsweg.</p>
