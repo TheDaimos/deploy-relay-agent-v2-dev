@@ -349,6 +349,33 @@ const Panel = elements.get("dra-v2-dev-lab-panel");
   console.log("DRA V2 compact shared restart keeps explicit confirmation and request lock PASS");
 })();
 
+(() => {
+  const p=new Panel();
+  const own="TheDaimos/deploy-relay-agent-v2-dev";
+  p._view="main";p._serverVersion="0.1.120";p._selectedMainRepo=own;
+  p._projects=[
+    {project_id:"deploy_relay_agent_v2_dev",repository:own,name:"DRA V2 DEV – Nur Testlabor",active:true},
+    {project_id:"gewitterradar",repository:"TheDaimos/gewitterradar",name:"Gewitterradar",active:true},
+  ];
+  p._mainSourceRef="feature/v2-10-inventory-operation-contract";
+  p._sourceRepository=own;p._deploymentPreviewRef=p._mainSourceRef;
+  p._sourcePreview={repository:own,sources_verified:true,installation_enabled:false,
+    self_preview_readonly:true,add:["x.py"],change:[],remove:[],unchanged_count:2};
+  p._render();
+  const rendered=p.shadowRoot.innerHTML;
+  assert.match(rendered,/Eigenaktualisierung gesondert geschützt/);
+  assert.match(rendered,/2\/4 · Eigenaktualisierung über Sammelupdate/);
+  assert.match(rendered,/id="dra-self-update-batch-open"/);
+  assert.doesNotMatch(rendered,/id="dra-install-confirm"/);
+  p._projectPickerOpen=true;
+  p._openPickerBatch();
+  assert.equal(p._mainBatchMode,true);
+  assert.equal(p._batchRunSelected.has(own),false);
+  assert.equal(p._batchRunSelected.has("TheDaimos/gewitterradar"),true);
+  assert.match(p.shadowRoot.innerHTML,/DRA V2 wird zwingend als letztes Projekt installiert|Projekte vorausgewählt/);
+  console.log("DRA V2 read-only self preview routes to explicit opt-in batch without individual install PASS");
+})();
+
 (async function testStaleMainPreparationCannotUndoWeatherRouterRecommendation() {
   const p=new Panel();
   const repo="TheDaimos/weather-router-dev";
