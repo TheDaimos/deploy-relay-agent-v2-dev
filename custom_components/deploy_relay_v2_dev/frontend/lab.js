@@ -4406,13 +4406,14 @@ class DRAV2DevLabPanel extends HTMLElement {
           #dra-main-view {
             display:grid;
             grid-template-columns:minmax(0, 0.92fr) minmax(0, 1.08fr);
-            grid-template-areas:"project deployment" "source deployment" "tests tests";
+            grid-template-areas:"left deployment" "tests tests";
             gap:12px;
             align-items:start;
           }
           #dra-main-view[hidden] {display:none;}
-          #dra-main-view > .dra-projectbar {grid-area:project;min-width:0;margin:0;}
-          #dra-main-view > .dra-source-card {grid-area:source;min-width:0;margin:0;}
+          #dra-main-view > .dra-main-left {grid-area:left;display:flex;flex-direction:column;gap:12px;min-width:0;}
+          #dra-main-view > .dra-main-left > .dra-projectbar,
+          #dra-main-view > .dra-main-left > .dra-source-card {min-width:0;margin:0;}
           #dra-main-view > .dra-deployment-panel {grid-area:deployment;min-width:0;margin:0;}
           #dra-main-view > .dra-tests-panel {grid-area:tests;min-width:0;margin:0;}
           #dra-main-view .dra-project-picker-field {min-width:0;}
@@ -4546,6 +4547,7 @@ class DRAV2DevLabPanel extends HTMLElement {
             ${this._batchStatusError ? "<p>Statusabfrage unterbrochen – serverseitiger Auftrag bleibt bestehen.</p>" : ""}
           </section>` : ""}
         <section id="dra-main-view" ${this._view==="main"?"":"hidden"}>
+          <div class="dra-main-left">
           <article class="dra-projectbar">
             <div class="dra-project-picker-field">
               <strong id="dra-project-label">Projekt</strong>
@@ -4658,6 +4660,7 @@ class DRAV2DevLabPanel extends HTMLElement {
                 <p class="note">Eine andere Referenz setzt die bisherige Vorschau zurück.</p>
               </details>`}
           </article>
+          </div>
           <article class="dra-deployment-panel">
             ${this._mainBatchMode && this._batchStatus?.status === "failed" ? `<div class="dra-batch-top-error" role="alert" style="border:1px solid #b36a39;border-radius:8px;padding:10px;margin-bottom:10px;background:rgba(135,70,32,.14)">
               <strong>Sammelvorbereitung fehlgeschlagen – keine Installation gestartet</strong>
