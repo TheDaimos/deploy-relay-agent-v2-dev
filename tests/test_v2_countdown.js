@@ -415,6 +415,19 @@ const Panel = elements.get("dra-v2-dev-lab-panel");
   console.log("DRA V2 existing HA batch stays intact when self-update is attempted PASS");
 })().catch(e=>{console.error(e);process.exitCode=1;});
 
+(async function testOwnSourcePreviewWaitsWhileHaHasBatch() {
+  const repo="TheDaimos/deploy-relay-agent-v2-dev";
+  const p=new Panel();p._view="main";p._selectedMainRepo=repo;
+  p._serverVersion="0.1.121";p._projects=[{project_id:"deploy_relay_agent_v2_dev",
+    repository:repo,name:"DRA V2",active:true}];
+  p._hass={callWS:async ()=>{throw Error("must not start preview while batch exists");}};
+  p._batchStatus={schema:"dra-v2-batch-status.v1",status:"preparing",items:[]};
+  await p._sourceCheck({dataset:{repo}},false,false);
+  assert.match(p._sourceMessage,/Sammelauftrag wird bereits geprüft/);
+  assert.equal(p._sourceBusy,false);
+  console.log("DRA V2 self preview clearly waits for existing HA-owned batch PASS");
+})().catch(e=>{console.error(e);process.exitCode=1;});
+
 (async function testStaleMainPreparationCannotUndoWeatherRouterRecommendation() {
   const p=new Panel();
   const repo="TheDaimos/weather-router-dev";
