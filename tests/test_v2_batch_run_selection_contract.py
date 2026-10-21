@@ -101,6 +101,24 @@ class BatchRunContract(unittest.TestCase):
         self.assertIn('const hasChanges = added + changed + removed > 0;',js)
         self.assertIn('minimalChanges ||',js)
 
+    def test_gold_batch_status_and_compact_restart_preserve_controls(self):
+        js=(ROOT/"frontend"/"lab.js").read_text(encoding="utf-8")
+        self.assertIn('class="dra-batch-install-row"',js)
+        self.assertIn('class="dra-batch-install-project"',js)
+        self.assertIn('.dra-batch-install-project {color:#f0ba40;',js)
+        self.assertIn('item.add > 0 ? "dra-review-add" : "dra-batch-install-zero"',js)
+        self.assertIn('item.change > 0 ? "dra-review-edit" : "dra-batch-install-zero"',js)
+        self.assertIn('item.remove > 0 ? "dra-review-remove" : "dra-batch-install-zero"',js)
+        self.assertIn('.dra-batch-install-counts .dra-review-edit {color:#ffe082;',js)
+        self.assertIn('.dra-batch-install-counts .dra-review-remove {color:#ff667f;',js)
+        self.assertIn('class="dra-restart-compact"',js)
+        self.assertIn('class="dra-restart-advice"',js)
+        self.assertIn('id="dra-deferred-restart-open"',js)
+        self.assertIn('id="dra-deferred-restart-cancel"',js)
+        self.assertIn('id="dra-deferred-restart-confirm"',js)
+        self.assertIn('operation_id:operationId,confirm:true,client_id:this._controllerId',js)
+        self.assertIn('!summary?.required || summary.restart_requested',js)
+
     def test_first_picker_position_is_fresh_device_default(self):
         js=(ROOT/"frontend"/"lab.js").read_text(encoding="utf-8")
         self.assertIn("this._pickerBatchPosition === 0",js)
