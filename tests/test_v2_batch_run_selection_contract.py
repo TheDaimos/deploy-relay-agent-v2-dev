@@ -139,6 +139,24 @@ class BatchRunContract(unittest.TestCase):
         self.assertIn('this._openPickerBatch();',js)
         self.assertIn('!this._isOwnBatchUpdate(p)',js)
 
+    def test_single_self_update_reuses_the_exact_server_batch_contract(self):
+        js=(ROOT/"frontend"/"lab.js").read_text(encoding="utf-8")
+        ws=(ROOT/"websocket_api.py").read_text(encoding="utf-8")
+        batch=(ROOT/"batch_installation.py").read_text(encoding="utf-8")
+        self.assertIn("async _openSingleSelfUpdate(project)",js)
+        self.assertIn("this._batchRunSelected = new Set([project.repository]);",js)
+        self.assertIn("await this._prepareMainBatch();",js)
+        self.assertIn('id="dra-self-update-single"',js)
+        self.assertIn('this._sourceBusy ||',js)
+        self.assertIn('"inspecting_sources","preparing","prepared","queued","running"',js)
+        self.assertIn('review_digest:this._batchReviewDigest,review_confirm:true',js)
+        self.assertIn('type:"deploy_relay_v2_dev/batch/prepare"',js)
+        self.assertIn('type:"deploy_relay_v2_dev/batch/start"',js)
+        self.assertIn('"self_update_blocked"',ws)
+        self.assertIn('if not 1 <= len(projects) <= 8:',ws)
+        self.assertIn('SELF_UPDATE_TARGETS',batch)
+        self.assertIn('str(manifest.after_install.value) != "home_assistant_restart"',batch)
+
     def test_first_picker_position_is_fresh_device_default(self):
         js=(ROOT/"frontend"/"lab.js").read_text(encoding="utf-8")
         self.assertIn("this._pickerBatchPosition === 0",js)
