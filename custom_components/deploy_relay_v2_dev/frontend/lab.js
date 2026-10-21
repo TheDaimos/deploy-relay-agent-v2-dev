@@ -1,6 +1,6 @@
 /* Separate DRA V2 DEV read-only lab. No V1 custom element or URLs. */
 // Build identity of this actually loaded JavaScript, independent of the HA Python version.
-const DRA_V2_UI_VERSION = "0.1.120";
+const DRA_V2_UI_VERSION = "0.1.121";
 const G2_TEST_PYTHON_VERSION = DRA_V2_UI_VERSION;
 class DRAV2DevLabPanel extends HTMLElement {
   constructor() {
@@ -2098,6 +2098,42 @@ class DRAV2DevLabPanel extends HTMLElement {
         : "");
     this._render();
   }
+  async _openSingleSelfUpdate(project) {
+    // A one-project HA batch uses the SAME immutable V1-backed implementation
+    // and review_digest as a multi-project batch. No direct self-write endpoint.
+    if (!this._hass || !project || !this._isOwnBatchUpdate(project) ||
+        project.active === false || this._mainBatchBusy || this._sourceBusy ||
+        this._serverVersion !== DRA_V2_UI_VERSION) return;
+    if (["inspecting_sources","preparing","prepared","queued","running"].includes(
+        this._batchStatus?.status)) {
+      this._sourceMessage = "Ein Sammelauftrag besteht bereits. Diesen zuerst abschließen oder ausdrücklich verwerfen. Keine neue Eigenaktualisierung gestartet.";
+      this._render();
+      return;
+    }
+    if (this._restartSummary?.required === true) {
+      this._sourceMessage = "HA-Neustart noch ausstehend. Eigenaktualisierung erst nach Klärung des Neustarts prüfen.";
+      this._render();
+      return;
+    }
+    // The operator explicitly selected THIS project. Other projects remain
+    // unselected, including any catalog defaults and DRA V1.
+    this._batchRunSelected = new Set([project.repository]);
+    this._mainBatchMode = true;
+    this._mainBatchSelectionOpen = true;
+    this._projectPickerOpen = false;
+    this._mainBatchPreview = null;
+    this._batchPreparation = null;
+    this._batchChallenge = null;
+    this._batchReviewOpen = false;
+    this._batchReviewChecked = false;
+    this._batchReviewDigest = null;
+    this._batchStartUncertain = false;
+    this._mainBatchMessage = "Einzel-Eigenaktualisierung: Nur DRA V2 wird serverseitig schreibgeschützt vorbereitet. Installation ausschließlich nach gesonderter Commit-Prüfung und Bestätigung.";
+    this._render();
+    // Explicit click starts ONLY batch/prepare, never batch/start.
+    await this._prepareMainBatch();
+  }
+
   _openPickerBatch() {
     if (!this._projectPickerOpen || this._mainBatchBusy) return;
     // DRA V1 may be preselected; DRA V2 self-update requires an explicit
@@ -2663,6 +2699,11 @@ class DRAV2DevLabPanel extends HTMLElement {
     const activeMainProjects = this._projects.filter(p => p.active !== false);
     const mainProject = activeMainProjects.find(p => p.repository === this._selectedMainRepo) || activeMainProjects[0] || null;
     const ownSingleProject = !this._mainBatchMode && this._isOwnBatchUpdate(mainProject);
+    const selfUpdateOccupied = ["inspecting_sources","preparing","prepared","queued","running"].includes(
+      this._batchStatus?.status);
+    const selfUpdateBlocked = selfUpdateOccupied || this._sourceBusy ||
+      this._mainBatchBusy || this._restartSummary?.required === true ||
+      this._serverVersion !== DRA_V2_UI_VERSION;
     const mainBatchProjects = this._mainBatchProjects();
     const batchActiveProjects = this._projects.filter(p=>p.active!==false);
     const mainPreviewVerified = !this._mainBatchMode && !this._sourceConnectionTest &&
@@ -3671,6 +3712,9 @@ class DRAV2DevLabPanel extends HTMLElement {
           font-size:12px;line-height:1.5;}
         .dra-self-update-route strong {color:#f3d49c;font-size:13px;}
         .dra-self-update-route button {justify-self:start;min-height:42px;padding:9px 14px;}
+        .dra-self-update-actions {display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
+        .dra-self-update-actions button {min-width:0;}
+
         @media(max-width:600px) {.dra-self-update-route button {width:100%;}}
         .dra-restart-confirm {margin-top:12px;border:1px solid #bd914f;
           border-radius:9px;background:#392c22;padding:13px;}
@@ -4823,11 +4867,19 @@ class DRAV2DevLabPanel extends HTMLElement {
               </section>` : ""}
             ${ownSingleProject ? `<div class="dra-self-update-route" role="status">
               <strong>DRA V2: Eigenaktualisierung gesondert geschützt</strong>
-              <span>Diese Einzelprojekt-Vorschau ist ausschließlich lesend. DRA V2 kann sich
-                hier nicht selbst installieren. Nutze das Sammelupdate und wähle DRA V2
-                für diesen Durchlauf ausdrücklich aus; es wird zuletzt installiert.</span>
-              <button type="button" id="dra-self-update-batch-open"
-                ${deploymentBusy || this._mainBatchBusy ? "disabled" : ""}>Zum Sammelupdate wechseln</button>
+              <span>Die direkte Einzelinstallation bleibt geschützt. Für die Eigenaktualisierung
+                wird der vorhandene serverseitige Sammelvertrag mit ausschließlich DRA V2
+                genutzt: feste Commits prüfen, gesondert bestätigen, sichern und zuletzt installieren.
+                Alternativ kannst du wie bisher das Sammelupdate für mehrere Projekte öffnen.</span>
+              <div class="dra-self-update-actions">
+                <button type="button" id="dra-self-update-single"
+                  ${selfUpdateBlocked ? "disabled" : ""}>DRA V2 einzeln prüfen und aktualisieren</button>
+                <button type="button" id="dra-self-update-batch-open"
+                  ${this._mainBatchBusy ? "disabled" : ""}>Sammelupdate öffnen</button>
+              </div>
+              ${selfUpdateOccupied ? `<span class="note" role="status">Es besteht bereits ein Sammelauftrag
+                (${this._escapeProject(this._batchStatus?.status)}). Erst diesen abschließen oder
+                ausdrücklich verwerfen; kein zweiter Auftrag wird gestartet.</span>` : ""}
             </div>` : ""}
             <button id="dra-preview" class="dra-deploy-action stage-${deploymentStage}
               ${!this._mainBatchMode && upToDate ? "up-to-date" : ""}
@@ -5856,6 +5908,10 @@ class DRAV2DevLabPanel extends HTMLElement {
       } else if (deploymentStage === 2 && mainProject && !preparedInstall) {
         this._prepareInstallation(mainProject);
       }
+    });
+    s.querySelector("#dra-self-update-single")?.addEventListener("click", () => {
+      if (!ownSingleProject || !mainProject) return;
+      void this._openSingleSelfUpdate(mainProject);
     });
     s.querySelector("#dra-self-update-batch-open")?.addEventListener("click", () => {
       if (!ownSingleProject || deploymentBusy || this._mainBatchBusy) return;
