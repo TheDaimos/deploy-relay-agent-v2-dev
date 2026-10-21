@@ -287,6 +287,68 @@ const Panel = elements.get("dra-v2-dev-lab-panel");
   console.log("DRA V2 mobile review color-count combinations PASS");
 })();
 
+(() => {
+  const p=new Panel();
+  p._view="main";p._mainBatchMode=true;p._serverVersion="0.1.119";
+  p._projects=[
+    {project_id:"gewitterradar",name:"Gewitterradar",repository:"TheDaimos/gewitterradar",active:true},
+    {project_id:"weather_router",name:"WeatherRouter",repository:"TheDaimos/weather-router-dev",active:true},
+  ];
+  p._batchStatus={schema:"dra-v2-batch-status.v1",status:"running",current:0,total:2,
+    items:[
+      {project_key:"gewitterradar",source_ref:"deploy/dev",source_commit:"a".repeat(40),
+       add:33,change:4,remove:12,status:"running"},
+      {project_key:"weather_router",source_ref:"deploy/dev",source_commit:"b".repeat(40),
+       add:0,change:0,remove:0,status:"up_to_date"},
+    ]};
+  p._render();
+  const html=p.shadowRoot.innerHTML;
+  const rows=[...html.matchAll(/<div class="dra-batch-install-row">([\s\S]*?)<\/div>/g)].map(x=>x[1]);
+  assert.equal(rows.length,2);
+  assert.match(rows[0],/class="dra-batch-install-project">Gewitterradar/);
+  assert.match(rows[0],/class="dra-review-add">\+33/);
+  assert.match(rows[0],/class="dra-review-edit">~4/);
+  assert.match(rows[0],/class="dra-review-remove">−12/);
+  assert.match(rows[1],/class="dra-batch-install-project">WeatherRouter/);
+  assert.match(rows[1],/class="dra-batch-install-zero">\+0/);
+  assert.match(rows[1],/class="dra-batch-install-zero">~0/);
+  assert.match(rows[1],/class="dra-batch-install-zero">−0/);
+  assert.match(rows[1],/up_to_date/);
+  assert.match(html,/\.dra-batch-install-project \{color:#f0ba40/);
+  assert.match(html,/\.dra-batch-install-counts \.dra-review-edit \{color:#ffe082/);
+  assert.match(html,/\.dra-batch-install-counts \.dra-review-remove \{color:#ff667f/);
+  console.log("DRA V2 batch live-status names gold and changed counts green/gold/red PASS");
+})();
+
+(() => {
+  const p=new Panel();
+  p._view="main";p._serverVersion="0.1.119";
+  p._restartSummary={schema:"dra-v2-restart-summary.v1",required:true,
+    count:2,items:[{project_key:"gewitterradar"},{project_key:"weather_router"}],
+    operation_id:"a".repeat(32),restart_requested:false};
+  p._installProjectNames={gewitterradar:"Gewitterradar",weather_router:"WeatherRouter"};
+  p._render();
+  let html=p.shadowRoot.innerHTML;
+  assert.match(html,/class="dra-restart-compact"/);
+  assert.match(html,/HA-Neustart vorgemerkt · 2 Updates/);
+  assert.match(html,/Gewitterradar · WeatherRouter/);
+  assert.match(html,/Hinweise zu weiteren Updates und Abhängigkeiten/);
+  assert.match(html,/id="dra-deferred-restart-open"/);
+  assert.doesNotMatch(html,/id="dra-deferred-restart-confirm"/);
+  p._deferredRestartDialogOpen=true;
+  p._render();html=p.shadowRoot.innerHTML;
+  assert.match(html,/id="dra-deferred-restart-cancel"/);
+  assert.match(html,/id="dra-deferred-restart-confirm"/);
+  assert.doesNotMatch(html,/id="dra-deferred-restart-open"/);
+  p._restartSummary.restart_requested=true;
+  p._render();html=p.shadowRoot.innerHTML;
+  assert.match(html,/Neustart bereits angefordert/);
+  assert.doesNotMatch(html,/id="dra-deferred-restart-confirm"/);
+  assert.doesNotMatch(html,/id="dra-deferred-restart-open"/);
+  assert.match(html,/@media\(max-width:760px\)/);
+  console.log("DRA V2 compact shared restart keeps explicit confirmation and request lock PASS");
+})();
+
 (async function testStaleMainPreparationCannotUndoWeatherRouterRecommendation() {
   const p=new Panel();
   const repo="TheDaimos/weather-router-dev";
