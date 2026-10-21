@@ -2602,6 +2602,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     const batchReviewScroll = s?.querySelector(".dra-batch-review-table-wrap")?.scrollLeft ?? 0;
     const batchReviewTop = s?.querySelector(".dra-batch-review-table-wrap")?.scrollTop ?? 0;
     const batchDialogTop = s?.querySelector("#dra-batch-review-dialog")?.scrollTop ?? 0;
+    const restartAdviceOpen = s?.querySelector(".dra-restart-advice")?.open === true;
     // Retain open mobile project details while HA polling rebuilds the shadow DOM.
     const expandedMobileProjects = new Set([...s.querySelectorAll(".dra-review-mobile-card[open]")]
       .map(node => node.dataset.projectKey));
@@ -4438,7 +4439,7 @@ class DRAV2DevLabPanel extends HTMLElement {
                   ${this._installStatusError || !this._restartSummary.operation_id || runningJobs.length?"disabled":""}>Gemeinsamen HA-Neustart ausführen</button>` : ""}
             </div>
           </div>
-          <details class="dra-restart-advice">
+          <details class="dra-restart-advice" ${restartAdviceOpen ? "open" : ""}>
             <summary>Hinweise zu weiteren Updates und Abhängigkeiten</summary>
             <p>Weitere unabhängige Aktualisierungen dürfen vorher installiert werden.
               Bei fachlichen Abhängigkeiten kann ein früherer Neustart erforderlich sein.</p>
