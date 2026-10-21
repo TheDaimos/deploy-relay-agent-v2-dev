@@ -1009,6 +1009,8 @@ async def _inspect_source_preview(hass, runtime, repo: str, ref: str) -> dict:
                     "schema": "dra-v2-dev-target-claims.v1",
                     "installation_enabled": False,
                     "exclusive_ownership_verified": False,
+                    "cross_process_lock_verified": False,
+                    "backup_verified": False,
                     "handover_required": True,
                     "self_target_protected": True,
                 }
