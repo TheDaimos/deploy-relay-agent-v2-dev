@@ -112,6 +112,8 @@ class BatchRunContract(unittest.TestCase):
         self.assertIn('.dra-batch-install-counts .dra-review-edit {color:#ffe082;',js)
         self.assertIn('.dra-batch-install-counts .dra-review-remove {color:#ff667f;',js)
         self.assertIn('class="dra-restart-compact"',js)
+        self.assertIn('const restartAdviceOpen = s?.querySelector(".dra-restart-advice")?.open === true;',js)
+        self.assertIn('restartAdviceOpen ? "open" : ""',js)
         self.assertIn('class="dra-restart-advice"',js)
         self.assertIn('id="dra-deferred-restart-open"',js)
         self.assertIn('id="dra-deferred-restart-cancel"',js)
