@@ -1786,6 +1786,18 @@ class DRAV2DevLabPanel extends HTMLElement {
       return;
     }
     const repository = button.dataset.repo;
+    // An HA-owned batch source inspection is globally serialized. A second
+    // preview cannot run in parallel, and an existing frozen review must not
+    // be replaced implicitly from this single-project view.
+    if (this._view === "main" && this._isOwnBatchUpdate({repository}) &&
+        ["inspecting_sources","preparing","prepared","queued","running"].includes(
+            this._batchStatus?.status)) {
+      this._sourceMessage = "Ein Sammelauftrag wird bereits geprüft oder ist vorbereitet (" +
+        this._batchStatus.status + "). Erst dessen Abschluss abwarten oder den vorbereiteten Auftrag ausdrücklich verwerfen. Die Einzelvorschau wurde nicht gestartet.";
+      this._sourceHeadMessage = "Quellprüfung wartet auf bestehenden Sammelauftrag";
+      this._render();
+      return;
+    }
     // A new ordinary preview explicitly begins the next cycle; G2 never does.
     if (!connectionTest && !automatic && this._view === "main") {
       const selected = this._projects.find(p=>p.repository===repository);
