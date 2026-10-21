@@ -304,6 +304,39 @@ class BatchSafety(unittest.IsolatedAsyncioTestCase):
             await self.prepare([forged], targets={
                 valid_v2["project_id"]: "custom_components/deploy_relay_v2_dev"})
 
+    async def test_single_v2_self_update_reuses_full_batch_review_and_restart(self):
+        only_v2 = {"repository":"TheDaimos/deploy-relay-agent-v2-dev",
+                   "project_id":"deploy_relay_agent_v2_dev",
+                   "ref":"feature/v2-10-inventory-operation-contract",
+                   "commit":"c"*40,"token":None}
+        prepared = await self.prepare([only_v2],targets={
+            only_v2["project_id"]:"custom_components/deploy_relay_v2_dev"})
+        state = prepared["preparation"]
+        self.assertEqual(state["status"],"prepared")
+        self.assertEqual(len(state["items"]),1)
+        self.assertEqual(state["items"][0]["project_key"],only_v2["project_id"])
+        self.assertEqual(state["items"][0]["source_commit"],only_v2["commit"])
+        self.assertTrue(state["confirmation_required"])
+        self.assertRegex(state["review_digest"],r"^[a-f0-9]{64}$")
+        with self.assertRaises(model.OperationContractError):
+            await self.start(prepared["challenge"],review_confirm=False)
+        with self.assertRaises(model.OperationContractError):
+            await self.start(prepared["challenge"],review_digest="f"*64)
+        self.assertEqual((await self.batch.status())["status"],"prepared")
+        executed=[]
+        async def fake_engine(_session,mf,*args,**kwargs):
+            executed.append(mf.project_id)
+            return types.SimpleNamespace(state=engine.TransactionState.SUCCESS,
+                restart_required=True,lifecycle="home_assistant_restart")
+        with patch.object(engine,"async_execute_deployment",fake_engine):
+            await self.start(prepared["challenge"])
+            await self.batch.close()
+        self.assertEqual(executed,[only_v2["project_id"]])
+        final=await self.batch.status()
+        self.assertEqual(final["status"],"success")
+        self.assertEqual(final["current"],1)
+        self.assertEqual((await self.owner.restart_summary())["count"],1)
+
     async def test_v2_self_update_does_not_start_while_other_job_is_active(self):
         v2 = {"repository": "TheDaimos/deploy-relay-agent-v2-dev",
               "project_id": "deploy_relay_agent_v2_dev", "ref": "deploy/dev",
