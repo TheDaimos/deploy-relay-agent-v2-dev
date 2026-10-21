@@ -75,6 +75,44 @@ class SourcePreviewJobContract(unittest.IsolatedAsyncioTestCase):
         restored["result"]["add"].append("fake.py")
         self.assertEqual(len((await self.owner.latest())["result"]["add"]), 1)
 
+    async def test_read_only_self_preview_accepts_complete_false_security_claims(self):
+        """Read-only DRA V2 may preview itself, but never grants install rights."""
+        own_repo = "TheDaimos/deploy-relay-agent-v2-dev"
+        async def inspect():
+            report = successful(own_repo)
+            report["self_preview_readonly"] = True
+            report["target_claims"].update(
+                schema="dra-v2-dev-target-claims.v1",
+                handover_required=True, self_target_protected=True)
+            return report
+        job = await self.owner.start(own_repo, "feature/v2-10-inventory-operation-contract",
+                                     inspect=inspect)
+        await asyncio.gather(*self.tasks)
+        result = await self.owner.get(job["operation_id"])
+        self.assertEqual(result["status"], "success")
+        self.assertFalse(result["installation_enabled"])
+        self.assertTrue(result["result"]["self_preview_readonly"])
+        for field in ("exclusive_ownership_verified", "cross_process_lock_verified",
+                      "backup_verified", "installation_enabled"):
+            self.assertIs(result["result"]["target_claims"][field], False)
+
+    async def test_read_only_self_preview_missing_protection_fields_fails_closed(self):
+        own_repo = "TheDaimos/deploy-relay-agent-v2-dev"
+        async def incomplete():
+            report = successful(own_repo)
+            report["self_preview_readonly"] = True
+            # Regression for the previously broken self-preview response.
+            del report["target_claims"]["cross_process_lock_verified"]
+            del report["target_claims"]["backup_verified"]
+            return report
+        job = await self.owner.start(own_repo, "feature/v2-10-inventory-operation-contract",
+                                     inspect=incomplete)
+        await asyncio.gather(*self.tasks)
+        result = await self.owner.get(job["operation_id"])
+        self.assertEqual(result["status"], "failed")
+        self.assertEqual(result["reason"], "source_unavailable")
+        self.assertIsNone(result["result"])
+
     async def test_fixed_connection_test_wait_survives_browser_detach(self):
         self.assertEqual(module.CONNECTION_TEST_SECONDS, 60)
         waiting = asyncio.Event()
