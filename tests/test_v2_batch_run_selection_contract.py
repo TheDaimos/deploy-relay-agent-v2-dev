@@ -121,6 +121,24 @@ class BatchRunContract(unittest.TestCase):
         self.assertIn('operation_id:operationId,confirm:true,client_id:this._controllerId',js)
         self.assertIn('!summary?.required || summary.restart_requested',js)
 
+    def test_self_preview_contains_explicit_fail_closed_security_claims(self):
+        ws=(ROOT/"websocket_api.py").read_text(encoding="utf-8")
+        fragment=ws.split("if report.get(\"self_preview_readonly\") is True:",1)[1].split(
+            "else:",1)[0]
+        for key in ("installation_enabled", "exclusive_ownership_verified",
+                    "cross_process_lock_verified", "backup_verified"):
+            self.assertIn('"'+key+'": False',fragment)
+        self.assertIn('"self_target_protected": True',fragment)
+        self.assertIn('"self_update_blocked"',ws)
+
+    def test_single_self_update_has_explicit_batch_route(self):
+        js=(ROOT/"frontend"/"lab.js").read_text(encoding="utf-8")
+        self.assertIn("const ownSingleProject = !this._mainBatchMode",js)
+        self.assertIn('id="dra-self-update-batch-open"',js)
+        self.assertIn('2/4 · Eigenaktualisierung über Sammelupdate',js)
+        self.assertIn('this._openPickerBatch();',js)
+        self.assertIn('!this._isOwnBatchUpdate(p)',js)
+
     def test_first_picker_position_is_fresh_device_default(self):
         js=(ROOT/"frontend"/"lab.js").read_text(encoding="utf-8")
         self.assertIn("this._pickerBatchPosition === 0",js)
