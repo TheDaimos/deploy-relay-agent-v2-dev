@@ -376,6 +376,45 @@ const Panel = elements.get("dra-v2-dev-lab-panel");
   console.log("DRA V2 read-only self preview routes to explicit opt-in batch without individual install PASS");
 })();
 
+(async function testSingleProjectSelfUpdateUsesOnlyBatchPreparation() {
+  const repo="TheDaimos/deploy-relay-agent-v2-dev";
+  const project={project_id:"deploy_relay_agent_v2_dev",repository:repo,
+    name:"DRA V2 DEV – Nur Testlabor",active:true};
+  const p=new Panel();p._serverVersion="0.1.121";p._view="main";
+  p._selectedMainRepo=repo;p._projects=[project,
+    {project_id:"gewitterradar",repository:"TheDaimos/gewitterradar",active:true,name:"Gewitterradar"}];
+  p._hass={callWS:async req=>{throw Error("Unexpected WebSocket call: "+req.type);}};
+  let prepared=0;
+  p._prepareMainBatch=async function () {
+    prepared++;
+    assert.equal(this._mainBatchMode,true);
+    assert.deepEqual(Array.from(this._batchRunSelected),[repo]);
+    assert.deepEqual(this._mainBatchProjects().map(x=>x.repository),[repo]);
+  };
+  await p._openSingleSelfUpdate(project);
+  assert.equal(prepared,1,"one-project server-side read-only preparation invoked");
+  assert.equal(p._batchReviewChecked,false);
+  assert.equal(p._batchReviewOpen,false);
+  assert.equal(p._batchChallenge,null);
+  assert.match(p.shadowRoot.innerHTML,/5|Sammelupdate|serverseitig/);
+  console.log("DRA V2 single self-update selects exactly one project without installing PASS");
+})().catch(e=>{console.error(e);process.exitCode=1;});
+
+(async function testSingleSelfUpdateCannotOverrideExistingPreparedBatch() {
+  const repo="TheDaimos/deploy-relay-agent-v2-dev";
+  const project={project_id:"deploy_relay_agent_v2_dev",repository:repo,name:"DRA V2",active:true};
+  const p=new Panel();p._serverVersion="0.1.121";p._view="main";p._projects=[project];
+  p._hass={callWS:async ()=>{throw Error("No request allowed");}};
+  const old={schema:"dra-v2-batch-status.v1",status:"prepared",review_digest:"a".repeat(64),items:[]};
+  p._batchStatus=old;p._batchRunSelected=new Set(["TheDaimos/weather-router-dev"]);
+  p._prepareMainBatch=async()=>{throw Error("must not prepare");};
+  await p._openSingleSelfUpdate(project);
+  assert.equal(p._batchStatus,old);
+  assert.deepEqual(Array.from(p._batchRunSelected),["TheDaimos/weather-router-dev"]);
+  assert.match(p._sourceMessage,/Ein Sammelauftrag besteht bereits/);
+  console.log("DRA V2 existing HA batch stays intact when self-update is attempted PASS");
+})().catch(e=>{console.error(e);process.exitCode=1;});
+
 (async function testStaleMainPreparationCannotUndoWeatherRouterRecommendation() {
   const p=new Panel();
   const repo="TheDaimos/weather-router-dev";
