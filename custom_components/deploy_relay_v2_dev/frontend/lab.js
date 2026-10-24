@@ -2557,6 +2557,7 @@ class DRAV2DevLabPanel extends HTMLElement {
       const result = await this._hass.callWS({type:"deploy_relay_v2_dev/settings/save",
         mode, max_readonly_jobs:readonly, max_worker_processes:workers});
       this._settings = result.settings;
+      this._settingsDraft = null;
       this._cpuStatus = result.cpu_status || this._cpuStatus;
       this._settingsMessage = "Vorgaben gespeichert; Parallelbetrieb noch nicht freigegeben.";
     } catch (_error) {
@@ -2645,6 +2646,16 @@ class DRAV2DevLabPanel extends HTMLElement {
   }
   _render() {
     const s = this.shadowRoot;
+    // Periodic status refreshes must not destroy a focused settings selector.
+    // Render once after the control loses focus; keep the selected value meanwhile.
+    const editing = s?.activeElement;
+    if (this._view === "settings" && editing &&
+        ["settings-mode", "settings-readonly", "settings-workers"].includes(editing.id) &&
+        !this._settingsBusy && !this._cpuBusy) {
+      this._settingsRenderPending = true;
+      return;
+    }
+    this._settingsRenderPending = false;
     // The HA test status can refresh while this dialog is open. Preserve the
     // unsent secret only in the transient password input, never component state.
     const batchReviewScroll = s?.querySelector(".dra-batch-review-table-wrap")?.scrollLeft ?? 0;
@@ -5282,16 +5293,20 @@ class DRAV2DevLabPanel extends HTMLElement {
           <div class="settings-fields">
           <label>Betriebsart
             <select id="settings-mode" class="project-text">
-              <option value="sequential" ${this._settings.mode === "sequential" ? "selected" : ""}>Nacheinander</option>
-              <option value="controlled" ${this._settings.mode === "controlled" ? "selected" : ""}>Gesteuert parallel (noch in Entwicklung)</option>
+              <option value="sequential" ${(this._settingsDraft?.mode ?? this._settings.mode) === "sequential" ? "selected" : ""}>Nacheinander</option>
+              <option value="controlled" ${(this._settingsDraft?.mode ?? this._settings.mode) === "controlled" ? "selected" : ""}>Gesteuert parallel (noch in Entwicklung)</option>
               <option value="automatic" disabled>Automatisch (noch nicht verfügbar)</option>
             </select>
           </label>
           <label>Parallele Leseaufträge (spätere Obergrenze 1–4)
-            <input id="settings-readonly" class="project-text" type="number" min="1" max="4" value="${this._settings.max_readonly_jobs}" />
+            <select id="settings-readonly" class="project-text">
+              ${[1,2,3,4].map(n => `<option value="${n}" ${(this._settingsDraft?.max_readonly_jobs ?? this._settings.max_readonly_jobs) === n ? "selected" : ""}>${n}</option>`).join("")}
+            </select>
           </label>
           <label>DRA-Arbeitsprozesse (spätere Obergrenze 1–12)
-            <input id="settings-workers" class="project-text" type="number" min="1" max="12" value="${this._settings.max_worker_processes}" />
+            <select id="settings-workers" class="project-text">
+              ${Array.from({length:12}, (_, i) => i + 1).map(n => `<option value="${n}" ${(this._settingsDraft?.max_worker_processes ?? this._settings.max_worker_processes) === n ? "selected" : ""}>${n}</option>`).join("")}
+            </select>
           </label>
           </div>
           <p class="note"><strong>Beim Start erkannte Prozessorkerne:</strong>
@@ -6008,6 +6023,25 @@ class DRAV2DevLabPanel extends HTMLElement {
       else this._expandedSections.add(id);
       this._render();
     }));
+    // Preserve draft values across background refreshes and render after
+    // the native mobile dropdown closes (not while it is open).
+    for (const id of ["settings-mode", "settings-readonly", "settings-workers"]) {
+      const field = s.querySelector("#" + id);
+      field?.addEventListener("change", () => {
+        this._settingsDraft = {
+          mode: s.querySelector("#settings-mode")?.value,
+          max_readonly_jobs: Number(s.querySelector("#settings-readonly")?.value),
+          max_worker_processes: Number(s.querySelector("#settings-workers")?.value)
+        };
+      });
+      field?.addEventListener("blur", () => {
+        if (this._settingsRenderPending) {
+          this._settingsRenderPending = false;
+          // A blur caused by a native mobile selector closing is safe to render.
+          queueMicrotask(() => { if (this.isConnected) this._render(); });
+        }
+      });
+    }
     s.querySelector("#settings-save")?.addEventListener("click", () => this._saveSettings());
     s.querySelector("#cpu-warning-ack")?.addEventListener("click", () => this._ackCpuWarning());
     s.querySelector("#backup-dialog-open")?.addEventListener("click", () => this._openBackupDialog());
