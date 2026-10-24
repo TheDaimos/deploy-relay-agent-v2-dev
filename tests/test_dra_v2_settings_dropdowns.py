@@ -19,7 +19,7 @@ def test_background_refresh_cannot_close_focused_selector():
     src = LAB.read_text(encoding="utf-8")
     assert 'const editing = s?.activeElement;' in src
     assert 'this._settingsRenderPending = true;' in src
-    assert 'field?.addEventListener("blur"' in src
+    assert 'No immediate rerender on blur' in src
     assert 'this._settingsDraft = {' in src
     assert 'this._settingsDraft = null;' in src
 
