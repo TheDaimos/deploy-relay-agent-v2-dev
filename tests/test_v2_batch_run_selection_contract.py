@@ -1,0 +1,180 @@
+"""Batch run isolation and independent recommended-source discovery contracts."""
+from pathlib import Path
+import ast
+import unittest
+
+ROOT=Path(__file__).resolve().parents[1] / "custom_components" / "deploy_relay_v2_dev"
+
+class BatchRunContract(unittest.TestCase):
+    def test_select_once_per_run_without_persisting_catalog(self):
+        js=(ROOT/"frontend"/"lab.js").read_text(encoding="utf-8")
+        self.assertIn("this._batchRunSelected = new Set",js)
+        self.assertIn('this._batchRunSelected.has(p.repository)',js)
+        self.assertIn('id="dra-main-batch-selection"',js)
+        self.assertIn('this._mainBatchSelectionOpen ? "open" : ""',js)
+        self.assertIn('class="dra-batch-run-choice"',js)
+        self.assertIn('this._toggleBatchRunProject(',js)
+        self.assertIn('this._batchStatus?.status',js)
+        self.assertIn('this._isBatchSelfUpdate(p)',js)
+        self.assertIn('this._isOwnBatchUpdate(p)',js)
+        self.assertIn('Eigenaktualisierung · zuletzt',js)
+
+    def test_explicit_weather_router_ref_never_lost_to_automatic_main(self):
+        js=(ROOT/"frontend"/"lab.js").read_text(encoding="utf-8")
+        self.assertIn("this._manualSourceRef = true;",js)
+        self.assertIn('this._mainSourceRef.trim() === result.default_ref',js)
+        self.assertIn('result.recommended.explicit && selectedIsDefault',js)
+        self.assertIn('this._mainSourceRef = result.recommended.ref;',js)
+        self.assertIn('this._automaticSourceCheckFor = null;',js)
+        self.assertIn('if (oldDefaultPrepared) this._installPreparation = null;',js)
+
+    def test_wide_layout_and_early_batch_failure_are_readable(self):
+        js=(ROOT/"frontend"/"lab.js").read_text(encoding="utf-8")
+        self.assertIn("@media (min-width: 1150px)", js)
+        self.assertIn('grid-template-areas:"project deployment" "source deployment" "tests tests"', js)
+        self.assertIn("#dra-main-view[hidden] {display:none;}", js)
+        self.assertIn('class="dra-batch-top-error" role="alert"', js)
+        self.assertIn("this._batchStatus?.status === \"failed\"", js)
+        self.assertIn('this._escapeProject(this._batchStatus.error_code || "Unbekannt")', js)
+        self.assertIn("const DRA_V2_UI_VERSION = \"0.1.121\";", js)
+        self.assertIn("review_digest:this._batchReviewDigest,review_confirm:true", js)
+
+    def test_review_scroll_and_condensed_change_display(self):
+        js=(ROOT/"frontend"/"lab.js").read_text(encoding="utf-8")
+        self.assertIn('const batchReviewScroll = s?.querySelector(".dra-batch-review-table-wrap")?.scrollLeft ?? 0;',js)
+        self.assertIn("batchReviewTable.scrollLeft = batchReviewScroll",js)
+        self.assertNotIn("Version nicht vollständig nachgewiesen",js)
+        self.assertIn("dra-review-add",js)
+        self.assertIn("dra-review-remove",js)
+        self.assertIn("dra-review-edit",js)
+        self.assertIn('item.add ? "dra-review-add" : ""',js)
+        self.assertIn('item.change ? "dra-review-edit" : ""',js)
+        self.assertIn('item.remove ? "dra-review-remove" : ""',js)
+
+    def test_wide_review_overrides_generic_dialog_limit(self):
+        js=(ROOT/"frontend"/"lab.js").read_text(encoding="utf-8")
+        self.assertIn(".git-dialog.dra-batch-review-dialog",js)
+        self.assertIn("width:min(1520px,calc(100vw - 32px))",js)
+
+    def test_modal_vertical_scroll_and_responsive_review_actions(self):
+        js=(ROOT/"frontend"/"lab.js").read_text(encoding="utf-8")
+        self.assertIn('const batchDialogTop = s?.querySelector("#dra-batch-review-dialog")?.scrollTop ?? 0;',js)
+        self.assertIn('batchDialog.scrollTop = batchDialogTop;',js)
+        self.assertIn('batchReviewTable.scrollTop = batchReviewTop;',js)
+        self.assertIn('grid-template-columns:repeat(3,minmax(0,1fr))',js)
+        self.assertIn('grid-template-columns:repeat(2,minmax(0,1fr))',js)
+
+    def test_cross_device_batch_takeover_restores_review_mode(self):
+        js=(ROOT/"frontend"/"lab.js").read_text(encoding="utf-8")
+        section=js.split("async _takeOverMainBatch()",1)[1].split("async _discardBatchReview()",1)[0]
+        self.assertIn("this._mainBatchMode=true;",section)
+        self.assertIn("this._batchRunSelected=new Set(r.preparation.items.map(item=>item.repository));",section)
+        self.assertIn("this._batchStatus=r.preparation;",section)
+        self.assertIn("this._batchReviewOpen=true;",section)
+        self.assertIn("this._batchReviewChecked=false;",section)
+        self.assertIn('id="dra-batch-review-handoff"',js)
+        self.assertIn('["inspecting_sources","preparing","prepared","failed"',js)
+        self.assertIn('s.querySelector("#dra-batch-review-handoff")',js)
+
+    def test_mobile_disclosure_summary_and_full_commit_are_separate(self):
+        js=(ROOT/"frontend"/"lab.js").read_text(encoding="utf-8")
+        self.assertIn('class="dra-batch-review-mobile-list"',js)
+        self.assertIn('class="dra-review-mobile-card',js)
+        self.assertIn('shortCommit = fullCommit ? fullCommit.slice(0,12)',js)
+        self.assertIn('class="dra-review-full-commit"',js)
+        self.assertIn('class="dra-review-copy-commit"',js)
+        self.assertIn('expandedMobileProjects.has(item.project_key) ? "open" : ""',js)
+        self.assertIn('new Set([...s.querySelectorAll(".dra-review-mobile-card[open]")]',js)
+        self.assertIn('@media(max-width:900px)',js)
+        self.assertIn('.dra-batch-review-table-wrap {display:none;}',js)
+        self.assertIn('grid-template-columns:minmax(0,1fr) 22px',js)
+        self.assertIn("fullCommit = /^[a-f0-9]{40}$/.test",js)
+        self.assertIn("review_digest:this._batchReviewDigest,review_confirm:true",js)
+
+    def test_mobile_minimal_change_indicators_are_distinct(self):
+        js=(ROOT/"frontend"/"lab.js").read_text(encoding="utf-8")
+        self.assertIn('added ? `<span class="dra-review-mini-count dra-review-add"',js)
+        self.assertIn('changed ? `<span class="dra-review-mini-count dra-review-edit"',js)
+        self.assertIn('removed ? `<span class="dra-review-mini-count dra-review-remove"',js)
+        self.assertIn('.dra-review-mini-count.dra-review-edit {color:#ffe082;',js)
+        self.assertIn('.dra-review-mini-count.dra-review-remove {color:#ff667f;',js)
+        self.assertIn('const hasChanges = added + changed + removed > 0;',js)
+        self.assertIn('minimalChanges ||',js)
+
+    def test_gold_batch_status_and_compact_restart_preserve_controls(self):
+        js=(ROOT/"frontend"/"lab.js").read_text(encoding="utf-8")
+        self.assertIn('class="dra-batch-install-row"',js)
+        self.assertIn('class="dra-batch-install-project"',js)
+        self.assertIn('.dra-batch-install-project {color:#f0ba40;',js)
+        self.assertIn('item.add > 0 ? "dra-review-add" : "dra-batch-install-zero"',js)
+        self.assertIn('item.change > 0 ? "dra-review-edit" : "dra-batch-install-zero"',js)
+        self.assertIn('item.remove > 0 ? "dra-review-remove" : "dra-batch-install-zero"',js)
+        self.assertIn('.dra-batch-install-counts .dra-review-edit {color:#ffe082;',js)
+        self.assertIn('.dra-batch-install-counts .dra-review-remove {color:#ff667f;',js)
+        self.assertIn('class="dra-restart-compact"',js)
+        self.assertIn('const restartAdviceOpen = s?.querySelector(".dra-restart-advice")?.open === true;',js)
+        self.assertIn('restartAdviceOpen ? "open" : ""',js)
+        self.assertIn('class="dra-restart-advice"',js)
+        self.assertIn('id="dra-deferred-restart-open"',js)
+        self.assertIn('id="dra-deferred-restart-cancel"',js)
+        self.assertIn('id="dra-deferred-restart-confirm"',js)
+        self.assertIn('operation_id:operationId,confirm:true,client_id:this._controllerId',js)
+        self.assertIn('!summary?.required || summary.restart_requested',js)
+
+    def test_self_preview_contains_explicit_fail_closed_security_claims(self):
+        ws=(ROOT/"websocket_api.py").read_text(encoding="utf-8")
+        fragment=ws.split("if report.get(\"self_preview_readonly\") is True:",1)[1].split(
+            "else:",1)[0]
+        for key in ("installation_enabled", "exclusive_ownership_verified",
+                    "cross_process_lock_verified", "backup_verified"):
+            self.assertIn('"'+key+'": False',fragment)
+        self.assertIn('"self_target_protected": True',fragment)
+        self.assertIn('"self_update_blocked"',ws)
+
+    def test_single_self_update_has_explicit_batch_route(self):
+        js=(ROOT/"frontend"/"lab.js").read_text(encoding="utf-8")
+        self.assertIn("const ownSingleProject = !this._mainBatchMode",js)
+        self.assertIn('id="dra-self-update-batch-open"',js)
+        self.assertIn('2/4 · Eigenaktualisierung über Sammelupdate',js)
+        self.assertIn('this._openPickerBatch();',js)
+        self.assertIn('!this._isOwnBatchUpdate(p)',js)
+
+    def test_single_self_update_reuses_the_exact_server_batch_contract(self):
+        js=(ROOT/"frontend"/"lab.js").read_text(encoding="utf-8")
+        ws=(ROOT/"websocket_api.py").read_text(encoding="utf-8")
+        batch=(ROOT/"batch_installation.py").read_text(encoding="utf-8")
+        self.assertIn("async _openSingleSelfUpdate(project)",js)
+        self.assertIn("this._batchRunSelected = new Set([project.repository]);",js)
+        self.assertIn("await this._prepareMainBatch();",js)
+        self.assertIn('id="dra-self-update-single"',js)
+        self.assertIn('this._sourceBusy ||',js)
+        self.assertIn('"inspecting_sources","preparing","prepared","queued","running"',js)
+        self.assertIn('review_digest:this._batchReviewDigest,review_confirm:true',js)
+        self.assertIn('type:"deploy_relay_v2_dev/batch/prepare"',js)
+        self.assertIn('type:"deploy_relay_v2_dev/batch/start"',js)
+        self.assertIn('"self_update_blocked"',ws)
+        self.assertIn('if not 1 <= len(projects) <= 8:',ws)
+        self.assertIn('SELF_UPDATE_TARGETS',batch)
+        self.assertIn('str(manifest.after_install.value) != "home_assistant_restart"',batch)
+
+    def test_first_picker_position_is_fresh_device_default(self):
+        js=(ROOT/"frontend"/"lab.js").read_text(encoding="utf-8")
+        self.assertIn("this._pickerBatchPosition === 0",js)
+        self.assertIn("this._mainBatchMode = true;",js)
+        self.assertIn("!this._mainBatchMode && this._serverVersion === DRA_V2_UI_VERSION",js)
+        self.assertIn("if (current && !this._mainBatchMode &&",js)
+        self.assertIn("!this._isOwnBatchUpdate(p)",js)
+
+    def test_branch_discovery_not_blocked_by_inventory_lock(self):
+        ws=(ROOT/"websocket_api.py").read_text(encoding="utf-8")
+        init=(ROOT/"__init__.py").read_text(encoding="utf-8")
+        ast.parse(ws);ast.parse(init)
+        fragment=ws.split("async def async_projects_source_choices(",1)[1].split(
+            "async def async_projects_source_head(",1)[0]
+        self.assertIn("async with runtime.source_choices_lock:",fragment)
+        self.assertNotIn("runtime.source_scan_lock.locked()",fragment)
+        self.assertNotIn("async with runtime.source_scan_lock:",fragment)
+        self.assertIn("source_choices_lock=asyncio.Lock()",init)
+
+if __name__=="__main__":
+    unittest.main()
