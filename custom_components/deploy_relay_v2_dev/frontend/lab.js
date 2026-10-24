@@ -6034,13 +6034,8 @@ class DRAV2DevLabPanel extends HTMLElement {
           max_worker_processes: Number(s.querySelector("#settings-workers")?.value)
         };
       });
-      field?.addEventListener("blur", () => {
-        if (this._settingsRenderPending) {
-          this._settingsRenderPending = false;
-          // A blur caused by a native mobile selector closing is safe to render.
-          queueMicrotask(() => { if (this.isConnected) this._render(); });
-        }
-      });
+      // No immediate rerender on blur: a mobile tap on "Speichern"
+      // must not lose its target between blur and the click event.
     }
     s.querySelector("#settings-save")?.addEventListener("click", () => this._saveSettings());
     s.querySelector("#cpu-warning-ack")?.addEventListener("click", () => this._ackCpuWarning());
