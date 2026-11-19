@@ -2367,13 +2367,7 @@ class DRAV2DevLabPanel extends HTMLElement {
         this._batchPreparation.status !== "prepared" ||
         this._batchReviewDigest !== this._batchPreparation.review_digest ||
         this._batchStatus?.review_digest !== this._batchReviewDigest ||
-        !/^[a-f0-9]{32}$/.test(this._batchChallenge||"") ||
-        !window.confirm("Sammelinstallation auf Home Assistant starten? Bei Fehler werden weitere Projekte angehalten. Jeder Teilauftrag nutzt V1-Sicherung und Rückfall."
-          + (this._batchPreparation?.items?.some(item=>
-               ["deploy_relay_v2_dev","deploy_relay_agent_v2_dev"].includes(item.project_key))
-             ? " DRA V2 wird unbedingt zuletzt aktualisiert. Danach ist ein HA-Neustart notwendig."
-             : "")))return;
-    this._mainBatchBusy=true;
+        !/^[a-f0-9]{32}$/.test(this._batchChallenge||""))return;    this._mainBatchBusy=true;
     this._batchStartUncertain=true;
     this._mainBatchMessage="Sammelauftrag wird Home Assistant zur einmaligen Annahme übermittelt …";
     this._render();
