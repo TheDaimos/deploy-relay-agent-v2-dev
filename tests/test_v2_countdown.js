@@ -219,7 +219,7 @@ const Panel = elements.get("dra-v2-dev-lab-panel");
   assert.equal(count,0,"A stale review digest must reject install");
   p._batchReviewDigest=prep.review_digest;
   const oldConfirm=mockWindow.confirm;
-  mockWindow.confirm=()=>true;
+  mockWindow.confirm=()=>{throw Error("unexpected extra browser confirmation");};
   try {await p._startMainBatch();}
   finally {mockWindow.confirm=oldConfirm;}
   assert.equal(count,1);
