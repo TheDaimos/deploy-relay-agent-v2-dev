@@ -2367,7 +2367,8 @@ class DRAV2DevLabPanel extends HTMLElement {
         this._batchPreparation.status !== "prepared" ||
         this._batchReviewDigest !== this._batchPreparation.review_digest ||
         this._batchStatus?.review_digest !== this._batchReviewDigest ||
-        !/^[a-f0-9]{32}$/.test(this._batchChallenge||""))return;    this._mainBatchBusy=true;
+        !/^[a-f0-9]{32}$/.test(this._batchChallenge||""))return;
+    this._mainBatchBusy=true;
     this._batchStartUncertain=true;
     this._mainBatchMessage="Sammelauftrag wird Home Assistant zur einmaligen Annahme übermittelt …";
     this._render();
