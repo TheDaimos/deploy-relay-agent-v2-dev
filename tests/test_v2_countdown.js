@@ -2148,3 +2148,29 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   ]);
   console.log("DRA V2 project-free iPad observer, staleness, and confirmed completion PASS");
 })().catch(error=>{console.error(error);process.exitCode=1;});
+
+(() => {
+  // A live HA batch status refresh must not collapse an accordion opened by the user.
+  const panel = new Panel();
+  panel._batchStatus = {
+    schema:"dra-v2-batch-status.v1",status:"running",current:1,total:2,
+    items:[{project_key:"gewitterradar",status:"success",operation_id:"a".repeat(32)},
+      {project_key:"weather_router",status:"running",operation_id:"b".repeat(32)}],
+  };
+  const original = panel.shadowRoot.querySelector;
+  let opened = true;
+  panel.shadowRoot.querySelector = function(selector) {
+    if (selector === ".dra-batch-observer-details") return {open:opened};
+    return original.call(this,selector);
+  };
+  panel._render();
+  assert.match(panel.shadowRoot.innerHTML,/class="dra-batch-observer-details" open/);
+  assert.match(panel.shadowRoot.innerHTML,/Projektstatus anzeigen \\(2\\)/);
+  panel._batchStatus = {...panel._batchStatus,current:2};
+  panel._render();
+  assert.match(panel.shadowRoot.innerHTML,/class="dra-batch-observer-details" open/);
+  opened = false;
+  panel._render();
+  assert.match(panel.shadowRoot.innerHTML,/class="dra-batch-observer-details" >|class="dra-batch-observer-details">/);
+  console.log("DRA V2 batch status expansion survives HA polling PASS");
+})();
