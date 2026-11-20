@@ -2657,6 +2657,8 @@ class DRAV2DevLabPanel extends HTMLElement {
     const batchReviewTop = s?.querySelector(".dra-batch-review-table-wrap")?.scrollTop ?? 0;
     const batchDialogTop = s?.querySelector("#dra-batch-review-dialog")?.scrollTop ?? 0;
     const restartAdviceOpen = s?.querySelector(".dra-restart-advice")?.open === true;
+    // Polling replaces this entire shadow DOM. Keep the user-selected accordion state.
+    const batchObserverOpen = s?.querySelector(".dra-batch-observer-details")?.open === true;
     // Retain open mobile project details while HA polling rebuilds the shadow DOM.
     const expandedMobileProjects = new Set([...s.querySelectorAll(".dra-review-mobile-card[open]")]
       .map(node => node.dataset.projectKey));
@@ -4535,7 +4537,7 @@ class DRAV2DevLabPanel extends HTMLElement {
               <span class="dra-observer-note">${this._batchStatus.current} von ${this._batchStatus.total}
                 ${this._batchStatus.status === "preparing" ? "Quellen geprüft" : "Teilaufträgen abgeschlossen"}</span>
             </div>
-            ${this._batchStatus.items.length ? `<details class="dra-batch-observer-details">
+            ${this._batchStatus.items.length ? `<details class="dra-batch-observer-details" ${batchObserverOpen ? "open" : ""}>
               <summary>Projektstatus anzeigen (${this._batchStatus.items.length})</summary>
               <div class="dra-batch-observer-grid">
                 ${this._batchStatus.items.map(item => `<div class="dra-observer-note">
