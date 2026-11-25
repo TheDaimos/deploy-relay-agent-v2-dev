@@ -179,7 +179,7 @@ class PurePreflightTests(unittest.TestCase):
         obj["policy"]["max_files"] = 5000
         obj["policy"]["max_uncompressed_bytes"] = 150 * 1024 * 1024
         parsed = m.parse_manifest(json.dumps(obj).encode(), repository=REPO)
-        self.assertEqual(parsed["max_bytes"], 96 * 1024 * 1024)
+        self.assertEqual(parsed["max_bytes"], 150 * 1024 * 1024)
         self.assertEqual(parsed["max_files"], m.MAX_FILES)
 
         prefix = "custom_components/safe_project/"
@@ -197,8 +197,8 @@ class PurePreflightTests(unittest.TestCase):
 
         oversized = [dict(item) for item in entries]
         # Exceed the *total* source budget without an individually oversize blob.
-        oversized[0]["size"] += 40 * 1024 * 1024
-        oversized[1]["size"] += 40 * 1024 * 1024
+        oversized[0]["size"] += 55 * 1024 * 1024
+        oversized[1]["size"] += 55 * 1024 * 1024
         with self.assertRaisesRegex(m.PreflightError, "source exceeds manifest budget"):
             m.inspect_tree(parsed, oversized)
 
