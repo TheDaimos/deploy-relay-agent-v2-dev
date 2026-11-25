@@ -1,0 +1,42 @@
+name: DRA V2 0.1.123 source budget P0
+on:
+  push:
+    branches: [feature/v2-10-inventory-operation-contract]
+    paths:
+      - "custom_components/deploy_relay_v2_dev/source_preflight.py"
+      - "custom_components/deploy_relay_v2_dev/manifest.json"
+      - "custom_components/deploy_relay_v2_dev/frontend/lab.js"
+      - "tests/test_v2_source_preflight.py"
+      - ".github/workflows/v2-source-budget.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  source-budget:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Source-budget and security regression contracts
+        run: python -m unittest discover -s tests -p 'test_v2_source_preflight.py' -v
+      - name: Python syntax, JS syntax and synchronized 0.1.123 identity
+        run: |
+          python -m compileall -q custom_components/deploy_relay_v2_dev
+          node --check custom_components/deploy_relay_v2_dev/frontend/lab.js
+          python - <<'PY'
+          import json,pathlib
+          p=pathlib.Path("custom_components/deploy_relay_v2_dev")
+          m=json.loads((p/"manifest.json").read_text())
+          js=(p/"frontend/lab.js").read_text()
+          sp=(p/"source_preflight.py").read_text()
+          assert m["version"]=="0.1.123"
+          assert 'const DRA_V2_UI_VERSION = "0.1.123"' in js
+          assert "MAX_BYTES = 150 * 1024 * 1024" in sp
+          assert "MAX_FILES = 1000" in sp and "MAX_TREE = 3000" in sp
+          print("PASS 0.1.123 identity, 150 MiB bounded source preview, file/tree guards")
+          PY
