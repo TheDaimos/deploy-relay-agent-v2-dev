@@ -2165,7 +2165,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   };
   panel._render();
   assert.match(panel.shadowRoot.innerHTML,/class="dra-batch-observer-details" open/);
-  assert.match(panel.shadowRoot.innerHTML,/Projektstatus anzeigen \\(2\\)/);
+  assert.match(panel.shadowRoot.innerHTML,/Projektstatus anzeigen \(2\)/);
   panel._batchStatus = {...panel._batchStatus,current:2};
   panel._render();
   assert.match(panel.shadowRoot.innerHTML,/class="dra-batch-observer-details" open/);
