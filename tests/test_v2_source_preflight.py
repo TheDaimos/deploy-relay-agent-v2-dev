@@ -196,7 +196,9 @@ class PurePreflightTests(unittest.TestCase):
         self.assertEqual(sum(item["size"] for item in accepted), 64917942)
 
         oversized = [dict(item) for item in entries]
-        oversized[-1]["size"] += m.MAX_BYTES
+        # Exceed the *total* source budget without an individually oversize blob.
+        oversized[0]["size"] += 40 * 1024 * 1024
+        oversized[1]["size"] += 40 * 1024 * 1024
         with self.assertRaisesRegex(m.PreflightError, "source exceeds manifest budget"):
             m.inspect_tree(parsed, oversized)
 
