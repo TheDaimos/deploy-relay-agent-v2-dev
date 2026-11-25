@@ -173,6 +173,41 @@ class PurePreflightTests(unittest.TestCase):
         with self.assertRaises(m.PreflightError):
             m.inspect_tree(parsed, many)
 
+    def test_verified_gewitterradar_sized_inventory_with_bounded_security_limits(self):
+        """A 65-MB/279-file manifest scope must not fail the old 32-MB cap."""
+        obj = json.loads(manifest())
+        obj["policy"]["max_files"] = 5000
+        obj["policy"]["max_uncompressed_bytes"] = 150 * 1024 * 1024
+        parsed = m.parse_manifest(json.dumps(obj).encode(), repository=REPO)
+        self.assertEqual(parsed["max_bytes"], 96 * 1024 * 1024)
+        self.assertEqual(parsed["max_files"], m.MAX_FILES)
+
+        prefix = "custom_components/safe_project/"
+        # Synthetic Git metadata only: no oversized fixtures or real files.
+        sizes = [64917942 // 279] * 279
+        sizes[-1] += 64917942 - sum(sizes)
+        entries = [
+            {"path": f"{prefix}asset_{i:03d}.bin", "type": "blob",
+             "mode": "100644", "size": size, "sha": SHA}
+            for i, size in enumerate(sizes)
+        ]
+        accepted = m.inspect_tree(parsed, entries)
+        self.assertEqual(len(accepted), 279)
+        self.assertEqual(sum(item["size"] for item in accepted), 64917942)
+
+        oversized = [dict(item) for item in entries]
+        oversized[-1]["size"] += m.MAX_BYTES
+        with self.assertRaisesRegex(m.PreflightError, "source exceeds manifest budget"):
+            m.inspect_tree(parsed, oversized)
+
+        smaller_manifest = json.loads(manifest())
+        smaller_manifest["policy"]["max_uncompressed_bytes"] = 32 * 1024 * 1024
+        smaller_manifest["policy"]["max_files"] = 500
+        smaller = m.parse_manifest(json.dumps(smaller_manifest).encode(), repository=REPO)
+        self.assertEqual(smaller["max_bytes"], 32 * 1024 * 1024)
+        with self.assertRaisesRegex(m.PreflightError, "source exceeds manifest budget"):
+            m.inspect_tree(smaller, entries)
+
     def test_declared_budgets_outside_v1_envelope_still_fail(self):
         for key, value in (
             ("max_files", m.MAX_DECLARED_FILES + 1),
