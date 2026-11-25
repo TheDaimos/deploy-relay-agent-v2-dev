@@ -18,7 +18,10 @@ MAX_TREE = 3000
 MAX_GROUPS = 12
 # Actual V2 read-only processing budgets remain deliberately small.
 MAX_FILES = 1000
-MAX_BYTES = 32 * 1024 * 1024
+# Bound the preview to 96 MiB: a verified 279-file GewitterRadar distribution
+# contains 64,917,942 bytes, above the former 32-MiB limit. Keep the V1
+# declared-policy ceiling (150 MiB), per-manifest clamping, and file limits.
+MAX_BYTES = 96 * 1024 * 1024
 # External DRA V1 manifests can DECLARE a larger installation budget.
 # Accept only the established V1 envelope, then clamp to our lower V2
 # read-only budgets. Never allow the manifest to raise the scan limits.
