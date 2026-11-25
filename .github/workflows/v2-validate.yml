@@ -2,7 +2,7 @@ name: DRA V2 public validation
 
 on:
   push:
-    branches: [main]
+    branches: [main, feature/v2-10-inventory-operation-contract]
     paths:
       - "custom_components/**"
       - "tests/**"
