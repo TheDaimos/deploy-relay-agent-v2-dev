@@ -410,7 +410,10 @@ class DRAV2DevLabPanel extends HTMLElement {
           response?.schema !== "dra-v2-prepared-status.v1") return;
       const prepared = response.preparation;
       if (!prepared) {
-        if (this._installPreparation?.repository === repository) this._installPreparation = null;
+        if (this._installPreparation?.repository === repository) {
+          this._installPreparation = null;
+          this._installMessage = "Keine gültige Installationsvorbereitung mehr auf Home Assistant. Erneut vorbereiten.";
+        }
         return;
       }
       if (prepared.schema !== "dra-v2-install-preparation.v1" ||
@@ -424,11 +427,17 @@ class DRAV2DevLabPanel extends HTMLElement {
       const expected = this._sourceChoicesLoadedFor === repository &&
         this._sourceChoices?.recommended?.explicit && !this._manualSourceRef
         ? this._sourceChoices.recommended.ref : null;
-      if (expected && prepared.source_ref !== expected) {
+      const pinnedPreview = this._sourceRepository === repository &&
+        this._sourcePreview?.sources_verified === true &&
+        this._deploymentPreviewRef === this._mainSourceRef.trim();
+      // Never mix a pending server challenge from another source with the
+      // currently displayed pinned inventory.
+      const wrongPreview = pinnedPreview &&
+        (prepared.source_ref !== this._mainSourceRef.trim() ||
+         prepared.source_commit !== this._sourcePreview.source_commit);
+      if ((expected && prepared.source_ref !== expected) || wrongPreview) {
         this._installPreparation = null;
-        this._sourceMessage = "Ältere Vorbereitung für " + prepared.source_ref +
-          " nicht übernommen. Empfohlene Quelle: " + expected +
-          ". Neue Quellprüfung erforderlich.";
+        this._installMessage = "Vorbereitung gehört zu einem anderen Quellstand. Neue Vorschau und Vorbereitung erforderlich.";
         return;
       }
       this._installPreparation = prepared;
@@ -477,6 +486,8 @@ class DRAV2DevLabPanel extends HTMLElement {
           result?.confirmation_required !== true ||
           !/^[0-9a-f]{32}$/.test(result.challenge || "") ||
           result.repository !== project.repository ||
+          result.source_ref !== this._mainSourceRef.trim() ||
+          result.source_ref !== this._sourcePreview.source_ref ||
           result.source_commit !== this._sourcePreview.source_commit) {
         throw Error("unexpected preparation");
       }
@@ -489,6 +500,23 @@ class DRAV2DevLabPanel extends HTMLElement {
       this._installBusy = false;
       if (this.isConnected) this._render();
     }
+  }
+
+  async _resumeOrPrepareInstallation(project) {
+    // Reconcile the existing server-owned single-use challenge before creating
+    // a new plan. A button click never constitutes installation authorization.
+    if (!project || !this._hass || !this._runtimeCompatible()) return;
+    await this._restoreServerPreparation(project.repository);
+    const prepared = this._installPreparation;
+    if (prepared?.repository === project.repository &&
+        prepared.source_ref === this._mainSourceRef.trim() &&
+        prepared.source_commit === this._sourcePreview?.source_commit &&
+        /^[a-f0-9]{32}$/.test(prepared.challenge || "")) {
+      this._installMessage = "Vorbereitung auf Home Assistant bestätigt. Installation weiterhin nur nach Freigabe.";
+      if (this.isConnected) this._render();
+      return;
+    }
+    await this._prepareInstallation(project);
   }
 
   _releaseCompletedDeployment(project) {
@@ -5932,7 +5960,7 @@ class DRAV2DevLabPanel extends HTMLElement {
         // through the existing server-owned one-project batch safety contract.
         void this._openSingleSelfUpdate(mainProject);
       } else if (deploymentStage === 2 && mainProject && !preparedInstall) {
-        this._prepareInstallation(mainProject);
+        void this._resumeOrPrepareInstallation(mainProject);
       }
     });
     s.querySelector("#dra-preview-details")?.addEventListener("toggle", event => {
