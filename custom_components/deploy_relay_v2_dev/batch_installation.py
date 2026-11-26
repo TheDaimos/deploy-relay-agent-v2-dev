@@ -172,6 +172,7 @@ class BatchDeployment:
                     "inventory_file_limit", "inventory_byte_limit",
                     "inventory_duplicate_paths", "inventory_directory_cycle",
                     "inventory_unsafe_path", "inventory_read_unavailable",
+                    "inventory_transient_exhausted",
                 }
                 self._state["error_detail"] = (
                     detail_code if detail_code in allowed_details else None
