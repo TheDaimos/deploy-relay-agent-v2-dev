@@ -1,0 +1,35 @@
+name: DRA V2 DEV frontend and HA runtime version parity
+on:
+  push:
+    branches: [feature/v2-10-inventory-operation-contract]
+    paths:
+      - "custom_components/deploy_relay_v2_dev/const.py"
+      - "custom_components/deploy_relay_v2_dev/manifest.json"
+      - "custom_components/deploy_relay_v2_dev/frontend/lab.js"
+      - "custom_components/deploy_relay_v2_dev/websocket_api.py"
+      - "custom_components/deploy_relay_v2_dev/panel.py"
+      - "tests/test_v2_frontend_backend_version_parity.py"
+      - ".github/workflows/v2-version-parity.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  parity:
+    name: Version parity and unchanged approval gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Version parity and installation gate regression
+        run: python -m unittest discover -s tests -p 'test_v2_frontend_backend_version_parity.py' -v
+      - name: No syntax regression
+        run: |
+          python -m compileall -q custom_components/deploy_relay_v2_dev
+          node --check custom_components/deploy_relay_v2_dev/frontend/lab.js
