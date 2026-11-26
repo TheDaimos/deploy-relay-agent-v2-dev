@@ -1,7 +1,7 @@
 """Regression: V2 deployment approval must not get stuck on split UI/Python versions.
 
-The version lock is intentional; guarantee that distributable source versions
-match instead of bypassing the existing safety/confirmation workflow.
+Same-line patch drift is compatible; different API lines fail closed.
+Keep all existing safety/confirmation contracts intact.
 """
 from __future__ import annotations
 
@@ -51,11 +51,23 @@ class FrontendBackendVersionParity(unittest.TestCase):
         self.assertIn("from .const import DOMAIN, NAME, PANEL_ELEMENT, PANEL_PATH, STATIC_PATH, VERSION", self.panel)
         self.assertIn('f"{STATIC_PATH}/lab.js?v={VERSION}"', self.panel)
 
+    def test_patch_runtime_drift_is_permitted_only_within_same_api_line(self):
+        # A changed major/minor or missing runtime must not enter installation.
+        self.assertIn("_runtimeCompatible() {", self.ui)
+        self.assertIn("ui[1] === backend[1] && ui[2] === backend[2]", self.ui)
+        self.assertIn("!this._runtimeCompatible()", self.ui)
+        self.assertIn("async _openSingleSelfUpdate(project)", self.ui)
+        self.assertIn("A one-project HA batch uses the SAME immutable V1-backed implementation", self.ui)
+
     def test_installation_security_gates_are_not_bypassed(self):
         start = self.ui.index("  async _prepareInstallation(project) {")
         end = self.ui.index("  _releaseCompletedDeployment(project)", start)
         prepare = self.ui[start:end]
-        self.assertIn("this._serverVersion !== DRA_V2_UI_VERSION", prepare)
+        self.assertIn("!this._runtimeCompatible()", prepare)
+        self.assertIn("await this._syncController(project.repository)", prepare)
+        self.assertIn("return !!(ui && backend && ui[1] === backend[1] && ui[2] === backend[2])", self.ui)
+        self.assertIn("const backend = String(this._serverVersion || \"\").match", self.ui)
+        self.assertNotIn("this._serverVersion !== DRA_V2_UI_VERSION", prepare)
         self.assertIn("await this._syncController(project.repository)", prepare)
         self.assertIn('type:"deploy_relay_v2_dev/deployment/prepare"', prepare)
 
