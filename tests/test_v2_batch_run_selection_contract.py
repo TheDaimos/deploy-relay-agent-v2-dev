@@ -131,12 +131,16 @@ class BatchRunContract(unittest.TestCase):
         self.assertIn('"self_target_protected": True',fragment)
         self.assertIn('"self_update_blocked"',ws)
 
-    def test_single_self_update_has_explicit_batch_route(self):
+    def test_single_self_update_uses_ordinary_deployment_button(self):
         js=(ROOT/"frontend"/"lab.js").read_text(encoding="utf-8")
         self.assertIn("const ownSingleProject = !this._mainBatchMode",js)
-        self.assertIn('id="dra-self-update-batch-open"',js)
-        self.assertIn('2/4 · Eigenaktualisierung über Sammelupdate',js)
-        self.assertIn('this._openPickerBatch();',js)
+        self.assertIn('2/4 · Eigenaktualisierung vorbereiten',js)
+        self.assertIn('deploymentStage === 2 && ownSingleProject && mainProject',js)
+        self.assertIn('void this._openSingleSelfUpdate(mainProject);',js)
+        self.assertIn('(ownSingleProject && selfUpdateBlocked)',js)
+        self.assertNotIn('id="dra-self-update-single"',js)
+        self.assertNotIn('id="dra-self-update-batch-open"',js)
+        self.assertNotIn('DRA V2: Eigenaktualisierung gesondert geschützt',js)
         self.assertIn('!this._isOwnBatchUpdate(p)',js)
 
     def test_single_self_update_reuses_the_exact_server_batch_contract(self):
@@ -146,7 +150,7 @@ class BatchRunContract(unittest.TestCase):
         self.assertIn("async _openSingleSelfUpdate(project)",js)
         self.assertIn("this._batchRunSelected = new Set([project.repository]);",js)
         self.assertIn("await this._prepareMainBatch();",js)
-        self.assertIn('id="dra-self-update-single"',js)
+        self.assertIn('void this._openSingleSelfUpdate(mainProject);',js)
         self.assertIn('this._sourceBusy ||',js)
         self.assertIn('"inspecting_sources","preparing","prepared","queued","running"',js)
         self.assertIn('review_digest:this._batchReviewDigest,review_confirm:true',js)
