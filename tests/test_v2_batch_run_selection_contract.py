@@ -165,7 +165,8 @@ class BatchRunContract(unittest.TestCase):
         js=(ROOT/"frontend"/"lab.js").read_text(encoding="utf-8")
         self.assertIn("this._pickerBatchPosition === 0",js)
         self.assertIn("this._mainBatchMode = true;",js)
-        self.assertIn("!this._mainBatchMode",js)\n        self.assertIn("this._runtimeCompatible()",js)
+        self.assertIn("!this._mainBatchMode",js)
+        self.assertIn("this._runtimeCompatible()",js)
         self.assertIn("if (current && !this._mainBatchMode &&",js)
         self.assertIn("!this._isOwnBatchUpdate(p)",js)
 
