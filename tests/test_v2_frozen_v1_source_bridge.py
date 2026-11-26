@@ -108,8 +108,8 @@ class SourceBridgeTests(unittest.IsolatedAsyncioTestCase):
         async def immediate(_delay):
             return None
 
-        with patch.object(bridge,"GitHubClient",FakeClient),\\
-             patch.object(bridge,"async_build_source_inventory",unstable),\\
+        with patch.object(bridge,"GitHubClient",FakeClient),\
+             patch.object(bridge,"async_build_source_inventory",unstable),\
              patch.object(bridge.asyncio,"sleep",immediate):
             out=await bridge.prepare_frozen_v1_source(**self.props)
         self.assertEqual(out.inventory.source_commit,SHA)
@@ -128,8 +128,8 @@ class SourceBridgeTests(unittest.IsolatedAsyncioTestCase):
         async def immediate(_delay):
             return None
 
-        with patch.object(bridge,"GitHubClient",FakeClient),\\
-             patch.object(bridge,"async_build_source_inventory",rate_limited),\\
+        with patch.object(bridge,"GitHubClient",FakeClient),\
+             patch.object(bridge,"async_build_source_inventory",rate_limited),\
              patch.object(bridge.asyncio,"sleep",immediate):
             with self.assertRaises(bridge.SourceBridgeError) as raised:
                 await bridge.prepare_frozen_v1_source(**self.props)
@@ -153,12 +153,12 @@ class SourceBridgeTests(unittest.IsolatedAsyncioTestCase):
                 raise from_exception
             except bridge.GitHubApiError as root:
                 raise inventory_module.SourceInventoryError("cannot read directory") from root
-        with patch.object(bridge,"GitHubClient",FakeClient),\\
+        with patch.object(bridge,"GitHubClient",FakeClient),\
              patch.object(bridge,"async_build_source_inventory",unsafe):
             with self.assertRaisesRegex(bridge.SourceBridgeError,"inventory_unsafe_path"):
                 await bridge.prepare_frozen_v1_source(**self.props)
         self.assertEqual(attempts,1)
-        with patch.object(bridge,"GitHubClient",FakeClient),\\
+        with patch.object(bridge,"GitHubClient",FakeClient),\
              patch.object(bridge,"async_build_source_inventory",forbidden):
             with self.assertRaisesRegex(bridge.SourceBridgeError,"inventory_read_unavailable"):
                 await bridge.prepare_frozen_v1_source(**self.props)
