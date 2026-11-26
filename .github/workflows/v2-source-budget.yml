@@ -1,4 +1,4 @@
-name: DRA V2 0.1.123 source budget P0
+name: DRA V2 source budget P0
 on:
   push:
     branches: [feature/v2-10-inventory-operation-contract]
@@ -24,7 +24,7 @@ jobs:
           python-version: "3.13"
       - name: Source-budget and security regression contracts
         run: python -m unittest discover -s tests -p 'test_v2_source_preflight.py' -v
-      - name: Python syntax, JS syntax and synchronized 0.1.123 identity
+      - name: Python syntax, JS syntax and synchronized runtime identity
         run: |
           python -m compileall -q custom_components/deploy_relay_v2_dev
           node --check custom_components/deploy_relay_v2_dev/frontend/lab.js
@@ -34,9 +34,12 @@ jobs:
           m=json.loads((p/"manifest.json").read_text())
           js=(p/"frontend/lab.js").read_text()
           sp=(p/"source_preflight.py").read_text()
-          assert m["version"]=="0.1.123"
-          assert 'const DRA_V2_UI_VERSION = "0.1.123"' in js
+          from importlib.util import spec_from_file_location,module_from_spec
+          import re
+          version = re.search(r'VERSION: Final = "([^"]+)"', (p/"const.py").read_text()).group(1)
+          assert m["version"] == version
+          assert f'const DRA_V2_UI_VERSION = "{version}"' in js
           assert "MAX_BYTES = 150 * 1024 * 1024" in sp
           assert "MAX_FILES = 1000" in sp and "MAX_TREE = 3000" in sp
-          print("PASS 0.1.123 identity, 150 MiB bounded source preview, file/tree guards")
+          print(f"PASS {version} identity, 150 MiB bounded source preview, file/tree guards")
           PY
