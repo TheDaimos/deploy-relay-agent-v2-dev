@@ -116,6 +116,28 @@ class SourceBridgeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(calls,[SHA,SHA])
         self.assertEqual([x[0] for x in FakeClient.calls],["resolve","manifest"])
 
+    async def test_secondary_403_rate_limit_can_recover_without_writing(self):
+        calls=0
+        async def unstable(*args,**kw):
+            nonlocal calls
+            calls+=1
+            if calls == 1:
+                try:
+                    raise bridge.GitHubAccessError("GitHub access forbidden")
+                except bridge.GitHubAccessError as root:
+                    raise inventory_module.SourceInventoryError(
+                        "cannot read source directory") from root
+            return self.inventory
+        async def immediate(_delay):
+            return None
+        with patch.object(bridge,"GitHubClient",FakeClient),\
+             patch.object(bridge,"async_build_source_inventory",unstable),\
+             patch.object(bridge.asyncio,"sleep",immediate):
+            result=await bridge.prepare_frozen_v1_source(**self.props)
+        self.assertEqual(calls,2)
+        self.assertEqual(result.inventory.source_commit,SHA)
+        self.assertEqual((self.target/"main.py").read_bytes(),b"original")
+
     async def test_persistent_rate_limit_fails_closed_after_bounded_attempts(self):
         attempts=0
         async def rate_limited(*args,**kwargs):
@@ -160,9 +182,10 @@ class SourceBridgeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(attempts,1)
         with patch.object(bridge,"GitHubClient",FakeClient),\
              patch.object(bridge,"async_build_source_inventory",forbidden):
-            with self.assertRaisesRegex(bridge.SourceBridgeError,"inventory_read_unavailable"):
-                await bridge.prepare_frozen_v1_source(**self.props)
-        self.assertEqual(attempts,2)
+            with patch.object(bridge.asyncio,"sleep",return_value=None):
+                with self.assertRaisesRegex(bridge.SourceBridgeError,"inventory_transient_exhausted"):
+                    await bridge.prepare_frozen_v1_source(**self.props)
+        self.assertEqual(attempts,4)
 
     async def test_unpinned_or_malformed_input_never_calls_github(self):
         for values in (
