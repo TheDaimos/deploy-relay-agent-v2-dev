@@ -147,7 +147,7 @@ class PostInstallTests(unittest.TestCase):
         self.assertIn('postInstallJob.frontend_reload_possible === true', ui)
         self.assertIn('postInstallJob.restart_required === true', ui)
         self.assertIn('!this._restartDialogOpen', ui)
-        self.assertIn('this._serverVersion !== DRA_V2_UI_VERSION', ui)
+        self.assertIn("!this._runtimeCompatible()", ui)
         self.assertIn('type:"deploy_relay_v2_dev/deployment/restart"', ui)
         self.assertIn('operation_id:job.operation_id,confirm:true', ui)
         self.assertNotIn('type:"deploy_relay_v2_dev/deployment/restart",confirm:true,operation_id:undefined', ui)
