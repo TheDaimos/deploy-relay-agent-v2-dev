@@ -1205,14 +1205,14 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   assert.match(probe.shadowRoot.innerHTML,/id="dra-g2-connection-test"/);
   assert.match(probe.shadowRoot.innerHTML,/Python-Laufzeit:/);
   // Older backend must reject the special test before any WS start call.
-  probe._serverVersion = "0.1.64";
+  probe._serverVersion = "0.2.64";
   probe._render();
   assert.match(probe.shadowRoot.innerHTML,/Versionsabgleich erforderlich/);
   assert.match(probe.shadowRoot.innerHTML,/id="dra-g2-connection-test"[^>]*disabled/);
   await probe._sourceCheck({dataset:{repo:"TheDaimos/gewitterradar"}},true);
   assert.equal(calls.length,0);
-  assert.match(probe._sourceMessage,/Python-Laufzeit 0.1.64/);
-  probe._serverVersion = "0.1.121";
+  assert.match(probe._sourceMessage,/Python-Laufzeit 0.2.64/);
+  probe._serverVersion = "0.1.124";
   probe._render();
   assert.match(probe.shadowRoot.innerHTML,/Oberfläche und Laufzeit stimmen überein/);
   await probe._sourceCheck({dataset:{repo:"TheDaimos/gewitterradar"}},true);
@@ -1427,7 +1427,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
     if (request.type === "deploy_relay_v2_dev/deployment/status") {
       return {schema:"dra-v2-install-status.v1",job:null};
     }
-    return {version:"0.1.121",operations:[],projects:[]};
+    return {version:"0.1.124",operations:[],projects:[]};
   }};
   await versions._refresh();
   assert.deepEqual(requests,[
@@ -1440,7 +1440,7 @@ Promise.resolve(panel._configureArchiveDialog()).then(async () => {
   assert.match(versions.shadowRoot.innerHTML,/HA-Laufzeit: V0\.1\.121 DEV/);
   assert.doesNotMatch(versions.shadowRoot.innerHTML,/Abweichung ·/);
 
-  versions._hass = {async callWS() {return {version:"0.1.71",operations:[],projects:[]};}};
+  versions._hass = {async callWS() {return {version:"0.2.71",operations:[],projects:[]};}};
   await versions._refresh();
   assert.match(versions.shadowRoot.innerHTML,/id="dra-version" class="dra-version mismatch"/);
   assert.match(versions.shadowRoot.innerHTML,/Abweichung · HA-Laufzeit: V0\.1\.71 DEV/);
