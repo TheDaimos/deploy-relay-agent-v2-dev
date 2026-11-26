@@ -7,11 +7,12 @@ All remote source bytes are read from the exact pinned commit, not a branch.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import asyncio
 from pathlib import Path
 import re
 from typing import Any
 
-from .v1_engine.github_client import GitHubClient
+from .v1_engine.github_client import GitHubClient, GitHubRateLimitError, GitHubApiError
 from .v1_engine.manifest import DeploymentManifest, parse_manifest
 from .v1_engine.preview import PreviewResult
 from .parallel_preview import async_build_parallel_preview
@@ -31,6 +32,49 @@ INVENTORY_SAFE_ERRORS = {
     "duplicate/cyclic source directory discovery": "inventory_directory_cycle",
     "unsafe source path returned by GitHub": "inventory_unsafe_path",
 }
+
+
+# Restrict retries to transient GitHub transport/rate failures. Do not retry
+# malformed manifests, unsafe paths, byte limits, authentication, or SHA drift.
+_MAX_INVENTORY_ATTEMPTS = 3
+_INVENTORY_RETRY_DELAYS = (2, 5)
+
+
+def _transient_inventory_failure(error: SourceInventoryError) -> bool:
+    cause = error.__cause__
+    if isinstance(cause, GitHubRateLimitError):
+        return True
+    if isinstance(cause, GitHubApiError):
+        return str(cause) in {
+            "GitHub API returned HTTP 429",
+            "GitHub API returned HTTP 500",
+            "GitHub API returned HTTP 502",
+            "GitHub API returned HTTP 503",
+            "GitHub API returned HTTP 504",
+        }
+    # Network disconnections during a single pinned, read-only file request
+    # are transient. Avoid exposing raw network exception text in HA status.
+    return isinstance(cause, (ConnectionError, TimeoutError, OSError))
+
+
+async def _build_verified_inventory_with_retry(
+    session: Any, manifest: DeploymentManifest, *, source_ref: str,
+    source_commit: str, token: str | None,
+) -> SourceInventory:
+    for attempt in range(_MAX_INVENTORY_ATTEMPTS):
+        try:
+            return await async_build_source_inventory(
+                session, manifest, source_ref=source_ref,
+                source_commit=source_commit, token=token)
+        except SourceInventoryError as exc:
+            if not _transient_inventory_failure(exc):
+                raise
+            if attempt + 1 == _MAX_INVENTORY_ATTEMPTS:
+                raise SourceBridgeError(
+                    "inventory_transient_exhausted", check_stage="inventory") from None
+            await asyncio.sleep(_INVENTORY_RETRY_DELAYS[attempt])
+    raise SourceBridgeError("inventory_transient_exhausted",
+                            check_stage="inventory")
 
 
 class SourceBridgeError(ValueError):
@@ -92,7 +136,7 @@ async def prepare_frozen_v1_source(
         raise SourceBridgeError("verified manifest unavailable or invalid",
                                 check_stage="manifest") from None
     try:
-        inventory = await async_build_source_inventory(
+        inventory = await _build_verified_inventory_with_retry(
             session, manifest, source_ref=source_ref,
             source_commit=source_commit, token=token)
     except SourceInventoryError as exc:
