@@ -93,6 +93,77 @@ class SourceBridgeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(FakeClient.calls[1][3],SHA)
         self.assertEqual(FakeClient.calls[1][4],bridge.MAX_MANIFEST_BYTES)
 
+    async def test_transient_rate_limited_inventory_recovers_with_exact_commit(self):
+        calls=[]
+        async def unstable(session, manifest, **kw):
+            calls.append(kw["source_commit"])
+            if len(calls) == 1:
+                try:
+                    raise bridge.GitHubRateLimitError("GitHub API rate limit exhausted")
+                except bridge.GitHubRateLimitError as root:
+                    raise inventory_module.SourceInventoryError(
+                        "cannot read managed source file") from root
+            return self.inventory
+
+        async def immediate(_delay):
+            return None
+
+        with patch.object(bridge,"GitHubClient",FakeClient),\\
+             patch.object(bridge,"async_build_source_inventory",unstable),\\
+             patch.object(bridge.asyncio,"sleep",immediate):
+            out=await bridge.prepare_frozen_v1_source(**self.props)
+        self.assertEqual(out.inventory.source_commit,SHA)
+        self.assertEqual(calls,[SHA,SHA])
+        self.assertEqual([x[0] for x in FakeClient.calls],["resolve","manifest"])
+
+    async def test_persistent_rate_limit_fails_closed_after_bounded_attempts(self):
+        attempts=0
+        async def rate_limited(*args,**kwargs):
+            nonlocal attempts
+            attempts+=1
+            try:
+                raise bridge.GitHubRateLimitError("GitHub API rate limit exhausted")
+            except bridge.GitHubRateLimitError as root:
+                raise inventory_module.SourceInventoryError("cannot read directory") from root
+        async def immediate(_delay):
+            return None
+
+        with patch.object(bridge,"GitHubClient",FakeClient),\\
+             patch.object(bridge,"async_build_source_inventory",rate_limited),\\
+             patch.object(bridge.asyncio,"sleep",immediate):
+            with self.assertRaises(bridge.SourceBridgeError) as raised:
+                await bridge.prepare_frozen_v1_source(**self.props)
+        self.assertEqual(str(raised.exception),"inventory_transient_exhausted")
+        self.assertEqual(raised.exception.check_stage,"inventory")
+        self.assertEqual(attempts,3)
+        self.assertEqual((self.target/"main.py").read_bytes(),b"original")
+
+    async def test_unsafe_inventory_never_retried_or_accepted(self):
+        attempts=0
+        async def unsafe(*args,**kwargs):
+            nonlocal attempts
+            attempts+=1
+            raise inventory_module.SourceInventoryError(
+                "unsafe source path returned by GitHub")
+        async def forbidden(*args,**kwargs):
+            nonlocal attempts
+            attempts+=1
+            try:
+                from_exception=bridge.GitHubApiError("GitHub access forbidden")
+                raise from_exception
+            except bridge.GitHubApiError as root:
+                raise inventory_module.SourceInventoryError("cannot read directory") from root
+        with patch.object(bridge,"GitHubClient",FakeClient),\\
+             patch.object(bridge,"async_build_source_inventory",unsafe):
+            with self.assertRaisesRegex(bridge.SourceBridgeError,"inventory_unsafe_path"):
+                await bridge.prepare_frozen_v1_source(**self.props)
+        self.assertEqual(attempts,1)
+        with patch.object(bridge,"GitHubClient",FakeClient),\\
+             patch.object(bridge,"async_build_source_inventory",forbidden):
+            with self.assertRaisesRegex(bridge.SourceBridgeError,"inventory_read_unavailable"):
+                await bridge.prepare_frozen_v1_source(**self.props)
+        self.assertEqual(attempts,2)
+
     async def test_unpinned_or_malformed_input_never_calls_github(self):
         for values in (
             {"source_commit":"main"},
