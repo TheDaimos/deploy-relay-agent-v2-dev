@@ -366,9 +366,19 @@ class DRAV2DevLabPanel extends HTMLElement {
     }, 10000);
   }
 
+  _runtimeCompatible() {
+    // Patch releases of the same V2 API line speak the same versioned WS
+    // contracts. Do not block a self-update merely because the UI and HA
+    // runtime were refreshed at different times. A missing or different
+    // major/minor runtime remains fail-closed.
+    const ui = DRA_V2_UI_VERSION.match(/^(\d+)\.(\d+)\.(\d+)$/);
+    const backend = String(this._serverVersion || "").match(/^(\d+)\.(\d+)\.(\d+)$/);
+    return !!(ui && backend && ui[1] === backend[1] && ui[2] === backend[2]);
+  }
+
   async _syncController(repository = this._selectedMainRepo, takeOver = false) {
     if (!repository || !this._hass || this._controllerBusy ||
-        this._serverVersion !== DRA_V2_UI_VERSION) return false;
+        !this._runtimeCompatible()) return false;
     this._controllerBusy = true;
     try {
       const response = await this._hass.callWS({
@@ -391,7 +401,7 @@ class DRAV2DevLabPanel extends HTMLElement {
 
   async _restoreServerPreparation(repository = this._selectedMainRepo) {
     if (!repository || !this._hass || this._installBusy ||
-        this._serverVersion !== DRA_V2_UI_VERSION) return;
+        !this._runtimeCompatible()) return;
     try {
       const response = await this._hass.callWS({
         type:"deploy_relay_v2_dev/deployment/prepared_status", repository,
@@ -439,7 +449,7 @@ class DRAV2DevLabPanel extends HTMLElement {
         !this._sourcePreview || this._installBusy ||
         this._sourceRepository !== project.repository ||
         this._deploymentPreviewRef !== this._mainSourceRef.trim() ||
-        this._serverVersion !== DRA_V2_UI_VERSION) return;
+        !this._runtimeCompatible()) return;
     if (Array.isArray(this._sourcePreview.add) &&
         Array.isArray(this._sourcePreview.change) &&
         Array.isArray(this._sourcePreview.remove) &&
@@ -500,7 +510,7 @@ class DRAV2DevLabPanel extends HTMLElement {
 
   async _increaseTestVersion() {
     if (this._testVersionBusy || !this._testVersionConfirm ||
-        !this._hass || this._serverVersion !== DRA_V2_UI_VERSION) return;
+        !this._hass || !this._runtimeCompatible()) return;
     this._testVersionBusy = true;
     this._testVersionResult = "Teststand wird ausschließlich im Test-Repository erhöht …";
     this._render();
@@ -624,7 +634,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     const job = this._installJob;
     if (!job || job.status !== "success" || job.phase !== "complete" ||
         job.restart_required || job.frontend_reload_possible !== true ||
-        this._serverVersion !== DRA_V2_UI_VERSION ||
+        !this._runtimeCompatible() ||
         this._supersededCompletionIds.has(job.operation_id)) return;
     // A normal browser reload re-fetches frontend resources without restarting HA.
     // The V2 panel itself is registered without static cache headers.
@@ -634,7 +644,7 @@ class DRAV2DevLabPanel extends HTMLElement {
   async _requestHomeAssistantRestart() {
     const job = this._installJob;
     if (!this._hass || this._restartBusy || !this._restartDialogOpen ||
-        this._serverVersion !== DRA_V2_UI_VERSION ||
+        !this._runtimeCompatible() ||
         !job || job.status !== "success" || job.phase !== "complete" ||
         job.restart_required !== true ||
         this._supersededCompletionIds.has(job.operation_id)) return;
@@ -668,7 +678,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     const operationId = summary?.operation_id;
     if (!this._deferredRestartDialogOpen || this._deferredRestartBusy ||
         !this._hass || this._installStatusError ||
-        this._serverVersion !== DRA_V2_UI_VERSION ||
+        !this._runtimeCompatible() ||
         !summary?.required || summary.restart_requested ||
         !/^[0-9a-f]{32}$/.test(operationId || "") ||
         this._installJobs.some(job=>["queued","running","waiting_for_resource","cancel_requested"].includes(job.status))) return;
@@ -827,7 +837,7 @@ class DRAV2DevLabPanel extends HTMLElement {
       }
       // On a freshly opened device, prefer the single HA-held prepared session
       // over an arbitrary first project; never silently override user selection.
-      if (!this._selectedMainRepo && !this._mainBatchMode && this._serverVersion === DRA_V2_UI_VERSION) {
+      if (!this._selectedMainRepo && !this._mainBatchMode && this._runtimeCompatible()) {
         try {
           const active = await this._hass.callWS({
             type:"deploy_relay_v2_dev/deployment/sessions",
@@ -843,7 +853,7 @@ class DRAV2DevLabPanel extends HTMLElement {
           // A transient session discovery error does not break ordinary V2.
         }
       }
-      if (this._serverVersion === DRA_V2_UI_VERSION) {
+      if (this._runtimeCompatible()) {
         await this._pollInstallation();
         // Completed V2 audit records persist across HA restarts; load only as history.
         await this._refreshInstallAudit();
@@ -868,7 +878,7 @@ class DRAV2DevLabPanel extends HTMLElement {
       this._busy = false;
       if (this.isConnected) this._render();
       const current = this._selectedMainRepo || this._projects.find(p=>p.active !== false)?.repository;
-      if (current && !this._mainBatchMode && this._serverVersion === DRA_V2_UI_VERSION &&
+      if (current && !this._mainBatchMode && this._runtimeCompatible() &&
           this._sourceChoicesLoadedFor !== current && !this._sourceChoicesBusy) {
         this._selectedMainRepo = current;
         void this._loadSourceChoices();
@@ -1731,7 +1741,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     const project = this._projects.find(p=>p.repository===this._selectedMainRepo);
     if (!this._hass || !project || this._mainBatchMode || this._sourceHeadBusy ||
         this._sourceBusy || this._installBusy || this._installPreparation ||
-        this._serverVersion !== DRA_V2_UI_VERSION) return;
+        !this._runtimeCompatible()) return;
     this._sourceHeadBusy = true;
     this._sourceHeadMessage = "Neuester Git-Commit wird abgefragt …";
     this._render();
@@ -2115,7 +2125,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     // and review_digest as a multi-project batch. No direct self-write endpoint.
     if (!this._hass || !project || !this._isOwnBatchUpdate(project) ||
         project.active === false || this._mainBatchBusy || this._sourceBusy ||
-        this._serverVersion !== DRA_V2_UI_VERSION) return;
+        !this._runtimeCompatible()) return;
     if (["inspecting_sources","preparing","prepared","queued","running"].includes(
         this._batchStatus?.status)) {
       this._sourceMessage = "Ein Sammelauftrag besteht bereits. Diesen zuerst abschließen oder ausdrücklich verwerfen. Keine neue Eigenaktualisierung gestartet.";
@@ -2239,7 +2249,7 @@ class DRAV2DevLabPanel extends HTMLElement {
 
   async _prepareMainBatch() {
     if (!this._mainBatchMode || !this._hass || this._mainBatchBusy ||
-        this._serverVersion !== DRA_V2_UI_VERSION) return;
+        !this._runtimeCompatible()) return;
     const repositories = this._mainBatchProjects().map(p=>p.repository);
     if (!repositories.length || repositories.length>8) {
       this._mainBatchMessage="Bitte 1 bis 8 aktive Projekte auswählen."; this._render(); return;
@@ -2723,7 +2733,7 @@ class DRAV2DevLabPanel extends HTMLElement {
       this._batchStatus?.status);
     const selfUpdateBlocked = selfUpdateOccupied || this._sourceBusy ||
       this._mainBatchBusy || this._restartSummary?.required === true ||
-      this._serverVersion !== DRA_V2_UI_VERSION;
+      !this._runtimeCompatible();
     const mainBatchProjects = this._mainBatchProjects();
     const batchActiveProjects = this._projects.filter(p=>p.active!==false);
     const mainPreviewVerified = !this._mainBatchMode && !this._sourceConnectionTest &&
@@ -2841,7 +2851,7 @@ class DRAV2DevLabPanel extends HTMLElement {
     };
     const runtimeVersionKnown = typeof this._serverVersion === "string";
     const versionMismatch = runtimeVersionKnown &&
-      this._serverVersion !== DRA_V2_UI_VERSION;
+      !this._runtimeCompatible();
     const uiVersionLabel = "V" + DRA_V2_UI_VERSION + " DEV";
     const runtimeVersionLabel = runtimeVersionKnown
       ? "V" + this._serverVersion + " DEV" : "Noch nicht ermittelt";
@@ -2888,7 +2898,7 @@ class DRAV2DevLabPanel extends HTMLElement {
       !installActive && !this._installBusy && !this._installSubmissionActive;
     const displayFinished = !upToDate && (installFinished || archivedFinish);
     const postInstallJob = !upToDate && installFinished && !this._mainBatchMode &&
-      this._serverVersion === DRA_V2_UI_VERSION ? this._installJob : null;
+      this._runtimeCompatible() ? this._installJob : null;
     const installFailed = jobBelongsToProject &&
       ["failed","recovery_required","interrupted","cancelled"].includes(this._installJob?.status);
     // A freshly opened device may not hold the preview in browser memory.
@@ -4440,7 +4450,7 @@ class DRAV2DevLabPanel extends HTMLElement {
           <div><strong>DEPLOY RELAY AGENT V2</strong><div class="note">Sicheres Deployment für Git-Projekte</div></div>
           <div class="dra-actions">
           <span class="dra-lock">${mainPreviewVerified && !previewNoChanges && mainProject?.active !== false &&
-            this._serverVersion === DRA_V2_UI_VERSION ? "FREIGABEBEREIT" : "GESPERRT"}</span>
+            this._runtimeCompatible() ? "FREIGABEBEREIT" : "GESPERRT"}</span>
           <div id="dra-version" class="dra-version ${runtimeVersionState}"
             aria-label="Versionsübersicht: Oberfläche ${uiVersionLabel}; HA-Laufzeit ${runtimeVersionLabel}">
             <span class="dra-version-heading">Oberfläche</span>
@@ -4582,7 +4592,7 @@ class DRAV2DevLabPanel extends HTMLElement {
               <div class="dra-source-actions">
                 <button type="button" id="dra-source-refresh" ${this._mainBatchMode ||
                   !mainProject || this._sourceHeadBusy || deploymentBusy || !!this._installPreparation ||
-                  this._serverVersion !== DRA_V2_UI_VERSION ? "disabled" : ""}>
+                  !this._runtimeCompatible() ? "disabled" : ""}>
                   ${this._sourceHeadBusy ? "Prüfe …" : "Aktualisieren"}
                 </button>
               <span class="dra-source-badge ${mainPreviewVerified ? (previewNoChanges ? "verified" : "changed") : "unverified"}">
@@ -4910,12 +4920,12 @@ class DRAV2DevLabPanel extends HTMLElement {
               data-stage="${deploymentStage}"
               ${this._mainBatchMode
                 ? deploymentBusy || !deploymentCanPreview ||
-                  this._serverVersion !== DRA_V2_UI_VERSION ||
+                  !this._runtimeCompatible() ||
                   deploymentStage >= 3 || batchState === "up_to_date" ||
                   (deploymentStage === 2 && this._batchStartUncertain)
                 : upToDate || deploymentBusy || !deploymentCanPreview || deploymentStage >= 3 ||
                   (deploymentStage === 2 && (!mainProject || mainProject.active === false ||
-                  this._serverVersion !== DRA_V2_UI_VERSION || !!preparedInstall)) ? "disabled" : ""}
+                  !this._runtimeCompatible() || !!preparedInstall)) ? "disabled" : ""}
               aria-label="${deploymentButtonText}">
               ${deploymentBusy
                 ? iconSvg('<path d="M12 3a9 9 0 1 0 9 9"/>',25)
@@ -5024,10 +5034,10 @@ class DRAV2DevLabPanel extends HTMLElement {
             </div>
             <p class="dra-deployment-runtime note" aria-label="Laufzeitstatus">
               <span>Python-Laufzeit: ${this._escapeProject(this._serverVersion || "nicht ermittelt")}</span>
-              <span class="${this._serverVersion === DRA_V2_UI_VERSION ? "runtime-ok" : "runtime-warning"}">
-                ${this._serverVersion === DRA_V2_UI_VERSION
-                  ? "· Oberfläche und Laufzeit stimmen überein"
-                  : "· Versionsabgleich erforderlich"}
+              <span class="${this._runtimeCompatible() ? "runtime-ok" : "runtime-warning"}">
+                ${this._runtimeCompatible()
+                  ? (this._serverVersion === DRA_V2_UI_VERSION ? "· Oberfläche und Laufzeit stimmen überein" : "· Kompatible Patch-Versionen · Selbstupdate möglich")
+                  : "· Laufzeit nicht kompatibel"}
               </span>
             </p>
             <p class="dra-deployment-status note" role="status" aria-live="polite">
@@ -5206,7 +5216,7 @@ class DRAV2DevLabPanel extends HTMLElement {
                   <div class="dra-test-actions">
                     <button type="button" id="dra-test-version-increment"
                       ${!this._testVersionConfirm || this._testVersionBusy ||
-                        this._serverVersion !== DRA_V2_UI_VERSION ? "disabled" : ""}>
+                        !this._runtimeCompatible() ? "disabled" : ""}>
                       ${this._testVersionBusy ? "Testdateien werden vorbereitet …" : "Testdateien vorbereiten"}</button>
                   </div>
                   <p class="dra-test-result note" role="status" aria-live="polite">
@@ -5830,7 +5840,7 @@ class DRAV2DevLabPanel extends HTMLElement {
       this._testVersionConfirm = e.currentTarget.checked;
       const submit = this.shadowRoot?.querySelector("#dra-test-version-increment");
       if (submit) submit.disabled = !this._testVersionConfirm || this._testVersionBusy ||
-        this._serverVersion !== DRA_V2_UI_VERSION;
+        !this._runtimeCompatible();
     });
     s.querySelector("#dra-test-version-increment")?.addEventListener("click",()=>this._increaseTestVersion());
     s.querySelector("#dra-g2-connection-test")?.addEventListener("click",()=>{
