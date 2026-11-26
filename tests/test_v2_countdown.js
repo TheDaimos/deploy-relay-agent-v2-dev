@@ -363,9 +363,9 @@ const Panel = elements.get("dra-v2-dev-lab-panel");
     self_preview_readonly:true,add:["x.py"],change:[],remove:[],unchanged_count:2};
   p._render();
   const rendered=p.shadowRoot.innerHTML;
-  assert.match(rendered,/Eigenaktualisierung gesondert geschützt/);
-  assert.match(rendered,/2\/4 · Eigenaktualisierung über Sammelupdate/);
-  assert.match(rendered,/id="dra-self-update-batch-open"/);
+  assert.doesNotMatch(rendered,/Eigenaktualisierung gesondert geschützt/);
+  assert.match(rendered,/2\/4 · Eigenaktualisierung vorbereiten/);
+  assert.doesNotMatch(rendered,/id="dra-self-update-batch-open"/);
   assert.doesNotMatch(rendered,/id="dra-install-confirm"/);
   p._projectPickerOpen=true;
   p._openPickerBatch();
@@ -373,7 +373,7 @@ const Panel = elements.get("dra-v2-dev-lab-panel");
   assert.equal(p._batchRunSelected.has(own),false);
   assert.equal(p._batchRunSelected.has("TheDaimos/gewitterradar"),true);
   assert.match(p.shadowRoot.innerHTML,/DRA V2 wird zwingend als letztes Projekt installiert|Projekte vorausgewählt/);
-  console.log("DRA V2 read-only self preview routes to explicit opt-in batch without individual install PASS");
+  console.log("DRA V2 normal single-update button exposes protected self-update and batch opt-in remains separate PASS");
 })();
 
 (async function testSingleProjectSelfUpdateUsesOnlyBatchPreparation() {
