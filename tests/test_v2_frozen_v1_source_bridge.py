@@ -182,10 +182,9 @@ class SourceBridgeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(attempts,1)
         with patch.object(bridge,"GitHubClient",FakeClient),\
              patch.object(bridge,"async_build_source_inventory",forbidden):
-            with patch.object(bridge.asyncio,"sleep",return_value=None):
-                with self.assertRaisesRegex(bridge.SourceBridgeError,"inventory_transient_exhausted"):
-                    await bridge.prepare_frozen_v1_source(**self.props)
-        self.assertEqual(attempts,4)
+            with self.assertRaisesRegex(bridge.SourceBridgeError,"inventory_read_unavailable"):
+                await bridge.prepare_frozen_v1_source(**self.props)
+        self.assertEqual(attempts,2)
 
     async def test_unpinned_or_malformed_input_never_calls_github(self):
         for values in (
