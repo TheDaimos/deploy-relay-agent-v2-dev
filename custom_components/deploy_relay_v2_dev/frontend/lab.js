@@ -2943,7 +2943,7 @@ class DRAV2DevLabPanel extends HTMLElement {
         : batchState === "up_to_date" ? "Aktuell · Kein Sammelupdate erforderlich"
         : "1/4 · Sammelinstallation prüfen und vorbereiten"
       : ownSingleProject && mainPreviewVerified && !previewNoChanges
-        ? "2/4 · Eigenaktualisierung über Sammelupdate"
+        ? "2/4 · Eigenaktualisierung vorbereiten"
       : upToDate ? "Aktuell · Kein Update verfügbar" :
       installFinished ? "4/4 · Abschluss – erfolgreich installiert" :
       archivedFinish ? "4/4 · Letzter Abschluss (gespeichert)" :
@@ -3744,15 +3744,6 @@ class DRAV2DevLabPanel extends HTMLElement {
         .dra-batch-install-counts .dra-review-remove {color:#ff667f;font-weight:800;}
         .dra-batch-install-zero {color:#a9b7c0;opacity:.7;}
         .dra-batch-install-state {color:#c3dbe4;}
-        .dra-self-update-route {display:grid;gap:7px;margin:0 0 12px;padding:11px 13px;
-          border:1px solid #947239;border-radius:10px;background:rgba(126,91,29,.12);
-          font-size:12px;line-height:1.5;}
-        .dra-self-update-route strong {color:#f3d49c;font-size:13px;}
-        .dra-self-update-route button {justify-self:start;min-height:42px;padding:9px 14px;}
-        .dra-self-update-actions {display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
-        .dra-self-update-actions button {min-width:0;}
-
-        @media(max-width:600px) {.dra-self-update-route button {width:100%;}}
         .dra-restart-confirm {margin-top:12px;border:1px solid #bd914f;
           border-radius:9px;background:#392c22;padding:13px;}
         .dra-restart-confirm p {color:#ffe6c7;margin:5px 0 12px;}
@@ -4905,22 +4896,6 @@ class DRAV2DevLabPanel extends HTMLElement {
                   </div>
                 </details>
               </section>` : ""}
-            ${ownSingleProject ? `<div class="dra-self-update-route" role="status">
-              <strong>DRA V2: Eigenaktualisierung gesondert geschützt</strong>
-              <span>Die direkte Einzelinstallation bleibt geschützt. Für die Eigenaktualisierung
-                wird der vorhandene serverseitige Sammelvertrag mit ausschließlich DRA V2
-                genutzt: feste Commits prüfen, gesondert bestätigen, sichern und zuletzt installieren.
-                Alternativ kannst du wie bisher das Sammelupdate für mehrere Projekte öffnen.</span>
-              <div class="dra-self-update-actions">
-                <button type="button" id="dra-self-update-single"
-                  ${selfUpdateBlocked ? "disabled" : ""}>DRA V2 einzeln prüfen und aktualisieren</button>
-                <button type="button" id="dra-self-update-batch-open"
-                  ${this._mainBatchBusy ? "disabled" : ""}>Sammelupdate öffnen</button>
-              </div>
-              ${selfUpdateOccupied ? `<span class="note" role="status">Es besteht bereits ein Sammelauftrag
-                (${this._escapeProject(this._batchStatus?.status)}). Erst diesen abschließen oder
-                ausdrücklich verwerfen; kein zweiter Auftrag wird gestartet.</span>` : ""}
-            </div>` : ""}
             <button id="dra-preview" class="dra-deploy-action stage-${deploymentStage}
               ${!this._mainBatchMode && upToDate ? "up-to-date" : ""}
               ${deploymentBusy ? "is-busy" : ""} ${this._mainBatchMode ? batchFailed ? "has-error" : "" : installFailed ? "has-error" : ""}"
@@ -4932,7 +4907,8 @@ class DRAV2DevLabPanel extends HTMLElement {
                   (deploymentStage === 2 && this._batchStartUncertain)
                 : upToDate || deploymentBusy || !deploymentCanPreview || deploymentStage >= 3 ||
                   (deploymentStage === 2 && (!mainProject || mainProject.active === false ||
-                  !this._runtimeCompatible() || !!preparedInstall)) ? "disabled" : ""}
+                  !this._runtimeCompatible() || !!preparedInstall ||
+                  (ownSingleProject && selfUpdateBlocked))) ? "disabled" : ""}
               aria-label="${deploymentButtonText}">
               ${deploymentBusy
                 ? iconSvg('<path d="M12 3a9 9 0 1 0 9 9"/>',25)
@@ -5951,21 +5927,13 @@ class DRAV2DevLabPanel extends HTMLElement {
         }
       } else if (deploymentStage === 1 && mainProject) {
         this._sourceCheck({dataset:{repo:mainProject.repository}});
-      } else if (deploymentStage === 2 && ownSingleProject) {
-        this._projectPickerOpen = true;
-        this._openPickerBatch();
+      } else if (deploymentStage === 2 && ownSingleProject && mainProject) {
+        // Keep the ordinary single-project 4-step UX. Self-update still runs
+        // through the existing server-owned one-project batch safety contract.
+        void this._openSingleSelfUpdate(mainProject);
       } else if (deploymentStage === 2 && mainProject && !preparedInstall) {
         this._prepareInstallation(mainProject);
       }
-    });
-    s.querySelector("#dra-self-update-single")?.addEventListener("click", () => {
-      if (!ownSingleProject || !mainProject) return;
-      void this._openSingleSelfUpdate(mainProject);
-    });
-    s.querySelector("#dra-self-update-batch-open")?.addEventListener("click", () => {
-      if (!ownSingleProject || deploymentBusy || this._mainBatchBusy) return;
-      this._projectPickerOpen = true;
-      this._openPickerBatch();
     });
     s.querySelector("#dra-preview-details")?.addEventListener("toggle", event => {
       this._previewDetailsOpen = event.currentTarget.open;
