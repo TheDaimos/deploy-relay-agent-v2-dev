@@ -96,6 +96,23 @@ class SourceChoicesContract(unittest.TestCase):
         self.assertIn("Lokal installiert:", js)
         self.assertIn("Rückschritt erkannt", js)
 
+    def test_source_dropdown_survives_status_polling(self):
+        # The 1.5-second HA refresh must not replace an open native select.
+        js = (ROOT / "frontend/lab.js").read_text(encoding="utf-8")
+        render_start = js.index("  _render() {")
+        render = js[render_start:js.index("    s.innerHTML = ", render_start)]
+        self.assertIn('editing?.id === "dra-main-choice"', render)
+        self.assertIn('this._view === "main"', render)
+        self.assertIn('!this._sourceChoicesBusy', render)
+        self.assertLess(render.index('editing?.id === "dra-main-choice"'),
+                        render.index("    s.innerHTML") if "    s.innerHTML" in render else len(render))
+        change_start = js.index('s.querySelector("#dra-main-choice")?.addEventListener("change"')
+        change = js[change_start:js.index("    });", change_start)]
+        self.assertIn("e.currentTarget.blur();", change)
+        self.assertLess(change.index("e.currentTarget.blur();"),
+                        change.index("this._applySourceChoice(chosen);"))
+        self.assertIn("this._timer = setTimeout(() => { this._refresh(); }, 1500)", js)
+
     def test_browser_selector_preserves_sha_bound_preview(self):
         js = (ROOT / "frontend/lab.js").read_text(encoding="utf-8")
         self.assertIn('id="dra-main-choice"', js)
