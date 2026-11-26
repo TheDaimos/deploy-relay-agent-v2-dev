@@ -37,7 +37,7 @@ class FrontendBackendVersionParity(unittest.TestCase):
 
     def test_all_dra_v2_version_markers_are_identical(self):
         match = re.search(
-            r'^const DRA_V2_UI_VERSION = "([0-9]+\\.[0-9]+\\.[0-9]+)";$',
+            r'^const DRA_V2_UI_VERSION = "([0-9]+\.[0-9]+\.[0-9]+)";$',
             self.ui,
             re.MULTILINE,
         )
