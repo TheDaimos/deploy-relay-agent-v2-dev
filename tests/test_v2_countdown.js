@@ -400,6 +400,32 @@ const Panel = elements.get("dra-v2-dev-lab-panel");
   console.log("DRA V2 single self-update selects exactly one project without installing PASS");
 })().catch(e=>{console.error(e);process.exitCode=1;});
 
+(async function testStepTwoResumesExactServerPreparationBeforeCreatingNewOne() {
+  const repo="TheDaimos/gewitterradar";
+  const project={project_id:"gewitterradar",repository:repo,active:true};
+  const p=new Panel();p._view="main";p._serverVersion="0.1.125";
+  p._hass={callWS:async()=>{throw Error("no real installation");}};
+  p._selectedMainRepo=repo;p._projects=[project];
+  p._mainSourceRef="feature/v4.14-monitored-areas";
+  p._sourceRepository=repo;p._deploymentPreviewRef=p._mainSourceRef;
+  p._sourcePreview={sources_verified:true,source_ref:p._mainSourceRef,
+    source_commit:"a".repeat(40),add:["build_info.py"],change:[],remove:[]};
+  const valid={repository:repo,source_ref:p._mainSourceRef,
+    source_commit:p._sourcePreview.source_commit,challenge:"b".repeat(32)};
+  let lookups=0,prepares=0;
+  p._restoreServerPreparation=async()=>{lookups++;p._installPreparation=valid;};
+  p._prepareInstallation=async()=>{prepares++;};
+  await p._resumeOrPrepareInstallation(project);
+  assert.equal(lookups,1);
+  assert.equal(prepares,0,"same pinned server plan must never be duplicated");
+  assert.match(p.shadowRoot.innerHTML,/Ja, Update installieren/);
+  assert.match(p._installMessage,/nur nach Freigabe/);
+  p._restoreServerPreparation=async()=>{lookups++;p._installPreparation=null;};
+  await p._resumeOrPrepareInstallation(project);
+  assert.equal(prepares,1,"missing server preparation may be retried after read-only reconciliation");
+  console.log("DRA V2 step 2 resumes exact existing server approval without duplicate preparation PASS");
+})().catch(e=>{console.error(e);process.exitCode=1;});
+
 (async function testSingleSelfUpdateCannotOverrideExistingPreparedBatch() {
   const repo="TheDaimos/deploy-relay-agent-v2-dev";
   const project={project_id:"deploy_relay_agent_v2_dev",repository:repo,name:"DRA V2",active:true};
