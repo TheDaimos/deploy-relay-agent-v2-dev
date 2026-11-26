@@ -5148,6 +5148,7 @@ class DRAV2DevLabPanel extends HTMLElement {
                     inventory_directory_cycle:"Unzulässiger oder doppelter Quellordner",
                     inventory_unsafe_path:"Unsicherer Quellpfad",
                     inventory_read_unavailable:"GitHub-Dateibestand konnte nicht vollständig verifiziert werden",
+                    inventory_transient_exhausted:"GitHub-Leseanfragen auch nach begrenzten Wiederholungen nicht erfolgreich (Rate/Netz). Keine Installation gestartet.",
                   })[this._batchStatus.error_detail] || "Quellprüfung konnte nicht verifiziert werden")}</p>` : ""}
                 <p class="note">Diese Angaben stammen aus dem lesbaren Home-Assistant-Auftragsstatus.
                   Ein zusätzlicher Protokollexport ist dafür nicht notwendig. Andere ausgewählte
