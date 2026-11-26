@@ -143,6 +143,8 @@ async def prepare_frozen_v1_source(
         raise SourceBridgeError(
             INVENTORY_SAFE_ERRORS.get(str(exc), "inventory_read_unavailable"),
             check_stage="inventory") from None
+    except SourceBridgeError:
+        raise
     except Exception:
         raise SourceBridgeError("inventory_read_unavailable",
                                 check_stage="inventory") from None
