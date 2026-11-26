@@ -12,7 +12,7 @@ from pathlib import Path
 import re
 from typing import Any
 
-from .v1_engine.github_client import GitHubClient, GitHubRateLimitError, GitHubApiError
+from .v1_engine.github_client import GitHubClient, GitHubRateLimitError, GitHubAccessError, GitHubApiError
 from .v1_engine.manifest import DeploymentManifest, parse_manifest
 from .v1_engine.preview import PreviewResult
 from .parallel_preview import async_build_parallel_preview
@@ -42,7 +42,10 @@ _INVENTORY_RETRY_DELAYS = (2, 5)
 
 def _transient_inventory_failure(error: SourceInventoryError) -> bool:
     cause = error.__cause__
-    if isinstance(cause, GitHubRateLimitError):
+    if isinstance(cause, (GitHubRateLimitError, GitHubAccessError)):
+        # GitHub secondary rate limits may report HTTP 403 while the primary
+        # X-RateLimit-Remaining counter is nonzero. A permanent 403 still fails
+        # closed after at most three read-only attempts.
         return True
     if isinstance(cause, GitHubApiError):
         return str(cause) in {
