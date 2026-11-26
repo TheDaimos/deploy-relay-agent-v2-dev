@@ -1,0 +1,13 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "DRA V2 DEV – Test Lab",
+        "description": "Separate read-only test integration without installation or restore functions."
+      }
+    },
+    "abort": {
+      "already_configured": "The V2 development test lab is already configured."
+    }
+  }
+}
