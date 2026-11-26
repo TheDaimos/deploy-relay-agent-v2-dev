@@ -2661,6 +2661,13 @@ class DRAV2DevLabPanel extends HTMLElement {
       return;
     }
     this._settingsRenderPending = false;
+    // Polling replaces the entire shadow tree, which closes a native branch/tag
+    // selector before the operator can choose a release. Defer only while that
+    // select owns focus; the next normal status refresh renders after blur.
+    if (this._view === "main" && editing?.id === "dra-main-choice" &&
+        !this._sourceChoicesBusy) {
+      return;
+    }
     // The HA test status can refresh while this dialog is open. Preserve the
     // unsent secret only in the transient password input, never component state.
     const batchReviewScroll = s?.querySelector(".dra-batch-review-table-wrap")?.scrollLeft ?? 0;
@@ -5787,7 +5794,12 @@ class DRAV2DevLabPanel extends HTMLElement {
       if (ref) this._applySourceChoice(ref);
     });
     s.querySelector("#dra-main-choice")?.addEventListener("change",e=>{
-      if (e.target.value) this._applySourceChoice(e.target.value);
+      const chosen = e.currentTarget.value;
+      if (chosen) {
+        // Selection is committed: release the focus guard before its own render.
+        e.currentTarget.blur();
+        this._applySourceChoice(chosen);
+      }
     });
     s.querySelector("#dra-main-ref")?.addEventListener("input",e=>{
       this._manualSourceRef = true;
